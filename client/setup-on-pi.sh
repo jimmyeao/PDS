@@ -5,7 +5,7 @@
 
 set -e
 
-REPO_URL=${1:-"https://github.com/YOUR_USERNAME/YOUR_REPO.git"}
+REPO_URL=${1:-"https://github.com/jimmyeao/PDS.git"}
 INSTALL_DIR=${2:-"$HOME/kiosk"}
 
 echo "🚀 Setting up Kiosk Client on Raspberry Pi"
