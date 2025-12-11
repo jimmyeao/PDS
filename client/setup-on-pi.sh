@@ -32,7 +32,7 @@ fi
 
 # Install dependencies for workspace
 echo "📦 Installing dependencies..."
-npm install --workspace=shared --workspace=client
+npm install --workspace=shared --workspace=client --legacy-peer-deps
 
 # Build shared package
 echo "🔧 Building shared package..."
