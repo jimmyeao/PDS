@@ -53,3 +53,11 @@ export interface UpdateDeviceDto {
   location?: string;
   status?: DeviceStatus;
 }
+
+export interface Screenshot {
+  id: number;
+  deviceId: number;
+  imageData: string;
+  url: string;
+  capturedAt: Date;
+}

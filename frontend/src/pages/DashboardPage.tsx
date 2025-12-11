@@ -1,17 +1,20 @@
 import { useEffect } from 'react';
 import { useDeviceStore } from '../store/deviceStore';
 import { useContentStore } from '../store/contentStore';
+import { useWebSocketStore } from '../store/websocketStore';
 
 export const DashboardPage = () => {
   const { devices, fetchDevices } = useDeviceStore();
   const { content, fetchContent } = useContentStore();
+  const { connectedDevices } = useWebSocketStore();
 
   useEffect(() => {
     fetchDevices();
     fetchContent();
   }, [fetchDevices, fetchContent]);
 
-  const onlineDevices = devices.filter((d) => d.status === 'online').length;
+  const isDeviceOnline = (deviceId: string) => connectedDevices.has(deviceId);
+  const onlineDevices = devices.filter((d) => isDeviceOnline(d.deviceId)).length;
 
   return (
     <div>
@@ -52,12 +55,12 @@ export const DashboardPage = () => {
                   </div>
                   <span
                     className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      device.status === 'online'
+                      isDeviceOnline(device.deviceId)
                         ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
                         : 'bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200'
                     }`}
                   >
-                    {device.status}
+                    {isDeviceOnline(device.deviceId) ? 'online' : 'offline'}
                   </span>
                 </div>
               ))}

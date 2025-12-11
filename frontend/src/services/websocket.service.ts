@@ -78,6 +78,10 @@ class WebSocketService {
   }
 
   // Event listeners for admin events
+  onDevicesSync(callback: (payload: { deviceIds: string[]; timestamp: Date }) => void) {
+    this.socket?.on('admin:devices:sync', callback);
+  }
+
   onDeviceConnected(callback: (payload: AdminDeviceConnectedPayload) => void) {
     this.socket?.on(ServerToAdminEventValues.DEVICE_CONNECTED, callback);
   }
@@ -103,6 +107,10 @@ class WebSocketService {
   }
 
   // Remove event listeners
+  offDevicesSync(callback: (payload: { deviceIds: string[]; timestamp: Date }) => void) {
+    this.socket?.off('admin:devices:sync', callback);
+  }
+
   offDeviceConnected(callback: (payload: AdminDeviceConnectedPayload) => void) {
     this.socket?.off(ServerToAdminEventValues.DEVICE_CONNECTED, callback);
   }

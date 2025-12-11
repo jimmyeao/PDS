@@ -10,7 +10,7 @@ interface DeviceState {
 
   fetchDevices: () => Promise<void>;
   fetchDevice: (id: number) => Promise<void>;
-  createDevice: (data: any) => Promise<void>;
+  createDevice: (data: any) => Promise<Device & { token?: string }>;
   updateDevice: (id: number, data: any) => Promise<void>;
   deleteDevice: (id: number) => Promise<void>;
   setSelectedDevice: (device: Device | null) => void;
@@ -52,8 +52,9 @@ export const useDeviceStore = create<DeviceState>((set) => ({
   createDevice: async (data) => {
     set({ isLoading: true, error: null });
     try {
-      await deviceService.create(data);
+      const device = await deviceService.create(data);
       set({ isLoading: false });
+      return device;
     } catch (error: any) {
       set({
         error: error.response?.data?.message || 'Failed to create device',

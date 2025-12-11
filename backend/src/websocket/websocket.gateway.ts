@@ -8,7 +8,7 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Logger, UseGuards, forwardRef, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -27,7 +27,9 @@ import type {
   AdminDeviceStatusPayload,
   AdminDeviceHealthPayload,
   AdminErrorPayload,
+  AdminScreenshotReceivedPayload,
 } from '@kiosk/shared';
+import { ScreenshotsService } from '../screenshots/screenshots.service';
 
 interface AuthenticatedSocket extends Socket {
   deviceId?: string;
@@ -55,6 +57,8 @@ export class WebSocketGatewayService
   constructor(
     private jwtService: JwtService,
     private configService: ConfigService,
+    @Inject(forwardRef(() => ScreenshotsService))
+    private screenshotsService: ScreenshotsService,
   ) {}
 
   async handleConnection(client: AuthenticatedSocket) {
@@ -82,6 +86,16 @@ export class WebSocketGatewayService
         client.userId = payload.sub;
         this.adminSockets.add(client);
         this.logger.log(`Admin connected: ${client.id} (User ID: ${client.userId})`);
+
+        // Send current list of connected devices to the newly connected admin
+        const connectedDeviceIds = Array.from(this.deviceSockets.keys());
+        if (connectedDeviceIds.length > 0) {
+          client.emit('admin:devices:sync', {
+            deviceIds: connectedDeviceIds,
+            timestamp: new Date(),
+          });
+          this.logger.debug(`Sent ${connectedDeviceIds.length} connected devices to admin ${client.id}`);
+        }
       } else if (role === 'device') {
         const deviceId = client.handshake.auth?.deviceId;
         if (!deviceId) {
@@ -182,13 +196,31 @@ export class WebSocketGatewayService
   }
 
   @SubscribeMessage(ClientToServerEvent.SCREENSHOT_UPLOAD)
-  handleScreenshotUpload(
+  async handleScreenshotUpload(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() payload: ScreenshotUploadPayload,
   ) {
     this.logger.log(`Screenshot received from ${payload.deviceId}`);
-    // Screenshot handling will be done via HTTP endpoint
-    // This is just a notification
+
+    try {
+      // Save screenshot to database
+      const screenshot = await this.screenshotsService.saveScreenshot(
+        payload.deviceId,
+        payload.image,
+        payload.currentUrl,
+      );
+
+      // Notify admins
+      this.notifyAdmins(ServerToAdminEvent.SCREENSHOT_RECEIVED, {
+        deviceId: payload.deviceId,
+        screenshotId: screenshot.id,
+        timestamp: new Date(),
+      } as AdminScreenshotReceivedPayload);
+
+      this.logger.log(`Screenshot saved with ID: ${screenshot.id}`);
+    } catch (error) {
+      this.logger.error(`Failed to save screenshot: ${error.message}`);
+    }
   }
 
   // Public methods to send events to devices

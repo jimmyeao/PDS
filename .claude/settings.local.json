@@ -22,7 +22,19 @@
       "Bash(npm rebuild:*)",
       "Bash(taskkill:*)",
       "Bash(cmd //c \"taskkill /PID 83764 /F\")",
-      "Bash(cmd //c \"taskkill /PID 73412 /F\")"
+      "Bash(cmd //c \"taskkill /PID 73412 /F\")",
+      "Bash(cmd //c \"taskkill /PID 84824 /F\")",
+      "Bash(cmd //c \"taskkill /PID 8812 /F\")",
+      "Bash(cmd //c \"taskkill /PID 20760 /F\")",
+      "Bash(cat:*)",
+      "Bash(cmd //c \"taskkill /PID 79040 /F\")",
+      "Bash(cmd //c \"taskkill /F /PID 6408\")",
+      "Bash(npx better-sqlite3:*)",
+      "Bash(node -e:*)",
+      "Bash(node create-screenshots-table.js:*)",
+      "Bash(cmd //c \"taskkill /PID 57680 /F\")",
+      "Bash(tasklist:*)",
+      "Bash(node check-screenshots.js:*)"
     ]
   }
 }

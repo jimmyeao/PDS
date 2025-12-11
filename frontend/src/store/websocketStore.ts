@@ -35,6 +35,15 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
   connect: (token: string) => {
     websocketService.connect(token);
 
+    // Initial sync of connected devices
+    websocketService.onDevicesSync((payload) => {
+      console.log('Received devices sync:', payload.deviceIds);
+
+      set({
+        connectedDevices: new Set(payload.deviceIds),
+      });
+    });
+
     // Device connected event
     websocketService.onDeviceConnected((payload: AdminDeviceConnectedPayload) => {
       console.log('Device connected:', payload.deviceId);

@@ -29,8 +29,14 @@ class DisplayController {
           '--no-first-run',
           '--no-zygote',
           '--disable-gpu',
+          '--disable-blink-features=AutomationControlled',
+          '--disable-infobars',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
           `--window-size=${config.displayWidth},${config.displayHeight}`,
         ],
+        ignoreDefaultArgs: ['--enable-automation'],
       };
 
       // Use custom Chromium path if provided (e.g., system chromium on Raspberry Pi)
@@ -56,6 +62,30 @@ class DisplayController {
       await this.page.setViewport({
         width: config.displayWidth,
         height: config.displayHeight,
+      });
+
+      // Hide automation indicators
+      await this.page.evaluateOnNewDocument(() => {
+        // @ts-ignore - All code runs in browser context
+        Object.defineProperty(navigator, 'webdriver', {
+          get: () => false,
+        });
+
+        // @ts-ignore
+        delete (navigator as any).__proto__.webdriver;
+
+        // @ts-ignore
+        (globalThis as any).chrome = {
+          runtime: {},
+        };
+
+        // @ts-ignore
+        const originalQuery = (globalThis as any).navigator.permissions.query;
+        (globalThis as any).navigator.permissions.query = (parameters: any) => (
+          parameters.name === 'notifications' ?
+            Promise.resolve({ state: (globalThis as any).Notification.permission }) :
+            originalQuery(parameters)
+        );
       });
 
       logger.info('Page created with viewport set');
