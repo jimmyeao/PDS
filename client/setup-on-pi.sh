@@ -30,19 +30,19 @@ else
   cd "$INSTALL_DIR"
 fi
 
-# Install dependencies for workspace
-echo "📦 Installing dependencies..."
-npm install --workspace=shared --workspace=client --legacy-peer-deps
-
-# Build shared package
-echo "🔧 Building shared package..."
+# Install and build shared package first
+echo "📦 Installing shared package dependencies..."
 cd shared
+npm install --legacy-peer-deps
+echo "🔧 Building shared package..."
 npm run build
 cd ..
 
-# Build client
-echo "🔧 Building client..."
+# Install and build client (which will link to local shared package)
+echo "📦 Installing client dependencies..."
 cd client
+npm install --legacy-peer-deps
+echo "🔧 Building client..."
 npm run build
 
 # Create .env if it doesn't exist

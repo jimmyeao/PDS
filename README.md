@@ -95,9 +95,17 @@ This will:
 
 3. **Install and build**:
    ```bash
-   npm install --workspace=shared --workspace=client --legacy-peer-deps
-   npm run build --workspace=shared
-   npm run build --workspace=client
+   # Install and build shared package
+   cd shared
+   npm install --legacy-peer-deps
+   npm run build
+   cd ..
+
+   # Install and build client
+   cd client
+   npm install --legacy-peer-deps
+   npm run build
+   cd ..
    ```
 
 4. **Configure the client**:
@@ -180,9 +188,19 @@ To update to the latest version:
 ```bash
 cd ~/kiosk
 git pull
-npm install --workspace=shared --workspace=client --legacy-peer-deps
-npm run build --workspace=shared
-npm run build --workspace=client
+
+# Rebuild shared package
+cd shared
+npm install --legacy-peer-deps
+npm run build
+cd ..
+
+# Rebuild client
+cd client
+npm install --legacy-peer-deps
+npm run build
+cd ..
+
 sudo systemctl restart kiosk-client  # If running as service
 ```
 
