@@ -34,7 +34,10 @@
       "Bash(node create-screenshots-table.js:*)",
       "Bash(cmd //c \"taskkill /PID 57680 /F\")",
       "Bash(tasklist:*)",
-      "Bash(node check-screenshots.js:*)"
+      "Bash(node check-screenshots.js:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }
