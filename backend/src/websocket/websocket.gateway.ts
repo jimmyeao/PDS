@@ -28,8 +28,10 @@ import type {
   AdminDeviceHealthPayload,
   AdminErrorPayload,
   AdminScreenshotReceivedPayload,
+  ContentUpdatePayload,
 } from '@kiosk/shared';
 import { ScreenshotsService } from '../screenshots/screenshots.service';
+import { SchedulesService } from '../schedules/schedules.service';
 
 interface AuthenticatedSocket extends Socket {
   deviceId?: string;
@@ -59,6 +61,8 @@ export class WebSocketGatewayService
     private configService: ConfigService,
     @Inject(forwardRef(() => ScreenshotsService))
     private screenshotsService: ScreenshotsService,
+    @Inject(forwardRef(() => SchedulesService))
+    private schedulesService: SchedulesService,
   ) {}
 
   async handleConnection(client: AuthenticatedSocket) {
@@ -114,6 +118,23 @@ export class WebSocketGatewayService
           deviceId,
           timestamp: new Date(),
         } as AdminDeviceConnectedPayload);
+
+        // Send device's schedule
+        try {
+          const scheduleItems = await this.schedulesService.getActiveScheduleByDeviceStringId(deviceId);
+          if (scheduleItems.length > 0) {
+            const payload: ContentUpdatePayload = {
+              scheduleId: scheduleItems[0].scheduleId,
+              items: scheduleItems,
+            };
+            client.emit(ServerToClientEvent.CONTENT_UPDATE, payload);
+            this.logger.log(`Sent schedule with ${scheduleItems.length} items to device ${deviceId}`);
+          } else {
+            this.logger.debug(`No active schedule found for device ${deviceId}`);
+          }
+        } catch (error) {
+          this.logger.error(`Failed to send schedule to device ${deviceId}: ${error.message}`);
+        }
       }
     } catch (error) {
       this.logger.error(`Authentication failed: ${error.message}`);

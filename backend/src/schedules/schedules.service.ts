@@ -166,4 +166,29 @@ export class SchedulesService {
 
     await this.deviceScheduleRepository.remove(assignment);
   }
+
+  async getActiveScheduleByDeviceStringId(deviceStringId: string): Promise<ScheduleItem[]> {
+    // First, we need to get the device's numeric ID from its string ID
+    // Since we don't have DevicesService injected here, we'll query directly
+    const Device = await this.deviceScheduleRepository.manager.query(
+      'SELECT id FROM device WHERE deviceId = ?',
+      [deviceStringId]
+    );
+
+    if (!Device || Device.length === 0) {
+      return [];
+    }
+
+    const deviceId = Device[0].id;
+    const schedules = await this.getDeviceSchedules(deviceId);
+
+    // Find the active schedule
+    const activeSchedule = schedules.find(s => s.isActive);
+
+    if (!activeSchedule || !activeSchedule.items) {
+      return [];
+    }
+
+    return activeSchedule.items;
+  }
 }

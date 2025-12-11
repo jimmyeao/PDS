@@ -129,14 +129,16 @@ class Scheduler {
 
   private async displayContent(item: ScheduleItem): Promise<void> {
     try {
-      // For now, we'll assume content has a URL property
-      // In a full implementation, you'd fetch the content details from the backend
-      // or have them included in the schedule update payload
-      const url = `http://example.com/content/${item.contentId}`;
+      if (!item.content || !item.content.url) {
+        logger.error(`Schedule item ${item.id} missing content URL`);
+        return;
+      }
+
+      const url = item.content.url;
 
       await displayController.navigateTo(url, item.displayDuration);
 
-      logger.info(`✅ Displaying content ${item.contentId} for ${item.displayDuration}ms`);
+      logger.info(`✅ Displaying content ${item.contentId} (${item.content.name}) for ${item.displayDuration}ms`);
     } catch (error: any) {
       logger.error(`Failed to display content ${item.contentId}:`, error.message);
     }
