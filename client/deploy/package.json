@@ -10,19 +10,23 @@
     "watch": "tsc --watch",
     "deploy": "bash deploy.sh"
   },
-  "keywords": ["kiosk", "digital-signage", "raspberry-pi"],
+  "keywords": [
+    "kiosk",
+    "digital-signage",
+    "raspberry-pi"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@kiosk/shared": "^1.0.0",
-    "socket.io-client": "^4.7.2",
-    "puppeteer": "^21.6.1",
+    "@kiosk/shared": "file:../../shared/kiosk-shared-1.0.0.tgz",
     "dotenv": "^16.3.1",
+    "puppeteer": "^21.6.1",
+    "socket.io-client": "^4.7.2",
     "systeminformation": "^5.21.20"
   },
   "devDependencies": {
     "@types/node": "^20.10.5",
-    "typescript": "^5.3.3",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
   }
 }

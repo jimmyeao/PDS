@@ -13,7 +13,16 @@
       "Bash(npm run dev:*)",
       "Bash(netstat:*)",
       "Bash(findstr:*)",
-      "Bash(timeout 10 bash -c 'while ! netstat -ano | findstr :3000 > /dev/null 2>&1; do sleep 1; done; echo \"\"Backend is running on port 3000\"\"')"
+      "Bash(timeout 10 bash -c 'while ! netstat -ano | findstr :3000 > /dev/null 2>&1; do sleep 1; done; echo \"\"Backend is running on port 3000\"\"')",
+      "Bash(npm run deploy:win:*)",
+      "Bash(tee:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File deploy.ps1)",
+      "Bash(chmod:*)",
+      "Bash(bash:*)",
+      "Bash(npm rebuild:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd //c \"taskkill /PID 83764 /F\")",
+      "Bash(cmd //c \"taskkill /PID 73412 /F\")"
     ]
   }
 }

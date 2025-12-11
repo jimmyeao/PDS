@@ -10,6 +10,8 @@
     "shared"
   ],
   "scripts": {
+    "dev": "powershell -ExecutionPolicy Bypass -File start-dev.ps1",
+    "dev:single": "powershell -ExecutionPolicy Bypass -File start-dev-single.ps1",
     "backend:dev": "npm run start:dev --workspace=backend",
     "backend:build": "npm run build --workspace=backend",
     "backend:start": "npm run start:prod --workspace=backend",

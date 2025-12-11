@@ -10,6 +10,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger, UseGuards } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import {
   ClientToServerEvent,
   ServerToClientEvent,
@@ -51,7 +52,10 @@ export class WebSocketGatewayService
   private deviceSockets = new Map<string, AuthenticatedSocket>();
   private adminSockets = new Set<AuthenticatedSocket>();
 
-  constructor(private jwtService: JwtService) {}
+  constructor(
+    private jwtService: JwtService,
+    private configService: ConfigService,
+  ) {}
 
   async handleConnection(client: AuthenticatedSocket) {
     this.logger.log(`Client attempting to connect: ${client.id}`);
@@ -67,7 +71,8 @@ export class WebSocketGatewayService
       }
 
       // Verify JWT token
-      const payload = await this.jwtService.verifyAsync(token);
+      const secret = this.configService.get<string>('jwt.secret') || 'dev-secret-key';
+      const payload = await this.jwtService.verifyAsync(token, { secret });
 
       // Check if this is an admin or device connection
       const role = client.handshake.auth?.role || 'admin';

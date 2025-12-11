@@ -16,6 +16,7 @@ export interface ClientConfig {
   displayWidth: number;
   displayHeight: number;
   kioskMode: boolean;
+  puppeteerExecutablePath?: string;
 
   // Monitoring
   healthCheckInterval: number;
@@ -41,6 +42,7 @@ class ConfigManager {
       displayWidth: parseInt(process.env.DISPLAY_WIDTH || '1920', 10),
       displayHeight: parseInt(process.env.DISPLAY_HEIGHT || '1080', 10),
       kioskMode: process.env.KIOSK_MODE === 'true',
+      puppeteerExecutablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       healthCheckInterval: parseInt(process.env.HEALTH_CHECK_INTERVAL || '60000', 10),
       screenshotInterval: parseInt(process.env.SCREENSHOT_INTERVAL || '300000', 10),
       logLevel: (process.env.LOG_LEVEL || 'info') as 'debug' | 'info' | 'warn' | 'error',

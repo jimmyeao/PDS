@@ -33,6 +33,12 @@ class DisplayController {
         ],
       };
 
+      // Use custom Chromium path if provided (e.g., system chromium on Raspberry Pi)
+      if (config.puppeteerExecutablePath) {
+        launchOptions.executablePath = config.puppeteerExecutablePath;
+        logger.info(`Using custom Chromium path: ${config.puppeteerExecutablePath}`);
+      }
+
       // Add kiosk mode args if enabled
       if (config.kioskMode) {
         launchOptions.args.push(

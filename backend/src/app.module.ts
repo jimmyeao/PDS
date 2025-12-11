@@ -8,7 +8,6 @@ import { AuthModule } from './auth/auth.module';
 import { DevicesModule } from './devices/devices.module';
 import { ContentModule } from './content/content.module';
 import { SchedulesModule } from './schedules/schedules.module';
-import { ScreenshotsModule } from './screenshots/screenshots.module';
 import { WebSocketModule } from './websocket/websocket.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import configuration from './config/configuration';
@@ -25,7 +24,6 @@ import configuration from './config/configuration';
     DevicesModule,
     ContentModule,
     SchedulesModule,
-    ScreenshotsModule,
     WebSocketModule,
   ],
   controllers: [AppController],

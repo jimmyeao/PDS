@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, ConflictException, forwardRef, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { Device } from './entities/device.entity';
 import { DeviceLog } from './entities/device-log.entity';
 import { CreateDeviceDto } from './dto/create-device.dto';
@@ -17,9 +19,11 @@ export class DevicesService {
     private deviceLogsRepository: Repository<DeviceLog>,
     @Inject(forwardRef(() => WebSocketGatewayService))
     private websocketGateway: WebSocketGatewayService,
+    private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
-  async create(createDeviceDto: CreateDeviceDto): Promise<Device> {
+  async create(createDeviceDto: CreateDeviceDto): Promise<Device & { token?: string }> {
     // Check if device already exists
     const existingDevice = await this.devicesRepository.findOne({
       where: { deviceId: createDeviceDto.deviceId },
@@ -30,7 +34,24 @@ export class DevicesService {
     }
 
     const device = this.devicesRepository.create(createDeviceDto);
-    return this.devicesRepository.save(device);
+    const savedDevice = await this.devicesRepository.save(device);
+
+    // Generate JWT token for the device
+    const secret = this.configService.get<string>('jwt.secret') || 'dev-secret-key';
+    const token = await this.jwtService.signAsync(
+      {
+        sub: savedDevice.id,
+        deviceId: savedDevice.deviceId,
+        type: 'device',
+      },
+      {
+        secret,
+        expiresIn: '365d', // Device tokens last 1 year
+      },
+    );
+
+    // Return device with token (token is only shown once)
+    return { ...savedDevice, token };
   }
 
   async findAll(): Promise<Device[]> {
