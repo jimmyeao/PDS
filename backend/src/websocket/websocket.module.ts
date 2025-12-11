@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { WebSocketGatewayService } from './websocket.gateway';
 import { ScreenshotsModule } from '../screenshots/screenshots.module';
+import { SchedulesModule } from '../schedules/schedules.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { ScreenshotsModule } from '../screenshots/screenshots.module';
       }),
     }),
     forwardRef(() => ScreenshotsModule),
+    forwardRef(() => SchedulesModule),
   ],
   providers: [WebSocketGatewayService],
   exports: [WebSocketGatewayService],
