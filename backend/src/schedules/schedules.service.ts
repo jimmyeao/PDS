@@ -171,7 +171,7 @@ export class SchedulesService {
     // First, we need to get the device's numeric ID from its string ID
     // Since we don't have DevicesService injected here, we'll query directly
     const Device = await this.deviceScheduleRepository.manager.query(
-      'SELECT id FROM device WHERE deviceId = ?',
+      'SELECT id FROM devices WHERE deviceId = ?',
       [deviceStringId]
     );
 
