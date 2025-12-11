@@ -1,0 +1,32 @@
+import api from './api';
+import type { AuthResponse, LoginDto, RegisterDto, User } from '@kiosk/shared';
+
+export const authService = {
+  async login(credentials: LoginDto): Promise<AuthResponse> {
+    const response = await api.post<AuthResponse>('/auth/login', credentials);
+    return response.data;
+  },
+
+  async register(data: RegisterDto): Promise<AuthResponse> {
+    const response = await api.post<AuthResponse>('/auth/register', data);
+    return response.data;
+  },
+
+  async refreshToken(refreshToken: string): Promise<AuthResponse> {
+    const response = await api.post<AuthResponse>('/auth/refresh', {
+      refreshToken,
+    });
+    return response.data;
+  },
+
+  async getCurrentUser(): Promise<User> {
+    const response = await api.get<User>('/auth/me');
+    return response.data;
+  },
+
+  logout() {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+  },
+};

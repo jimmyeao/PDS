@@ -1,0 +1,99 @@
+import { create } from 'zustand';
+import type { Content } from '@kiosk/shared';
+import { contentService } from '../services/content.service';
+
+interface ContentState {
+  content: Content[];
+  selectedContent: Content | null;
+  isLoading: boolean;
+  error: string | null;
+
+  fetchContent: () => Promise<void>;
+  fetchContentById: (id: number) => Promise<void>;
+  createContent: (data: any) => Promise<void>;
+  updateContent: (id: number, data: any) => Promise<void>;
+  deleteContent: (id: number) => Promise<void>;
+  setSelectedContent: (content: Content | null) => void;
+  clearError: () => void;
+}
+
+export const useContentStore = create<ContentState>((set) => ({
+  content: [],
+  selectedContent: null,
+  isLoading: false,
+  error: null,
+
+  fetchContent: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const content = await contentService.getAll();
+      set({ content, isLoading: false });
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Failed to fetch content',
+        isLoading: false,
+      });
+    }
+  },
+
+  fetchContentById: async (id: number) => {
+    set({ isLoading: true, error: null });
+    try {
+      const content = await contentService.getById(id);
+      set({ selectedContent: content, isLoading: false });
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Failed to fetch content',
+        isLoading: false,
+      });
+    }
+  },
+
+  createContent: async (data) => {
+    set({ isLoading: true, error: null });
+    try {
+      await contentService.create(data);
+      set({ isLoading: false });
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Failed to create content',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  updateContent: async (id, data) => {
+    set({ isLoading: true, error: null });
+    try {
+      await contentService.update(id, data);
+      set({ isLoading: false });
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Failed to update content',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  deleteContent: async (id) => {
+    set({ isLoading: true, error: null });
+    try {
+      await contentService.delete(id);
+      set((state) => ({
+        content: state.content.filter((c) => c.id !== id),
+        isLoading: false,
+      }));
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Failed to delete content',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  setSelectedContent: (content) => set({ selectedContent: content }),
+  clearError: () => set({ error: null }),
+}));

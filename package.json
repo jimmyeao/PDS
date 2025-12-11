@@ -1,0 +1,36 @@
+{
+  "name": "kiosk-digital-signage",
+  "version": "1.0.0",
+  "description": "Digital signage solution with central management of Raspberry Pi displays",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend",
+    "client",
+    "shared"
+  ],
+  "scripts": {
+    "backend:dev": "npm run start:dev --workspace=backend",
+    "backend:build": "npm run build --workspace=backend",
+    "backend:start": "npm run start:prod --workspace=backend",
+    "frontend:dev": "npm run dev --workspace=frontend",
+    "frontend:build": "npm run build --workspace=frontend",
+    "client:dev": "npm run dev --workspace=client",
+    "client:build": "npm run build --workspace=client",
+    "install:all": "npm install",
+    "clean": "rm -rf node_modules backend/node_modules frontend/node_modules client/node_modules shared/node_modules"
+  },
+  "keywords": [
+    "digital-signage",
+    "raspberry-pi",
+    "kiosk",
+    "nestjs",
+    "react",
+    "websocket"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
