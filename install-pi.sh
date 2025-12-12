@@ -59,13 +59,13 @@ fi
 # Install and build shared package
 echo "📦 Building shared package..."
 cd "$INSTALL_DIR/shared"
-npm install --legacy-peer-deps
+npm install --include=dev --legacy-peer-deps
 npm run build
 
 # Install and build client
 echo "📦 Building client..."
 cd "$INSTALL_DIR/client"
-npm install --legacy-peer-deps
+npm install --include=dev --legacy-peer-deps
 npm run build
 
 # Create .env file if it doesn't exist
@@ -107,13 +107,13 @@ git pull
 # Build shared package
 echo "📦 Building shared package..."
 cd shared
-npm install --legacy-peer-deps
+npm install --include=dev --legacy-peer-deps
 npm run build
 
 # Build client
 echo "📦 Building client..."
 cd ../client
-npm install --legacy-peer-deps
+npm install --include=dev --legacy-peer-deps
 npm run build
 
 # Restart service
