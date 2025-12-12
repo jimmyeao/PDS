@@ -26,7 +26,7 @@ REPO_URL=https://github.com/jimmyeao/PDS.git curl -sSL https://raw.githubusercon
 
 ### Configure the client:
 ```bash
-nano ~/kiosk-client/.env
+nano ~/kiosk-client/client/.env
 ```
 
 Set these values:

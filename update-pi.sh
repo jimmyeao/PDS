@@ -25,9 +25,17 @@ fi
 echo "📥 Pulling latest code from git..."
 git pull
 
-# Update dependencies
-echo "📦 Updating dependencies..."
+# Build shared package
+echo "📦 Building shared package..."
+cd shared
 npm install --production --legacy-peer-deps
+npm run build
+
+# Build client
+echo "📦 Building client..."
+cd ../client
+npm install --production --legacy-peer-deps
+npm run build
 
 # Restart service if it was running
 if [ "$RESTART_SERVICE" = true ]; then

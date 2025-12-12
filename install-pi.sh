@@ -56,21 +56,32 @@ else
     cd "$INSTALL_DIR"
 fi
 
-# Install dependencies
-echo "📦 Installing dependencies..."
+# Install and build shared package
+echo "📦 Building shared package..."
+cd "$INSTALL_DIR/shared"
 npm install --production --legacy-peer-deps
+npm run build
+
+# Install and build client
+echo "📦 Building client..."
+cd "$INSTALL_DIR/client"
+npm install --production --legacy-peer-deps
+npm run build
 
 # Create .env file if it doesn't exist
 if [ ! -f ".env" ]; then
     echo "📝 Creating .env configuration file..."
     cp .env.example .env
     echo ""
-    echo "⚠️  IMPORTANT: Edit $INSTALL_DIR/.env with your settings:"
+    echo "⚠️  IMPORTANT: Edit $INSTALL_DIR/client/.env with your settings:"
     echo "   - SERVER_URL=http://your-server-ip:3000"
     echo "   - DEVICE_TOKEN=your-device-token"
     echo ""
     read -p "Press Enter to continue after editing .env, or Ctrl+C to exit and edit later..."
 fi
+
+# Return to root for remaining operations
+cd "$INSTALL_DIR"
 
 # Create update script
 echo "📝 Creating update script..."
@@ -93,9 +104,17 @@ fi
 echo "📥 Pulling latest code..."
 git pull
 
-# Update dependencies
-echo "📦 Updating dependencies..."
+# Build shared package
+echo "📦 Building shared package..."
+cd shared
 npm install --production --legacy-peer-deps
+npm run build
+
+# Build client
+echo "📦 Building client..."
+cd ../client
+npm install --production --legacy-peer-deps
+npm run build
 
 # Restart service
 echo "▶️  Starting service..."
@@ -121,7 +140,7 @@ After=network.target
 [Service]
 Type=simple
 User=$USER
-WorkingDirectory=$INSTALL_DIR
+WorkingDirectory=$INSTALL_DIR/client
 ExecStart=/usr/bin/node dist/index.js
 Restart=always
 RestartSec=10
@@ -149,7 +168,7 @@ echo "📊 Service status: sudo systemctl status kiosk-client"
 echo "📝 View logs: sudo journalctl -u kiosk-client -f"
 echo ""
 echo "🎯 Next steps:"
-echo "1. Edit $INSTALL_DIR/.env with your server URL and device token"
+echo "1. Edit $INSTALL_DIR/client/.env with your server URL and device token"
 echo "2. Restart: sudo systemctl restart kiosk-client"
 echo "3. Check logs: sudo journalctl -u kiosk-client -f"
 echo ""
