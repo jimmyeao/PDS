@@ -301,7 +301,7 @@ export const PlaylistsPage = () => {
                                 {item.content?.name || `Content ID: ${item.contentId}`}
                               </span>
                               <span className="px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded">
-                                {item.displayDuration / 1000}s
+                                {item.displayDuration === 0 ? 'Permanent' : `${item.displayDuration / 1000}s`}
                               </span>
                             </div>
                             {(item.timeWindowStart || item.daysOfWeek) && (
@@ -469,11 +469,11 @@ export const PlaylistsPage = () => {
                     setItemFormData({ ...itemFormData, displayDuration: Number(e.target.value) * 1000 })
                   }
                   className="input"
-                  min="1"
+                  min="0"
                   required
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  How long to display this content (in seconds)
+                  How long to display this content (0 = permanent display, no rotation)
                 </p>
               </div>
 
