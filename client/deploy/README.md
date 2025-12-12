@@ -1,253 +1,283 @@
-# Kiosk Digital Signage Client
+# Kiosk Digital Signage Client - Windows Setup
 
-**Cross-platform client** for the Kiosk Digital Signage system.
+Windows client for Intel NUCs and other Windows-based digital signage displays.
 
-Supports **Windows (Intel NUCs, PCs)**, **Linux**, and **Raspberry Pi**.
+## Prerequisites
 
-## Features
+### 1. Install Node.js
 
-- **Cross-Platform**: Works on Windows, Linux, and Raspberry Pi
-- **WebSocket Communication**: Real-time connection to backend server
-- **Content Scheduling**: Automatic content rotation based on schedules
-- **Health Monitoring**: CPU, memory, and temperature reporting
-- **Screenshot Capture**: Periodic and on-demand screenshots
-- **Kiosk Mode**: Fullscreen display using Chrome/Chromium/Edge
-- **Remote Control**: Restart, refresh, and navigate commands from admin UI
+Download and install Node.js LTS (v20 or higher) from [nodejs.org](https://nodejs.org/)
 
-## Platform Support
-
-| Platform | Status | Recommended For |
-|----------|--------|-----------------|
-| **Windows** | ✅ Fully Supported | Intel NUCs, desktop PCs, enterprise displays |
-| **Linux** | ✅ Fully Supported | Ubuntu, Debian, other Linux distros |
-| **Raspberry Pi** | ✅ Fully Supported | Budget displays, IoT deployments |
-
-## Installation
-
-### Development (Monorepo)
-
-When developing locally with the full monorepo:
-
-```bash
-# From project root
-npm install
-
-# Or from client directory
-cd client
-npm install
-```
-
-## Quick Start by Platform
-
-### Windows (Intel NUC, PC)
-
-**See [README-WINDOWS.md](README-WINDOWS.md) for detailed Windows setup instructions.**
-
-Quick steps:
-1. Run deployment script: `npm run deploy:win`
-2. Copy `deploy` folder to your Windows machine
-3. Copy `.env.example` to `.env` and configure
-4. Run `start.bat` or install as Windows Service with NSSM
-
-### Raspberry Pi / Linux
-
-**See instructions below for Linux/Raspberry Pi setup.**
-
-### Deployment Overview
-
-The client depends on the `@kiosk/shared` package which is part of the monorepo. Use one of these deployment methods:
-
-#### Option 1: Automated Deployment (Recommended)
-
-From your development machine, run the deployment script:
-
-**For Windows deployment:**
+Verify installation:
 ```powershell
-cd client
-npm run deploy:win
+node --version
+npm --version
 ```
 
-**For Linux/Raspberry Pi deployment:**
-```bash
-cd client
-npm run deploy
+### 2. Install Chrome or Edge
+
+The client uses Puppeteer to control a browser. You can use:
+- **Google Chrome** (recommended) - [Download](https://www.google.com/chrome/)
+- **Microsoft Edge** (built into Windows)
+
+## Quick Start
+
+### 1. Extract the Client
+
+Extract the deployment package to a location on your Windows machine:
+```
+C:\KioskClient\
 ```
 
-This creates a `client/deploy` folder with everything bundled. Transfer this folder to your target machine:
+### 2. Configure the Client
 
-```bash
-# On your development machine
-scp -r deploy pi@raspberrypi:~/kiosk-client
-
-# Or use rsync
-rsync -av deploy/ pi@raspberrypi:~/kiosk-client/
+Copy `.env.example` to `.env`:
+```powershell
+Copy-Item .env.example .env
 ```
 
-#### Option 2: Manual Deployment
-
-1. On your development machine, build both packages:
-```bash
-# Build shared package
-cd shared
-npm install
-npm run build
-cd ..
-
-# Build client
-cd client
-npm install
-npm run build
-```
-
-2. Transfer both `shared` and `client` folders to your Raspberry Pi.
-
-3. On the Raspberry Pi, install dependencies:
-```bash
-# Install from the parent directory containing both folders
-cd ~/kiosk
-npm install --workspaces
-```
-
-### Raspberry Pi Prerequisites
-
-Before deploying, ensure your Raspberry Pi has:
-
-1. Node.js (v20 LTS or higher):
-```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
-```
-
-2. Chromium browser:
-```bash
-sudo apt-get install -y chromium-browser chromium-codecs-ffmpeg
-```
-
-## Configuration
-
-1. Copy the example environment file:
-```bash
-cp .env.example .env
-```
-
-2. Edit `.env` with your settings:
+Edit `.env` with your settings:
 ```env
-SERVER_URL=http://your-server:3000
-DEVICE_TOKEN=your-jwt-token-here
+SERVER_URL=http://your-server-ip:3000
+DEVICE_TOKEN=your-device-token-here
 DISPLAY_WIDTH=1920
 DISPLAY_HEIGHT=1080
 KIOSK_MODE=true
+
+# Optional: Specify Chrome/Edge path if auto-detection fails
+# PUPPETEER_EXECUTABLE_PATH=C:\Program Files\Google\Chrome\Application\chrome.exe
 ```
 
-### Getting a Device Token
+### 3. Get Your Device Token
 
-1. Log into the admin UI
-2. Create a new device in the Devices page
-3. The backend will generate credentials for the device
-4. Use the JWT token in your `.env` file
+1. Open the admin UI in your browser
+2. Go to the **Devices** page
+3. Click **"+ Add Device"**
+4. Fill in the device details (Device ID, Name, Location)
+5. Click **"Add Device"**
+6. **Copy the token** that appears (it's only shown once!)
+7. Paste the token into your `.env` file as `DEVICE_TOKEN`
 
-## Usage
+### 4. Run the Client
 
-### Development Mode
-```bash
-npm run dev
+**Option A: Run directly (for testing)**
+```powershell
+.\start.bat
 ```
 
-### Production Mode
-
-**If using automated deployment:**
-```bash
-cd ~/kiosk-client  # The deployed folder
-node dist/index.js
+Or with PowerShell:
+```powershell
+.\start.ps1
 ```
 
-**If using manual deployment:**
-```bash
-cd ~/kiosk/client
-npm run build
-npm start
+**Option B: Install as Windows Service (recommended for production)**
+
+See the "Running as a Service" section below.
+
+## Running as a Windows Service
+
+### Using NSSM (Recommended)
+
+NSSM (Non-Sucking Service Manager) makes it easy to run Node.js apps as Windows services.
+
+#### 1. Download NSSM
+
+Download from [nssm.cc](https://nssm.cc/download) and extract to a folder (e.g., `C:\nssm`).
+
+Add NSSM to your PATH or install it system-wide:
+```powershell
+# Copy nssm.exe to Windows directory (requires admin)
+Copy-Item "C:\nssm\win64\nssm.exe" "C:\Windows\System32\"
 ```
 
-### Running as a Service (Raspberry Pi)
+#### 2. Install the Service
 
-Create a systemd service file `/etc/systemd/system/kiosk-client.service`:
-
-```ini
-[Unit]
-Description=Kiosk Digital Signage Client
-After=network.target
-
-[Service]
-Type=simple
-User=pi
-WorkingDirectory=/home/pi/kiosk-client
-ExecStart=/usr/bin/node dist/index.js
-Restart=always
-RestartSec=10
-Environment=NODE_ENV=production
-
-[Install]
-WantedBy=multi-user.target
+Run the provided installation script with administrator privileges:
+```powershell
+# Right-click PowerShell and "Run as Administrator"
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+.\install-service.ps1
 ```
 
-**Note:** Adjust `WorkingDirectory` based on your deployment location.
-
-Enable and start the service:
-```bash
-sudo systemctl enable kiosk-client
-sudo systemctl start kiosk-client
-sudo systemctl status kiosk-client
+Or manually install:
+```powershell
+nssm install KioskClient node "C:\KioskClient\dist\index.js"
+nssm set KioskClient AppDirectory "C:\KioskClient"
+nssm set KioskClient DisplayName "Kiosk Digital Signage Client"
+nssm set KioskClient Start SERVICE_AUTO_START
 ```
 
-View logs:
-```bash
-sudo journalctl -u kiosk-client -f
+#### 3. Manage the Service
+
+Start the service:
+```powershell
+nssm start KioskClient
 ```
 
-## Architecture
-
+Stop the service:
+```powershell
+nssm stop KioskClient
 ```
-src/
-├── index.ts        - Main entry point, orchestrates all modules
-├── config.ts       - Configuration management
-├── logger.ts       - Logging utility
-├── websocket.ts    - WebSocket client for server communication
-├── display.ts      - Puppeteer display controller
-├── scheduler.ts    - Schedule execution engine
-├── health.ts       - System health monitoring
-└── screenshot.ts   - Screenshot capture and upload
+
+Check status:
+```powershell
+nssm status KioskClient
+```
+
+View/edit service configuration:
+```powershell
+nssm edit KioskClient
+```
+
+Remove the service:
+```powershell
+nssm remove KioskClient confirm
+```
+
+### Using Task Scheduler (Alternative)
+
+You can also use Windows Task Scheduler to auto-start the client:
+
+1. Open **Task Scheduler**
+2. Click **"Create Task"** (not "Create Basic Task")
+3. **General tab:**
+   - Name: `Kiosk Client`
+   - Check **"Run whether user is logged on or not"**
+   - Check **"Run with highest privileges"**
+4. **Triggers tab:**
+   - New trigger: **"At startup"**
+5. **Actions tab:**
+   - Action: **"Start a program"**
+   - Program: `C:\Program Files\nodejs\node.exe`
+   - Arguments: `dist\index.js`
+   - Start in: `C:\KioskClient`
+6. **Conditions tab:**
+   - Uncheck **"Start the task only if the computer is on AC power"**
+7. Click **OK** and enter your Windows password
+
+## Display Configuration
+
+### Full Screen Kiosk Mode
+
+The client runs in kiosk mode by default (`KIOSK_MODE=true`), which:
+- Launches browser in full screen
+- Hides the address bar and browser UI
+- Prevents accidental closure
+
+### Multiple Monitors
+
+To display on a specific monitor, adjust the window position in `config.ts` or use Windows display settings to set the target monitor as primary before starting the client.
+
+### Resolution
+
+Set `DISPLAY_WIDTH` and `DISPLAY_HEIGHT` in `.env` to match your display's native resolution:
+
+```env
+# 1080p Full HD
+DISPLAY_WIDTH=1920
+DISPLAY_HEIGHT=1080
+
+# 4K Ultra HD
+DISPLAY_WIDTH=3840
+DISPLAY_HEIGHT=2160
+
+# Portrait mode (rotate display in Windows settings)
+DISPLAY_WIDTH=1080
+DISPLAY_HEIGHT=1920
 ```
 
 ## Troubleshooting
 
-### Display Issues on Raspberry Pi
+### Browser Not Found
 
-If you encounter display issues:
-```bash
-export DISPLAY=:0
+If you see "Could not find Chrome/Chromium", set the executable path in `.env`:
+
+```env
+# For Chrome
+PUPPETEER_EXECUTABLE_PATH=C:\Program Files\Google\Chrome\Application\chrome.exe
+
+# For Edge
+PUPPETEER_EXECUTABLE_PATH=C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe
 ```
 
-### Chromium Not Found
+### Cannot Connect to Server
 
-Install Chromium manually:
-```bash
-sudo apt-get install chromium-browser
+Check:
+1. `SERVER_URL` in `.env` is correct
+2. The backend server is running and accessible
+3. Firewall allows outbound connections on port 3000
+4. Network connectivity: `ping your-server-ip`
+
+### Client Crashes on Startup
+
+Check the logs:
+- If running directly: Check the console output
+- If running as service: Check `logs\stdout.log` and `logs\stderr.log`
+
+Common issues:
+- Invalid or missing `DEVICE_TOKEN`
+- Network connectivity problems
+- Port conflicts
+- Missing dependencies (run `npm install`)
+
+### Windows Defender SmartScreen Warning
+
+When running the client for the first time, Windows may show a SmartScreen warning. This is normal for unsigned applications. Click **"More info"** and then **"Run anyway"**.
+
+### Auto-Login Windows (Optional)
+
+For dedicated kiosk machines, you may want Windows to auto-login:
+
+1. Press `Win + R`, type `netplwiz`, press Enter
+2. Uncheck **"Users must enter a user name and password to use this computer"**
+3. Click **OK** and enter your password
+4. Restart to test
+
+## Updates
+
+To update the client:
+
+1. Stop the service (if running): `nssm stop KioskClient`
+2. Backup your `.env` file
+3. Extract the new client version over the old files
+4. Restore your `.env` file
+5. Start the service: `nssm start KioskClient`
+
+## Advanced Configuration
+
+### Logging Level
+
+Adjust logging verbosity in `.env`:
+```env
+LOG_LEVEL=info    # Options: debug, info, warn, error
 ```
 
-### Permission Issues
+### Health Check Interval
 
-Run with proper permissions or add user to video group:
-```bash
-sudo usermod -a -G video pi
+How often to send health reports to the server (in milliseconds):
+```env
+HEALTH_CHECK_INTERVAL=60000  # 1 minute
 ```
 
-## Development
+### Screenshot Interval
 
-Run TypeScript compiler in watch mode:
-```bash
-npm run watch
+How often to capture and upload screenshots (in milliseconds):
+```env
+SCREENSHOT_INTERVAL=300000  # 5 minutes
 ```
 
-## License
+## Security Considerations
 
-MIT
+- Store the `.env` file securely (it contains the device token)
+- Use a dedicated Windows account with minimal privileges for the service
+- Enable Windows Firewall and only allow necessary outbound connections
+- Keep Windows, Node.js, and Chrome/Edge up to date
+- Consider using Windows Kiosk Mode for public-facing displays
+
+## Support
+
+For issues, check:
+- Backend server logs
+- Client logs (`logs\` folder if running as service)
+- Admin UI for device status and errors
+- Network connectivity and firewall settings

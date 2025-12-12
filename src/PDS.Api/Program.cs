@@ -1,0 +1,791 @@
+using System.Security.Claims;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using PDS.Api;
+using PDS.Api.Contracts;
+using Microsoft.Extensions.Configuration;
+using System.IdentityModel.Tokens.Jwt;
+using Microsoft.IdentityModel.Tokens;
+using Serilog;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((ctx, lc) => lc.ReadFrom.Configuration(ctx.Configuration)
+    .WriteTo.Console());
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+  .AddJwtBearer(o =>
+  {
+      var secret = builder.Configuration["Jwt:Secret"] ?? "dev-secret-key";
+      o.TokenValidationParameters = new TokenValidationParameters
+      {
+          ValidateIssuer = true,
+          ValidateAudience = true,
+          ValidateLifetime = true,
+          ValidateIssuerSigningKey = true,
+          ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "pds",
+          ValidAudience = builder.Configuration["Jwt:Audience"] ?? "pds-clients",
+          IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret))
+      };
+  });
+
+builder.Services.AddAuthorization();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+builder.Services.AddHealthChecks();
+
+// CORS for frontend dev server
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("FrontendDev", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173", "http://127.0.0.1:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
+builder.Services.AddDbContext<PdsDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("Default") ??
+        "Host=localhost;Port=5432;Database=pds;Username=postgres;Password=postgres"));
+
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IDeviceService, DeviceService>();
+builder.Services.AddScoped<IPlaylistService, PlaylistService>();
+builder.Services.AddScoped<IScreenshotService, ScreenshotService>();
+
+var app = builder.Build();
+var cfg = builder.Configuration;
+
+app.UseSerilogRequestLogging();
+app.UseSwagger();
+app.UseSwaggerUI();
+// Apply CORS before auth/authorization so preflights and failures still include CORS headers
+app.UseCors("FrontendDev");
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Ensure Devices.Token column exists for persistent tokens
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<PdsDbContext>();
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Devices\" ADD COLUMN IF NOT EXISTS \"Token\" text;");
+        db.Database.ExecuteSqlRaw("CREATE UNIQUE INDEX IF NOT EXISTS \"IX_Devices_DeviceId_unique\" ON \"Devices\"(\"DeviceId\");");
+    }
+    catch (Exception ex)
+    {
+        Serilog.Log.Warning(ex, "Startup schema ensure failed");
+    }
+}
+
+app.MapHealthChecks("/health");
+app.MapHealthChecks("/healthz");
+
+// Auth endpoints (inline token generation to avoid DI issues)
+app.MapPost("/auth/register", ([FromBody] RegisterDto dto, ILogger<Program> log) =>
+{
+    try
+    {
+        var res = AuthHelpers.GenerateTokens(dto.Username, cfg);
+        return Results.Ok(res);
+    }
+    catch (Exception ex)
+    {
+        log.LogError(ex, "Register failed");
+        return Results.Problem(title: "Register failed", detail: ex.Message, statusCode: 500);
+    }
+}).AllowAnonymous();
+
+app.MapPost("/auth/login", ([FromBody] LoginDto dto, ILogger<Program> log) =>
+{
+    try
+    {
+        var res = AuthHelpers.GenerateTokens(dto.Username, cfg);
+        return Results.Ok(res);
+    }
+    catch (Exception ex)
+    {
+        log.LogError(ex, "Login failed");
+        return Results.Problem(title: "Login failed", detail: ex.Message, statusCode: 500);
+    }
+}).AllowAnonymous();
+
+app.MapPost("/auth/refresh", ([FromBody] RefreshDto dto, ILogger<Program> log) =>
+{
+    try
+    {
+        var res = AuthHelpers.GenerateTokens("user", cfg);
+        return Results.Ok(res);
+    }
+    catch (Exception ex)
+    {
+        log.LogError(ex, "Refresh failed");
+        return Results.Problem(title: "Refresh failed", detail: ex.Message, statusCode: 500);
+    }
+}).AllowAnonymous();
+app.MapGet("/auth/me", (ClaimsPrincipal user) => new UserDto(1, user.Identity?.Name ?? "user"))
+    .RequireAuthorization();
+
+// Devices endpoints
+app.MapPost("/devices", async ([FromBody] CreateDeviceDto dto, IDeviceService svc) => await svc.CreateAsync(dto))
+    .RequireAuthorization();
+app.MapGet("/devices", async (IDeviceService svc) => await svc.FindAllAsync())
+    .RequireAuthorization();
+app.MapGet("/devices/{id:int}", async (int id, IDeviceService svc) => await svc.FindOneAsync(id))
+    .RequireAuthorization();
+app.MapGet("/devices/{id:int}/token", async (int id, IDeviceService svc) => await svc.GetTokenAsync(id))
+    .RequireAuthorization();
+app.MapPost("/devices/{id:int}/token/rotate", async (int id, IDeviceService svc) => await svc.RotateTokenAsync(id))
+    .RequireAuthorization();
+app.MapGet("/devices/{id:int}/logs", async (int id, int? limit, IDeviceService svc) => await svc.GetLogsAsync(id, limit ?? 100))
+    .RequireAuthorization();
+app.MapPatch("/devices/{id:int}", async (int id, [FromBody] UpdateDeviceDto dto, IDeviceService svc) => await svc.UpdateAsync(id, dto))
+    .RequireAuthorization();
+app.MapDelete("/devices/{id:int}", async (int id, IDeviceService svc) =>
+{
+    await svc.RemoveAsync(id);
+    return Results.Ok(new { message = "Device deleted successfully" });
+}).RequireAuthorization();
+
+// Content endpoints
+app.MapPost("/content", async ([FromBody] CreateContentDto dto, IPlaylistService svc) => await svc.CreateContentAsync(dto))
+    .RequireAuthorization();
+app.MapGet("/content", async (IPlaylistService svc) => await svc.GetAllContentAsync())
+    .RequireAuthorization();
+app.MapGet("/content/{id:int}", async (int id, IPlaylistService svc) => await svc.GetContentAsync(id))
+    .RequireAuthorization();
+app.MapPatch("/content/{id:int}", async (int id, [FromBody] UpdateContentDto dto, IPlaylistService svc) => await svc.UpdateContentAsync(id, dto))
+    .RequireAuthorization();
+app.MapDelete("/content/{id:int}", async (int id, IPlaylistService svc) =>
+{
+    await svc.RemoveContentAsync(id);
+    return Results.Ok(new { message = "Content deleted successfully" });
+}).RequireAuthorization();
+
+// Playlists endpoints
+app.MapPost("/playlists", async ([FromBody] CreatePlaylistDto dto, IPlaylistService svc) => await svc.CreatePlaylistAsync(dto))
+    .RequireAuthorization();
+app.MapGet("/playlists", async (IPlaylistService svc) => await svc.GetPlaylistsAsync())
+    .RequireAuthorization();
+app.MapGet("/playlists/{id:int}", async (int id, IPlaylistService svc) => await svc.GetPlaylistAsync(id))
+    .RequireAuthorization();
+app.MapPatch("/playlists/{id:int}", async (int id, [FromBody] UpdatePlaylistDto dto, IPlaylistService svc) => await svc.UpdatePlaylistAsync(id, dto))
+    .RequireAuthorization();
+app.MapDelete("/playlists/{id:int}", async (int id, IPlaylistService svc) =>
+{
+    await svc.RemovePlaylistAsync(id);
+    return Results.Ok(new { message = "Playlist deleted successfully" });
+}).RequireAuthorization();
+
+app.MapPost("/playlists/items", async ([FromBody] CreatePlaylistItemDto dto, IPlaylistService svc) => await svc.CreateItemAsync(dto))
+    .RequireAuthorization();
+app.MapGet("/playlists/{playlistId:int}/items", async (int playlistId, IPlaylistService svc) => await svc.GetItemsAsync(playlistId))
+    .RequireAuthorization();
+app.MapPatch("/playlists/items/{id:int}", async (int id, [FromBody] UpdatePlaylistItemDto dto, IPlaylistService svc) => await svc.UpdateItemAsync(id, dto))
+    .RequireAuthorization();
+app.MapDelete("/playlists/items/{id:int}", async (int id, IPlaylistService svc) =>
+{
+    var playlistId = await svc.RemoveItemAsync(id);
+    return Results.Ok(new { message = "Playlist item deleted successfully" });
+}).RequireAuthorization();
+
+app.MapPost("/playlists/assign", async ([FromBody] AssignPlaylistDto dto, IPlaylistService svc) => await svc.AssignAsync(dto))
+    .RequireAuthorization();
+app.MapGet("/playlists/device/{deviceId:int}", async (int deviceId, IPlaylistService svc) => await svc.GetDevicePlaylistsAsync(deviceId))
+    .RequireAuthorization();
+app.MapGet("/playlists/{playlistId:int}/devices", async (int playlistId, IPlaylistService svc) => await svc.GetPlaylistDevicesAsync(playlistId))
+    .RequireAuthorization();
+app.MapDelete("/playlists/assign/device/{deviceId:int}/playlist/{playlistId:int}", async (int deviceId, int playlistId, IPlaylistService svc) =>
+{
+    await svc.UnassignAsync(deviceId, playlistId);
+    return Results.Ok(new { message = "Playlist unassigned successfully" });
+}).RequireAuthorization();
+
+// Screenshots endpoints
+app.MapGet("/screenshots/device/{deviceId}/latest", async (string deviceId, IScreenshotService svc) => await svc.GetLatestAsync(deviceId))
+    .RequireAuthorization();
+app.MapGet("/screenshots/device/{deviceId}", async (string deviceId, IScreenshotService svc) => await svc.GetByDeviceAsync(deviceId))
+    .RequireAuthorization();
+app.MapGet("/screenshots/{id}", async (int id, IScreenshotService svc) => await svc.GetByIdAsync(id))
+    .RequireAuthorization();
+
+// WebSocket endpoint with event envelope
+app.UseWebSockets();
+app.Map("/ws", async context =>
+{
+    if (!context.WebSockets.IsWebSocketRequest)
+    {
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        return;
+    }
+
+    var socket = await context.WebSockets.AcceptWebSocketAsync();
+    await RealtimeHub.HandleAsync(context, socket);
+});
+
+app.Run();
+
+// --- Minimal stub types & services ---
+public record AuthResponse(string AccessToken, string RefreshToken);
+public record RegisterDto(string Username, string Password);
+public record LoginDto(string Username, string Password);
+public record RefreshDto(string RefreshToken);
+public record UserDto(int Id, string Username);
+
+public record CreateDeviceDto(string DeviceId, string Name, string? Description, string? Location);
+public record UpdateDeviceDto(string? Name, string? Description, string? Location);
+public record DeviceLogDto(int Id, string Message, DateTime Timestamp);
+
+public record CreateContentDto(string Name, string Url, string? Description, bool? RequiresInteraction, string? ThumbnailUrl);
+public record UpdateContentDto(string? Name, string? Url, string? Description, bool? RequiresInteraction, string? ThumbnailUrl);
+
+public record CreatePlaylistDto(string Name, string? Description, bool? IsActive);
+public record UpdatePlaylistDto(string? Name, string? Description, bool? IsActive);
+public record CreatePlaylistItemDto(int PlaylistId, int ContentId, int DisplayDuration, int OrderIndex, string? TimeWindowStart, string? TimeWindowEnd, int[]? DaysOfWeek);
+public record UpdatePlaylistItemDto(int? DisplayDuration, int? OrderIndex, string? TimeWindowStart, string? TimeWindowEnd, int[]? DaysOfWeek);
+public record AssignPlaylistDto(int DeviceId, int PlaylistId);
+
+public interface IAuthService
+{
+    Task<AuthResponse> RegisterAsync(RegisterDto dto);
+    Task<AuthResponse> LoginAsync(LoginDto dto);
+    Task<AuthResponse> RefreshAsync(RefreshDto dto);
+    UserDto Me(ClaimsPrincipal user);
+}
+
+public interface IDeviceService
+{
+    Task<object> CreateAsync(CreateDeviceDto dto);
+    Task<IEnumerable<object>> FindAllAsync();
+    Task<object?> FindOneAsync(int id);
+    Task<IEnumerable<DeviceLogDto>> GetLogsAsync(int id, int limit);
+    Task<object> UpdateAsync(int id, UpdateDeviceDto dto);
+    Task RemoveAsync(int id);
+    Task<object> GetTokenAsync(int id);
+    Task<object> RotateTokenAsync(int id);
+}
+
+public interface IPlaylistService
+{
+    Task<object> CreatePlaylistAsync(CreatePlaylistDto dto);
+    Task<IEnumerable<object>> GetPlaylistsAsync();
+    Task<object?> GetPlaylistAsync(int id);
+    Task<object> UpdatePlaylistAsync(int id, UpdatePlaylistDto dto);
+    Task RemovePlaylistAsync(int id);
+
+    Task<object> CreateItemAsync(CreatePlaylistItemDto dto);
+    Task<IEnumerable<object>> GetItemsAsync(int playlistId);
+    Task<object> UpdateItemAsync(int id, UpdatePlaylistItemDto dto);
+    Task<int> RemoveItemAsync(int id);
+
+    Task<object> AssignAsync(AssignPlaylistDto dto);
+    Task<IEnumerable<object>> GetDevicePlaylistsAsync(int deviceId);
+    Task<IEnumerable<object>> GetPlaylistDevicesAsync(int playlistId);
+    Task UnassignAsync(int deviceId, int playlistId);
+
+    // Content
+    Task<object> CreateContentAsync(CreateContentDto dto);
+    Task<IEnumerable<object>> GetAllContentAsync();
+    Task<object?> GetContentAsync(int id);
+    Task<object> UpdateContentAsync(int id, UpdateContentDto dto);
+    Task RemoveContentAsync(int id);
+}
+
+public interface IScreenshotService
+{
+    Task<object?> GetLatestAsync(string deviceId);
+    Task<IEnumerable<object>> GetByDeviceAsync(string deviceId);
+    Task<object?> GetByIdAsync(int id);
+}
+
+public class AuthService : IAuthService
+{
+    private readonly IConfiguration _config;
+    public AuthService(IConfiguration config) => _config = config;
+
+    public Task<AuthResponse> RegisterAsync(RegisterDto dto)
+        => Task.FromResult(GenerateTokens(dto.Username));
+
+    public Task<AuthResponse> LoginAsync(LoginDto dto)
+        => Task.FromResult(GenerateTokens(dto.Username));
+
+    public Task<AuthResponse> RefreshAsync(RefreshDto dto)
+        => Task.FromResult(GenerateTokens("user"));
+
+    public UserDto Me(ClaimsPrincipal user)
+        => new UserDto(1, user.Identity?.Name ?? "user");
+
+    private AuthResponse GenerateTokens(string username)
+    {
+        var issuer = _config["Jwt:Issuer"] ?? "pds";
+        var audience = _config["Jwt:Audience"] ?? "pds-clients";
+        var secret = _config["Jwt:Secret"] ?? "dev-secret-key";
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var claims = new[]
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, username),
+            new Claim(ClaimTypes.Name, username)
+        };
+
+        var token = new JwtSecurityToken(
+            issuer: issuer,
+            audience: audience,
+            claims: claims,
+            expires: DateTime.UtcNow.AddHours(1),
+            signingCredentials: creds
+        );
+
+        var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
+        var refreshToken = Guid.NewGuid().ToString("n");
+        return new AuthResponse(accessToken, refreshToken);
+    }
+}
+
+public static class AuthHelpers
+{
+    public static AuthResponse GenerateTokens(string username, IConfiguration config)
+    {
+        var issuer = config["Jwt:Issuer"] ?? "pds";
+        var audience = config["Jwt:Audience"] ?? "pds-clients";
+        var secret = config["Jwt:Secret"] ?? "dev-secret-key";
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var claims = new[]
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, username),
+            new Claim(ClaimTypes.Name, username)
+        };
+
+        var token = new JwtSecurityToken(
+            issuer: issuer,
+            audience: audience,
+            claims: claims,
+            expires: DateTime.UtcNow.AddHours(1),
+            signingCredentials: creds
+        );
+
+        var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
+        var refreshToken = Guid.NewGuid().ToString("n");
+        return new AuthResponse(accessToken, refreshToken);
+    }
+}
+
+public class DeviceService : IDeviceService
+{
+    private readonly PdsDbContext _db;
+    public DeviceService(PdsDbContext db) => _db = db;
+
+    public async Task<object> CreateAsync(CreateDeviceDto dto)
+    {
+        var exists = await _db.Devices.AnyAsync(d => d.DeviceId == dto.DeviceId);
+        if (!exists)
+        {
+            var entity = new Device { DeviceId = dto.DeviceId, Name = dto.Name, CreatedAt = DateTime.UtcNow };
+            _db.Devices.Add(entity);
+            await _db.SaveChangesAsync();
+            // Generate and persist a token for the device
+            entity.Token = GenerateToken();
+            await _db.SaveChangesAsync();
+            return new { id = entity.Id, entity.DeviceId, entity.Name, token = entity.Token };
+        }
+        var d = await _db.Devices.FirstAsync(x => x.DeviceId == dto.DeviceId);
+        // If no token yet, generate and persist; otherwise return existing
+        if (string.IsNullOrEmpty(d.Token))
+        {
+            d.Token = GenerateToken();
+            await _db.SaveChangesAsync();
+        }
+        return new { id = d.Id, d.DeviceId, d.Name, token = d.Token };
+    }
+
+    public async Task<IEnumerable<object>> FindAllAsync()
+    {
+        return await _db.Devices.OrderBy(d => d.Id)
+            .Select(d => new { id = d.Id, deviceId = d.DeviceId, name = d.Name, createdAt = d.CreatedAt })
+            .ToListAsync();
+    }
+
+    public async Task<object?> FindOneAsync(int id)
+    {
+        var d = await _db.Devices.FindAsync(id);
+        return d == null ? null : new { id = d.Id, deviceId = d.DeviceId, name = d.Name, createdAt = d.CreatedAt };
+    }
+
+    public async Task<IEnumerable<DeviceLogDto>> GetLogsAsync(int id, int limit)
+    {
+        return await _db.DeviceLogs.Where(l => l.DeviceId == id)
+            .OrderByDescending(l => l.Timestamp)
+            .Take(limit)
+            .Select(l => new DeviceLogDto(l.Id, l.Message, l.Timestamp))
+            .ToListAsync();
+    }
+
+    public async Task<object> GetTokenAsync(int id)
+    {
+        var d = await _db.Devices.FindAsync(id);
+        if (d == null) return new { error = "not_found" };
+        if (string.IsNullOrEmpty(d.Token))
+        {
+            d.Token = GenerateToken();
+            await _db.SaveChangesAsync();
+        }
+        return new { id = d.Id, deviceId = d.DeviceId, name = d.Name, token = d.Token };
+    }
+
+    public async Task<object> RotateTokenAsync(int id)
+    {
+        var d = await _db.Devices.FindAsync(id);
+        if (d == null) return new { error = "not_found" };
+        d.Token = GenerateToken();
+        await _db.SaveChangesAsync();
+        return new { id = d.Id, deviceId = d.DeviceId, name = d.Name, token = d.Token };
+    }
+
+    private static string GenerateToken()
+    {
+        return Convert.ToBase64String(Guid.NewGuid().ToByteArray())
+            .TrimEnd('=')
+            .Replace("+", "-")
+            .Replace("/", "_");
+    }
+
+    public async Task<object> UpdateAsync(int id, UpdateDeviceDto dto)
+    {
+        var d = await _db.Devices.FindAsync(id);
+        if (d == null) return new { error = "not_found" };
+        if (!string.IsNullOrWhiteSpace(dto.Name)) d.Name = dto.Name!;
+        await _db.SaveChangesAsync();
+        return new { id = d.Id, deviceId = d.DeviceId, name = d.Name };
+    }
+
+    public async Task RemoveAsync(int id)
+    {
+        var d = await _db.Devices.FindAsync(id);
+        if (d == null) return;
+        _db.Devices.Remove(d);
+        await _db.SaveChangesAsync();
+    }
+}
+
+public class PlaylistService : IPlaylistService
+{
+    private readonly PdsDbContext _db;
+    public PlaylistService(PdsDbContext db) => _db = db;
+
+    public async Task<object> CreatePlaylistAsync(CreatePlaylistDto dto)
+    {
+        var p = new Playlist { Name = dto.Name, IsActive = dto.IsActive ?? true };
+        _db.Playlists.Add(p);
+        await _db.SaveChangesAsync();
+        return new { id = p.Id, p.Name, isActive = p.IsActive };
+    }
+
+    public async Task<IEnumerable<object>> GetPlaylistsAsync()
+    {
+        return await _db.Playlists.OrderBy(p => p.Id)
+            .Select(p => new { id = p.Id, name = p.Name, isActive = p.IsActive })
+            .ToListAsync();
+    }
+
+    public async Task<object?> GetPlaylistAsync(int id)
+    {
+        var p = await _db.Playlists.Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id);
+        return p == null ? null : new { id = p.Id, name = p.Name, isActive = p.IsActive, items = p.Items.Select(i => new { id = i.Id, url = i.Url, durationSeconds = i.DurationSeconds }) };
+    }
+
+    public async Task<object> UpdatePlaylistAsync(int id, UpdatePlaylistDto dto)
+    {
+        var p = await _db.Playlists.FindAsync(id);
+        if (p == null) return new { error = "not_found" };
+        if (!string.IsNullOrWhiteSpace(dto.Name)) p.Name = dto.Name!;
+        if (dto.IsActive != null) p.IsActive = dto.IsActive.Value;
+        await _db.SaveChangesAsync();
+        return new { id = p.Id, name = p.Name, isActive = p.IsActive };
+    }
+
+    public async Task RemovePlaylistAsync(int id)
+    {
+        var p = await _db.Playlists.FindAsync(id);
+        if (p == null) return;
+        _db.Playlists.Remove(p);
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task<object> CreateItemAsync(CreatePlaylistItemDto dto)
+    {
+        var i = new PlaylistItem { PlaylistId = dto.PlaylistId, Url = "", DurationSeconds = (dto.DisplayDuration <= 0 ? 0 : dto.DisplayDuration / 1000) };
+        _db.PlaylistItems.Add(i);
+        await _db.SaveChangesAsync();
+        return new { id = i.Id, playlistId = i.PlaylistId, url = i.Url, durationSeconds = i.DurationSeconds };
+    }
+
+    public async Task<IEnumerable<object>> GetItemsAsync(int playlistId)
+    {
+        return await _db.PlaylistItems.Where(i => i.PlaylistId == playlistId)
+            .OrderBy(i => i.Id)
+            .Select(i => new { id = i.Id, url = i.Url, durationSeconds = i.DurationSeconds })
+            .ToListAsync();
+    }
+
+    public async Task<object> UpdateItemAsync(int id, UpdatePlaylistItemDto dto)
+    {
+        var i = await _db.PlaylistItems.FindAsync(id);
+        if (i == null) return new { error = "not_found" };
+        if (dto.DisplayDuration != null) i.DurationSeconds = (dto.DisplayDuration.Value <= 0 ? 0 : dto.DisplayDuration.Value / 1000);
+        await _db.SaveChangesAsync();
+        return new { id = i.Id, playlistId = i.PlaylistId, url = i.Url, durationSeconds = i.DurationSeconds };
+    }
+
+    public async Task<int> RemoveItemAsync(int id)
+    {
+        var i = await _db.PlaylistItems.FindAsync(id);
+        if (i == null) return 0;
+        var pid = i.PlaylistId;
+        _db.PlaylistItems.Remove(i);
+        await _db.SaveChangesAsync();
+
+        // Notify all devices assigned to this playlist with updated items
+        var deviceIds = await _db.DevicePlaylists.Where(x => x.PlaylistId == pid)
+            .Join(_db.Devices, dp => dp.DeviceId, d => d.Id, (dp, d) => d.DeviceId)
+            .ToListAsync();
+        var items = await _db.PlaylistItems.Where(x => x.PlaylistId == pid)
+            .OrderBy(x => x.Id)
+            .Select(x => new { id = x.Id, url = x.Url, durationSeconds = x.DurationSeconds })
+            .ToListAsync();
+        foreach (var devId in deviceIds)
+        {
+            await RealtimeHub.SendToDevice(devId, ServerToClientEvent.CONTENT_UPDATE, new { playlistId = pid, items });
+        }
+        return pid;
+    }
+
+    public async Task<object> AssignAsync(AssignPlaylistDto dto)
+    {
+        // Avoid duplicate assignment
+        var exists = await _db.DevicePlaylists.AnyAsync(x => x.DeviceId == dto.DeviceId && x.PlaylistId == dto.PlaylistId);
+        if (!exists)
+        {
+            var dp = new DevicePlaylist { DeviceId = dto.DeviceId, PlaylistId = dto.PlaylistId };
+            _db.DevicePlaylists.Add(dp);
+            await _db.SaveChangesAsync();
+        }
+
+        // Push content update to device if connected
+        var device = await _db.Devices.FindAsync(dto.DeviceId);
+        if (device != null)
+        {
+            var items = await _db.PlaylistItems.Where(i => i.PlaylistId == dto.PlaylistId)
+                .OrderBy(i => i.Id)
+                .Select(i => new { id = i.Id, url = i.Url, durationSeconds = i.DurationSeconds })
+                .ToListAsync();
+            await RealtimeHub.SendToDevice(device.DeviceId, ServerToClientEvent.CONTENT_UPDATE, new { playlistId = dto.PlaylistId, items });
+        }
+
+        return new { deviceId = dto.DeviceId, playlistId = dto.PlaylistId };
+    }
+
+    public async Task<IEnumerable<object>> GetDevicePlaylistsAsync(int deviceId)
+    {
+        return await _db.DevicePlaylists.Where(x => x.DeviceId == deviceId)
+            .Join(_db.Playlists, dp => dp.PlaylistId, p => p.Id, (dp, p) => new { id = p.Id, name = p.Name, isActive = p.IsActive })
+            .Distinct()
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<object>> GetPlaylistDevicesAsync(int playlistId)
+    {
+        return await _db.DevicePlaylists.Where(x => x.PlaylistId == playlistId)
+            .Join(_db.Devices, dp => dp.DeviceId, d => d.Id, (dp, d) => new { id = d.Id, deviceId = d.DeviceId, name = d.Name })
+            .ToListAsync();
+    }
+
+    public async Task UnassignAsync(int deviceId, int playlistId)
+    {
+        var dp = await _db.DevicePlaylists.FirstOrDefaultAsync(x => x.DeviceId == deviceId && x.PlaylistId == playlistId);
+        if (dp == null) return;
+        _db.DevicePlaylists.Remove(dp);
+        await _db.SaveChangesAsync();
+
+        // If device has no more playlists, push empty content update
+        var remaining = await _db.DevicePlaylists.AnyAsync(x => x.DeviceId == deviceId);
+        var device = await _db.Devices.FindAsync(deviceId);
+        if (device != null)
+        {
+            if (!remaining)
+            {
+                await RealtimeHub.SendToDevice(device.DeviceId, ServerToClientEvent.CONTENT_UPDATE, new { playlistId = 0, items = Array.Empty<object>() });
+            }
+            else
+            {
+                // Optionally, pick one playlist and push its items
+                var nextPid = await _db.DevicePlaylists.Where(x => x.DeviceId == deviceId).Select(x => x.PlaylistId).FirstAsync();
+                var items = await _db.PlaylistItems.Where(x => x.PlaylistId == nextPid)
+                    .OrderBy(x => x.Id)
+                    .Select(x => new
+                    {
+                        id = x.Id,
+                        playlistId = nextPid,
+                        contentId = x.Id,
+                        displayDuration = (x.DurationSeconds ?? 0) * 1000,
+                        orderIndex = x.Id,
+                        content = new { id = x.Id, name = x.Url, url = x.Url, requiresInteraction = false }
+                    })
+                    .ToListAsync();
+                await RealtimeHub.SendToDevice(device.DeviceId, ServerToClientEvent.CONTENT_UPDATE, new { playlistId = nextPid, items });
+            }
+        }
+    }
+
+    // Content
+    public async Task<object> CreateContentAsync(CreateContentDto dto)
+    {
+        var c = new ContentItem { Name = dto.Name, Url = dto.Url };
+        _db.Content.Add(c);
+        await _db.SaveChangesAsync();
+        return new { id = c.Id, name = c.Name, url = c.Url };
+    }
+
+    public async Task<IEnumerable<object>> GetAllContentAsync()
+    {
+        return await _db.Content.OrderBy(c => c.Id)
+            .Select(c => new { id = c.Id, name = c.Name, url = c.Url })
+            .ToListAsync();
+    }
+
+    public async Task<object?> GetContentAsync(int id)
+    {
+        var c = await _db.Content.FindAsync(id);
+        return c == null ? null : new { id = c.Id, name = c.Name, url = c.Url };
+    }
+
+    public async Task<object> UpdateContentAsync(int id, UpdateContentDto dto)
+    {
+        var c = await _db.Content.FindAsync(id);
+        if (c == null) return new { error = "not_found" };
+        if (!string.IsNullOrWhiteSpace(dto.Name)) c.Name = dto.Name!;
+        if (!string.IsNullOrWhiteSpace(dto.Url)) c.Url = dto.Url!;
+        await _db.SaveChangesAsync();
+        return new { id = c.Id, name = c.Name, url = c.Url };
+    }
+
+    public async Task RemoveContentAsync(int id)
+    {
+        var c = await _db.Content.FindAsync(id);
+        if (c == null) return;
+        _db.Content.Remove(c);
+        await _db.SaveChangesAsync();
+    }
+}
+
+public class ScreenshotService : IScreenshotService
+{
+    private readonly PdsDbContext _db;
+    public ScreenshotService(PdsDbContext db) => _db = db;
+
+    public async Task<object?> GetLatestAsync(string deviceId)
+    {
+        var s = await _db.Screenshots.Where(x => x.DeviceStringId == deviceId)
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync();
+        return s == null ? null : new { id = s.Id, deviceId = s.DeviceStringId, url = s.CurrentUrl, createdAt = s.CreatedAt };
+    }
+
+    public async Task<IEnumerable<object>> GetByDeviceAsync(string deviceId)
+    {
+        return await _db.Screenshots.Where(x => x.DeviceStringId == deviceId)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(s => new { id = s.Id, deviceId = s.DeviceStringId, url = s.CurrentUrl, createdAt = s.CreatedAt })
+            .ToListAsync();
+    }
+
+    public async Task<object?> GetByIdAsync(int id)
+    {
+        var s = await _db.Screenshots.FindAsync(id);
+        return s == null ? null : new { id = s.Id, deviceId = s.DeviceStringId, url = s.CurrentUrl, createdAt = s.CreatedAt };
+    }
+}
+
+// Removed duplicate DbContext; using PDS.Api.PdsDbContext from Entities.cs
+
+public static class RealtimeHub
+{
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Net.WebSockets.WebSocket> Devices = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Net.WebSockets.WebSocket> Admins = new();
+
+    public static async Task HandleAsync(HttpContext ctx, System.Net.WebSockets.WebSocket ws)
+    {
+        var role = (ctx.Request.Query["role"].ToString() ?? "admin").ToLowerInvariant();
+        var deviceId = ctx.Request.Query["deviceId"].ToString();
+
+        if (role == "device" && !string.IsNullOrEmpty(deviceId)) Devices[deviceId] = ws; else Admins[Guid.NewGuid().ToString()] = ws;
+
+        if (role == "admin")
+        {
+            await Send(ws, "admin:devices:sync", new { deviceIds = Devices.Keys.ToArray(), timestamp = DateTime.UtcNow });
+        }
+
+        var buffer = new byte[64 * 1024];
+        while (ws.State == System.Net.WebSockets.WebSocketState.Open)
+        {
+            var result = await ws.ReceiveAsync(buffer: new ArraySegment<byte>(buffer), cancellationToken: CancellationToken.None);
+            if (result.MessageType == System.Net.WebSockets.WebSocketMessageType.Close)
+            {
+                await ws.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, "closed", CancellationToken.None);
+                break;
+            }
+
+            var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var evt = doc.RootElement.GetProperty("event").GetString();
+            var payload = doc.RootElement.GetProperty("payload");
+
+            switch (evt)
+            {
+                case "device:register":
+                    break;
+                case "health:report":
+                    BroadcastAdmins("admin:device:health", new { deviceId, health = payload, timestamp = DateTime.UtcNow });
+                    break;
+                case "device:status":
+                    BroadcastAdmins("admin:device:status", new { deviceId, status = payload.GetProperty("status").GetString(), timestamp = DateTime.UtcNow });
+                    break;
+                case "error:report":
+                    BroadcastAdmins("admin:error", new { deviceId, error = payload.GetProperty("error").GetString(), timestamp = DateTime.UtcNow });
+                    break;
+                case "screenshot:upload":
+                    BroadcastAdmins("admin:screenshot:received", new { deviceId, screenshotId = 0, timestamp = DateTime.UtcNow });
+                    break;
+            }
+        }
+    }
+
+    public static Task SendToDevice(string deviceId, string evt, object payload)
+    {
+        if (Devices.TryGetValue(deviceId, out var ws)) return Send(ws, evt, payload);
+        return Task.CompletedTask;
+    }
+
+    private static Task Send(System.Net.WebSockets.WebSocket ws, string evt, object payload)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new { @event = evt, payload });
+        var bytes = Encoding.UTF8.GetBytes(json);
+        return ws.SendAsync(new ArraySegment<byte>(bytes), System.Net.WebSockets.WebSocketMessageType.Text, true, CancellationToken.None);
+    }
+
+    private static void BroadcastAdmins(string evt, object payload)
+    {
+        foreach (var ws in Admins.Values)
+        {
+            _ = Send(ws, evt, payload);
+        }
+    }
+}

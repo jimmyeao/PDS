@@ -1,4 +1,4 @@
-import { io, Socket } from 'socket.io-client';
+import WebSocket, { RawData } from 'ws';
 import { config } from './config';
 import { logger } from './logger';
 import type {
@@ -8,12 +8,6 @@ import type {
   ConfigUpdatePayload,
   DeviceRestartPayload,
   DisplayRefreshPayload,
-  DeviceRegisterPayload,
-  HealthReportPayload,
-  DeviceStatusPayload,
-  ErrorReportPayload,
-  ScreenshotUploadPayload,
-  DeviceInfo,
   DeviceStatus,
 } from '@kiosk/shared';
 
@@ -49,7 +43,7 @@ export type DeviceRestartCallback = (payload: DeviceRestartPayload) => void;
 export type DisplayRefreshCallback = (payload: DisplayRefreshPayload) => void;
 
 class WebSocketClient {
-  private socket: Socket | null = null;
+  private socket: WebSocket | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private isConnected = false;
@@ -65,106 +59,84 @@ class WebSocketClient {
   constructor() {}
 
   public connect(): void {
-    if (this.socket?.connected) {
+    if (this.socket?.readyState === WebSocket.OPEN) {
       logger.warn('WebSocket already connected');
       return;
     }
 
-    logger.info(`Connecting to server: ${config.serverUrl}`);
+    const wsUrl = `${config.serverUrl.replace(/^http/, 'ws')}/ws?role=device&deviceId=${encodeURIComponent(config.deviceId)}`;
+    logger.info(`Connecting to server: ${wsUrl}`);
 
-    this.socket = io(config.serverUrl, {
-      auth: {
-        token: config.deviceToken,
-        role: 'device',
-      },
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionDelay: 5000,
-      reconnectionAttempts: this.maxReconnectAttempts,
-    });
-
+    this.socket = new WebSocket(wsUrl);
     this.setupEventHandlers();
   }
 
   private setupEventHandlers(): void {
     if (!this.socket) return;
 
-    // Connection events
-    this.socket.on('connect', () => {
-      logger.info(`✅ Connected to server (Socket ID: ${this.socket?.id})`);
+    this.socket.on('open', () => {
+      logger.info('✅ Connected to server');
       this.isConnected = true;
       this.reconnectAttempts = 0;
       this.registerDevice();
     });
 
-    this.socket.on('disconnect', (reason) => {
-      logger.warn(`❌ Disconnected from server: ${reason}`);
+    this.socket.on('close', (code: number, reason: Buffer) => {
+      logger.warn(`❌ Disconnected from server: code=${code} reason=${reason.toString()}`);
       this.isConnected = false;
-    });
-
-    this.socket.on('connect_error', (error) => {
-      logger.error(`Connection error: ${error.message}`);
-      this.reconnectAttempts++;
-
-      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        this.reconnectAttempts++;
+        setTimeout(() => this.connect(), 5000);
+      } else {
         logger.error('Max reconnection attempts reached. Stopping...');
-        this.disconnect();
       }
     });
 
-    // Server command events
-    this.socket.on(ServerToClientEventValues.CONTENT_UPDATE, (payload: ContentUpdatePayload) => {
-      logger.info('Received content update', payload);
-      this.contentUpdateCallback?.(payload);
+    this.socket.on('error', (error: Error) => {
+      logger.error(`Connection error: ${String((error as any)?.message || error)}`);
     });
 
-    this.socket.on(ServerToClientEventValues.DISPLAY_NAVIGATE, (payload: DisplayNavigatePayload) => {
-      logger.info('Received display navigate command', payload);
-      this.displayNavigateCallback?.(payload);
-    });
+    this.socket.on('message', (data: RawData) => {
+      try {
+        const msg = JSON.parse(data.toString());
+        const evt: string = msg.event;
+        const payload = msg.payload;
 
-    this.socket.on(ServerToClientEventValues.SCREENSHOT_REQUEST, (payload: ScreenshotRequestPayload) => {
-      logger.info('Received screenshot request', payload);
-      this.screenshotRequestCallback?.(payload);
-    });
-
-    this.socket.on(ServerToClientEventValues.CONFIG_UPDATE, (payload: ConfigUpdatePayload) => {
-      logger.info('Received config update', payload);
-      this.configUpdateCallback?.(payload);
-    });
-
-    this.socket.on(ServerToClientEventValues.DEVICE_RESTART, (payload: DeviceRestartPayload) => {
-      logger.warn('Received device restart command', payload);
-      this.deviceRestartCallback?.(payload);
-    });
-
-    this.socket.on(ServerToClientEventValues.DISPLAY_REFRESH, (payload: DisplayRefreshPayload) => {
-      logger.info('Received display refresh command', payload);
-      this.displayRefreshCallback?.(payload);
+        switch (evt) {
+          case ServerToClientEventValues.CONTENT_UPDATE:
+            this.contentUpdateCallback?.(payload as ContentUpdatePayload);
+            break;
+          case ServerToClientEventValues.DISPLAY_NAVIGATE:
+            this.displayNavigateCallback?.(payload as DisplayNavigatePayload);
+            break;
+          case ServerToClientEventValues.SCREENSHOT_REQUEST:
+            this.screenshotRequestCallback?.(payload as ScreenshotRequestPayload);
+            break;
+          case ServerToClientEventValues.CONFIG_UPDATE:
+            this.configUpdateCallback?.(payload as ConfigUpdatePayload);
+            break;
+          case ServerToClientEventValues.DEVICE_RESTART:
+            this.deviceRestartCallback?.(payload as DeviceRestartPayload);
+            break;
+          case ServerToClientEventValues.DISPLAY_REFRESH:
+            this.displayRefreshCallback?.(payload as DisplayRefreshPayload);
+            break;
+        }
+      } catch (err: any) {
+        logger.error('Failed to parse WS message', err?.message || String(err));
+      }
     });
   }
 
   private registerDevice(): void {
-    const deviceInfo: DeviceInfo = {
-      deviceId: 'unknown', // Will be set by backend from token
-      name: 'Client Device', // Will be overridden by backend
-      ipAddress: '0.0.0.0', // Will be detected by backend
-      screenResolution: `${config.displayWidth}x${config.displayHeight}`,
-      osVersion: `${process.platform} ${process.arch}`,
-      clientVersion: '1.0.0',
-    };
-
-    const payload: DeviceRegisterPayload = {
-      deviceInfo,
-    };
-
-    this.socket?.emit(ClientToServerEventValues.DEVICE_REGISTER, payload);
+    const payload = { deviceId: config.deviceId };
+    this.send(ClientToServerEventValues.DEVICE_REGISTER, payload);
     logger.debug('Device registration sent');
   }
 
   public disconnect(): void {
     if (this.socket) {
-      this.socket.disconnect();
+      try { this.socket.close(); } catch {}
       this.socket = null;
       this.isConnected = false;
       logger.info('WebSocket disconnected');
@@ -176,13 +148,19 @@ class WebSocketClient {
   }
 
   // Event emitters to server
-  public sendHealthReport(health: HealthReportPayload): void {
+  public sendHealthReport(health: any): void {
     if (!this.isConnected) {
       logger.warn('Cannot send health report: not connected');
       return;
     }
-    this.socket?.emit(ClientToServerEventValues.HEALTH_REPORT, health);
-    logger.debug('Health report sent', health);
+    const payload = {
+      cpu: (health as any).cpu ?? 0,
+      mem: (health as any).mem ?? 0,
+      disk: (health as any).disk ?? 0,
+      ts: new Date().toISOString(),
+    };
+    this.send(ClientToServerEventValues.HEALTH_REPORT, payload);
+    logger.debug('Health report sent', payload);
   }
 
   public sendDeviceStatus(status: DeviceStatus, message?: string): void {
@@ -191,12 +169,8 @@ class WebSocketClient {
       return;
     }
 
-    const payload: DeviceStatusPayload = {
-      status,
-      message,
-    };
-
-    this.socket?.emit(ClientToServerEventValues.DEVICE_STATUS, payload);
+    const payload = { status, message };
+    this.send(ClientToServerEventValues.DEVICE_STATUS, payload);
     logger.debug('Device status sent', payload);
   }
 
@@ -206,13 +180,8 @@ class WebSocketClient {
       return;
     }
 
-    const payload: ErrorReportPayload = {
-      error,
-      stack,
-      context,
-    };
-
-    this.socket?.emit(ClientToServerEventValues.ERROR_REPORT, payload);
+    const payload = { error, stack, context };
+    this.send(ClientToServerEventValues.ERROR_REPORT, payload);
     logger.error('Error report sent', payload);
   }
 
@@ -222,14 +191,18 @@ class WebSocketClient {
       return;
     }
 
-    const payload: ScreenshotUploadPayload = {
-      image,
-      timestamp: Date.now(),
-      currentUrl,
-    };
-
-    this.socket?.emit(ClientToServerEventValues.SCREENSHOT_UPLOAD, payload);
+    const payload = { image, currentUrl };
+    this.send(ClientToServerEventValues.SCREENSHOT_UPLOAD, payload);
     logger.debug('Screenshot sent');
+  }
+
+  private send(event: string, payload: any): void {
+    if (!this.isConnected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      logger.warn(`Cannot send ${event}: not connected`);
+      return;
+    }
+    const msg = JSON.stringify({ event, payload });
+    this.socket.send(msg);
   }
 
   // Event callback setters

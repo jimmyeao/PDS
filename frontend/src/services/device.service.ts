@@ -32,4 +32,14 @@ export const deviceService = {
     });
     return response.data;
   },
+
+  async getToken(id: number): Promise<{ id: number; deviceId: string; name: string; token: string }>{
+    const response = await api.get(`/devices/${id}/token`);
+    return response.data;
+  },
+
+  async rotateToken(id: number): Promise<{ id: number; deviceId: string; name: string; token: string }>{
+    const response = await api.post(`/devices/${id}/token/rotate`);
+    return response.data;
+  },
 };

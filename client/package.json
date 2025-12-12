@@ -9,7 +9,9 @@
     "dev": "ts-node src/index.ts",
     "watch": "npx tsc --watch",
     "deploy": "bash deploy.sh",
-    "deploy:win": "powershell -ExecutionPolicy Bypass -File deploy-windows.ps1"
+    "deploy:win": "powershell -ExecutionPolicy Bypass -File deploy-windows.ps1",
+    "deploy:linux": "powershell -ExecutionPolicy Bypass -File deploy-linux.ps1",
+    "gen:types": "openapi-typescript http://localhost:5000/swagger/v1/swagger.json -o src/services/api-types.ts"
   },
   "keywords": ["kiosk", "digital-signage", "raspberry-pi", "windows", "intel-nuc", "chromium"],
   "author": "",
@@ -19,11 +21,14 @@
     "socket.io-client": "^4.8.1",
     "puppeteer": "^24.15.0",
     "dotenv": "^16.4.7",
-    "systeminformation": "^5.23.22"
+    "systeminformation": "^5.23.22",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "typescript": "^5.7.2",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "openapi-typescript": "^7.5.1",
+    "@types/ws": "^8.5.12"
   }
 }

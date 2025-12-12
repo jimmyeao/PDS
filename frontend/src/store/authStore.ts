@@ -30,12 +30,16 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const response = await authService.login(credentials);
 
+      // Persist tokens first
       localStorage.setItem('accessToken', response.accessToken);
       localStorage.setItem('refreshToken', response.refreshToken);
-      localStorage.setItem('user', JSON.stringify(response.user));
+
+      // Fetch current user using the access token
+      const user = await authService.getCurrentUser();
+      localStorage.setItem('user', JSON.stringify(user));
 
       set({
-        user: response.user,
+        user,
         accessToken: response.accessToken,
         refreshToken: response.refreshToken,
         isAuthenticated: true,

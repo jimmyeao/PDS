@@ -8,6 +8,7 @@ import type { Playlist } from '@kiosk/shared';
 
 export const DevicesPage = () => {
   const { devices, fetchDevices, createDevice, updateDevice, deleteDevice, isLoading } = useDeviceStore();
+  const { getDeviceToken, rotateDeviceToken } = useDeviceStore();
   const { connectedDevices } = useWebSocketStore();
   const { playlists, fetchPlaylists, assignPlaylistToDevice, unassignPlaylistFromDevice } = usePlaylistStore();
   const [showModal, setShowModal] = useState(false);
@@ -109,6 +110,29 @@ export const DevicesPage = () => {
   const handleDelete = async (id: number) => {
     if (confirm('Are you sure you want to delete this device?')) {
       await deleteDevice(id);
+    }
+  };
+
+  const handleShowToken = async (id: number) => {
+    try {
+      const token = await getDeviceToken(id);
+      setDeviceToken(token);
+      setCopiedToken(false);
+      setShowTokenModal(true);
+    } catch (err) {
+      // error surfaced via store
+    }
+  };
+
+  const handleRotateToken = async (id: number) => {
+    if (!confirm('Rotate this device token? The old token will stop working.')) return;
+    try {
+      const token = await rotateDeviceToken(id);
+      setDeviceToken(token);
+      setCopiedToken(false);
+      setShowTokenModal(true);
+    } catch (err) {
+      // error surfaced via store
     }
   };
 
@@ -267,10 +291,24 @@ export const DevicesPage = () => {
                     Screenshot
                   </button>
                   <button
+                    onClick={() => handleShowToken(device.id)}
+                    className="btn-secondary text-sm flex-1"
+                  >
+                    Get Token
+                  </button>
+                  <button
                     onClick={() => handleDelete(device.id)}
                     className="btn-danger text-sm flex-1"
                   >
                     Delete
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleRotateToken(device.id)}
+                    className="btn-warning text-sm flex-1"
+                  >
+                    Rotate Token
                   </button>
                 </div>
               </div>

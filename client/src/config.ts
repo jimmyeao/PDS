@@ -7,6 +7,7 @@ dotenv.config({ path: path.join(__dirname, '..', '.env') });
 export interface ClientConfig {
   // Server
   serverUrl: string;
+  deviceId: string;
 
   // Device
   deviceToken: string; // Token contains all device identity info
@@ -35,7 +36,8 @@ class ConfigManager {
 
   private loadConfig(): ClientConfig {
     return {
-      serverUrl: process.env.SERVER_URL || 'http://localhost:3000',
+      serverUrl: process.env.SERVER_URL || 'http://localhost:5000',
+      deviceId: process.env.DEVICE_ID || 'dev-001',
       deviceToken: process.env.DEVICE_TOKEN || '',
       displayWidth: parseInt(process.env.DISPLAY_WIDTH || '1920', 10),
       displayHeight: parseInt(process.env.DISPLAY_HEIGHT || '1080', 10),

@@ -13,6 +13,8 @@ interface DeviceState {
   createDevice: (data: any) => Promise<Device & { token?: string }>;
   updateDevice: (id: number, data: any) => Promise<void>;
   deleteDevice: (id: number) => Promise<void>;
+  getDeviceToken: (id: number) => Promise<string>;
+  rotateDeviceToken: (id: number) => Promise<string>;
   setSelectedDevice: (device: Device | null) => void;
   clearError: () => void;
 }
@@ -89,6 +91,36 @@ export const useDeviceStore = create<DeviceState>((set) => ({
     } catch (error: any) {
       set({
         error: error.response?.data?.message || 'Failed to delete device',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  getDeviceToken: async (id: number) => {
+    set({ isLoading: true, error: null });
+    try {
+      const res = await deviceService.getToken(id);
+      set({ isLoading: false });
+      return res.token;
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Failed to fetch device token',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  rotateDeviceToken: async (id: number) => {
+    set({ isLoading: true, error: null });
+    try {
+      const res = await deviceService.rotateToken(id);
+      set({ isLoading: false });
+      return res.token;
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Failed to rotate device token',
         isLoading: false,
       });
       throw error;
