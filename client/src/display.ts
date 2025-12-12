@@ -18,6 +18,7 @@ class DisplayController {
 
     try {
       logger.info('Initializing display controller...');
+      logger.info(`Display configuration: ${config.displayWidth}x${config.displayHeight}, Kiosk: ${config.kioskMode}`);
 
       const launchOptions: any = {
         headless: false,
@@ -36,7 +37,10 @@ class DisplayController {
           '--disable-backgrounding-occluded-windows',
           '--disable-renderer-backgrounding',
           '--force-device-scale-factor=1', // Force 1:1 scaling
+          '--high-dpi-support=1',
+          '--force-color-profile=srgb',
           `--window-size=${config.displayWidth},${config.displayHeight}`,
+          `--window-position=0,0`,
         ],
         ignoreDefaultArgs: ['--enable-automation'],
         defaultViewport: null, // Use window size instead of viewport
@@ -68,6 +72,36 @@ class DisplayController {
         width: config.displayWidth,
         height: config.displayHeight,
         deviceScaleFactor: 1,
+      });
+
+      logger.info(`Viewport set to: ${config.displayWidth}x${config.displayHeight} with deviceScaleFactor=1`);
+
+      // Log actual browser dimensions and device pixel ratio
+      const browserInfo = await this.page.evaluate(() => {
+        // @ts-ignore - Code runs in browser context
+        return {
+          // @ts-ignore
+          windowWidth: window.innerWidth,
+          // @ts-ignore
+          windowHeight: window.innerHeight,
+          // @ts-ignore
+          screenWidth: window.screen.width,
+          // @ts-ignore
+          screenHeight: window.screen.height,
+          // @ts-ignore
+          devicePixelRatio: window.devicePixelRatio,
+          // @ts-ignore
+          outerWidth: window.outerWidth,
+          // @ts-ignore
+          outerHeight: window.outerHeight,
+        };
+      });
+      logger.info('Browser dimensions:', JSON.stringify(browserInfo, null, 2));
+
+      // Force zoom to 100% if it's not already
+      await this.page.evaluate(() => {
+        // @ts-ignore
+        document.body.style.zoom = '100%';
       });
 
       // Hide automation indicators
@@ -189,7 +223,31 @@ class DisplayController {
           // @ts-ignore
           document.head.appendChild(meta);
         }
+
+        // Force body and html to use 100% width/height and remove any scaling
+        // @ts-ignore
+        document.documentElement.style.cssText = 'width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden;';
+        // @ts-ignore
+        document.body.style.cssText = 'width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: auto; zoom: 100%;';
       });
+
+      // Log page dimensions after navigation
+      const pageDimensions = await this.page.evaluate(() => {
+        // @ts-ignore - Code runs in browser context
+        return {
+          // @ts-ignore
+          windowWidth: window.innerWidth,
+          // @ts-ignore
+          windowHeight: window.innerHeight,
+          // @ts-ignore
+          devicePixelRatio: window.devicePixelRatio,
+          // @ts-ignore
+          bodyWidth: document.body.offsetWidth,
+          // @ts-ignore
+          bodyHeight: document.body.offsetHeight,
+        };
+      });
+      logger.info(`Page dimensions after navigation: ${JSON.stringify(pageDimensions)}`);
 
       this.currentUrl = url;
       logger.info(`✅ Navigation successful: ${url}`);
