@@ -28,13 +28,13 @@ git pull
 # Build shared package
 echo "📦 Building shared package..."
 cd shared
-npm install --production --legacy-peer-deps
+npm install --legacy-peer-deps
 npm run build
 
 # Build client
 echo "📦 Building client..."
 cd ../client
-npm install --production --legacy-peer-deps
+npm install --legacy-peer-deps
 npm run build
 
 # Restart service if it was running
