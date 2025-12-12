@@ -166,11 +166,17 @@ class DisplayController {
         errorMessage.includes('wrongserverexception') ||
         errorMessage.includes('getmastercategorylist') ||
         errorMessage.includes('microsoft.exchange') ||
+        errorMessage.includes('cannot read properties of undefined') ||
         errorMessage === 'uncaught exception' ||
         errorStack.includes('trustedtypepolicy') ||
         errorStack.includes('content security') ||
         errorStack.includes('wrongserverexception') ||
-        errorStack.includes('microsoft.exchange');
+        errorStack.includes('microsoft.exchange') ||
+        errorStack.includes('adsprebid') ||
+        errorStack.includes('prebid') ||
+        errorStack.includes('analytics') ||
+        errorStack.includes('advertisement') ||
+        errorStack.includes('imrworldwide.com');
 
       if (!isNoiseError) {
         logger.error('Page JavaScript error:', error.message);
@@ -182,13 +188,18 @@ class DisplayController {
       const type = msg.type();
       const text = msg.text();
 
-      // Filter out noisy console errors (404s, 403s from third-party resources)
+      // Filter out noisy console errors (404s, 403s, CORS errors from third-party resources)
       const isResourceError =
         text.includes('Failed to load resource') ||
         text.includes('status of 404') ||
         text.includes('status of 403') ||
         text.includes('TrustedTypePolicy') ||
-        text.includes('Content Security');
+        text.includes('Content Security') ||
+        text.includes('CORS policy') ||
+        text.includes('Access to XMLHttpRequest') ||
+        text.includes('Access to fetch') ||
+        text.includes('blocked by CORS') ||
+        text.includes('No \'Access-Control-Allow-Origin\'');
 
       if (type === 'error' && !isResourceError) {
         logger.error(`Page console error: ${text}`);
@@ -207,10 +218,44 @@ class DisplayController {
     try {
       logger.info(`Navigating to: ${url}${duration ? ` (duration: ${duration}ms)` : ''}`);
 
-      await this.page.goto(url, {
-        waitUntil: 'networkidle2',
-        timeout: 30000,
-      });
+      // Determine timeout and wait strategy based on URL
+      const requiresAuth = url.includes('outlook.') || url.includes('office.com') || url.includes('microsoft.com');
+      const timeout = requiresAuth ? 60000 : 30000; // 60s for auth pages, 30s for others
+
+      // Try with networkidle2 first, then fall back to domcontentloaded
+      let navigationSuccess = false;
+
+      try {
+        await this.page.goto(url, {
+          waitUntil: 'networkidle2',
+          timeout: timeout,
+        });
+        navigationSuccess = true;
+      } catch (error: any) {
+        if (error.message.includes('Navigation timeout') || error.message.includes('Timeout')) {
+          logger.warn(`Network idle timeout, retrying with domcontentloaded strategy...`);
+
+          // Retry with more lenient wait strategy
+          try {
+            await this.page.goto(url, {
+              waitUntil: 'domcontentloaded',
+              timeout: 15000,
+            });
+            navigationSuccess = true;
+            logger.info('Navigation succeeded with domcontentloaded strategy');
+          } catch (retryError: any) {
+            logger.warn(`Navigation partially succeeded, continuing anyway: ${retryError.message}`);
+            // Continue anyway - page might still be usable even if not fully loaded
+            navigationSuccess = true;
+          }
+        } else {
+          throw error; // Re-throw non-timeout errors
+        }
+      }
+
+      if (!navigationSuccess) {
+        throw new Error('Navigation failed after retries');
+      }
 
       // Force page to use full viewport (code runs in browser context via page.evaluate)
       await this.page.evaluate(() => {
@@ -266,11 +311,14 @@ class DisplayController {
       }
     } catch (error: any) {
       logger.error(`Navigation failed to ${url}:`, error.message);
-      websocketClient.sendErrorReport(
-        `Navigation failed to ${url}`,
-        error.stack,
-        { url }
-      );
+      // Only report critical navigation failures, not timeouts that we handled
+      if (!error.message.includes('Navigation timeout')) {
+        websocketClient.sendErrorReport(
+          `Navigation failed to ${url}`,
+          error.stack,
+          { url }
+        );
+      }
     }
   }
 
