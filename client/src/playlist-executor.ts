@@ -75,7 +75,19 @@ class PlaylistExecutor {
     // Navigate to content
     this.displayContent(item);
 
-    // Schedule next item
+    // Schedule next item (if duration > 0 and more than one item)
+    // Duration of 0 means permanent display
+    if (item.displayDuration === 0) {
+      logger.info('Item has permanent display duration (0), staying on this item');
+      return;
+    }
+
+    // If only one item, display it permanently without rotation
+    if (this.playlistItems.length === 1) {
+      logger.info('Only one item in playlist, displaying permanently without rotation');
+      return;
+    }
+
     this.timeoutId = setTimeout(() => {
       this.executeNextItem();
     }, item.displayDuration);
@@ -138,7 +150,11 @@ class PlaylistExecutor {
 
       await displayController.navigateTo(url, item.displayDuration);
 
-      logger.info(`✅ Displaying content ${item.contentId} (${item.content.name}) for ${item.displayDuration}ms`);
+      if (item.displayDuration === 0) {
+        logger.info(`✅ Displaying content ${item.contentId} (${item.content.name}) permanently (duration: 0)`);
+      } else {
+        logger.info(`✅ Displaying content ${item.contentId} (${item.content.name}) for ${item.displayDuration}ms`);
+      }
     } catch (error: any) {
       logger.error(`Failed to display content ${item.contentId}:`, error.message);
     }
