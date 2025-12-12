@@ -32,6 +32,7 @@ import type {
 } from '@kiosk/shared';
 import { ScreenshotsService } from '../screenshots/screenshots.service';
 import { SchedulesService } from '../schedules/schedules.service';
+import { DevicesService } from '../devices/devices.service';
 
 interface AuthenticatedSocket extends Socket {
   deviceId?: string;
@@ -59,6 +60,8 @@ export class WebSocketGatewayService
   constructor(
     private jwtService: JwtService,
     private configService: ConfigService,
+    @Inject(forwardRef(() => DevicesService))
+    private devicesService: DevicesService,
     @Inject(forwardRef(() => ScreenshotsService))
     private screenshotsService: ScreenshotsService,
     @Inject(forwardRef(() => SchedulesService))
@@ -224,12 +227,19 @@ export class WebSocketGatewayService
     this.logger.log(`Screenshot received from ${payload.deviceId}`);
 
     try {
+      // Look up device by deviceId string to get numeric ID
+      const device = await this.devicesService.findByDeviceId(payload.deviceId);
+      if (!device) {
+        this.logger.error(`Device not found: ${payload.deviceId}`);
+        return;
+      }
+
       // Save screenshot to database
-      const screenshot = await this.screenshotsService.saveScreenshot(
-        payload.deviceId,
-        payload.image,
-        payload.currentUrl,
-      );
+      const screenshot = await this.screenshotsService.create({
+        deviceId: device.id,
+        imageData: payload.image,
+        url: payload.currentUrl,
+      });
 
       // Notify admins
       this.notifyAdmins(ServerToAdminEvent.SCREENSHOT_RECEIVED, {
