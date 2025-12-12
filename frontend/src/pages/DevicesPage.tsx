@@ -1,13 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useDeviceStore } from '../store/deviceStore';
 import { useWebSocketStore } from '../store/websocketStore';
+import { useScheduleStore } from '../store/scheduleStore';
+import { scheduleService } from '../services/schedule.service';
 import { ScreenshotViewer } from '../components/ScreenshotViewer';
+import type { Schedule } from '@kiosk/shared';
 
 export const DevicesPage = () => {
   const { devices, fetchDevices, createDevice, deleteDevice, isLoading } = useDeviceStore();
   const { connectedDevices } = useWebSocketStore();
+  const { schedules, fetchSchedules, assignScheduleToDevice, unassignScheduleFromDevice } = useScheduleStore();
   const [showModal, setShowModal] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [selectedDeviceForSchedule, setSelectedDeviceForSchedule] = useState<number | null>(null);
+  const [deviceSchedules, setDeviceSchedules] = useState<Map<number, Schedule[]>>(new Map());
   const [deviceToken, setDeviceToken] = useState('');
   const [copiedToken, setCopiedToken] = useState(false);
   const [screenshotDeviceId, setScreenshotDeviceId] = useState<string | null>(null);
@@ -24,7 +31,28 @@ export const DevicesPage = () => {
 
   useEffect(() => {
     fetchDevices();
-  }, [fetchDevices]);
+    fetchSchedules();
+  }, [fetchDevices, fetchSchedules]);
+
+  useEffect(() => {
+    // Fetch schedules for all devices when devices change
+    const loadDeviceSchedules = async () => {
+      const scheduleMap = new Map<number, Schedule[]>();
+      for (const device of devices) {
+        try {
+          const schedules = await scheduleService.getDeviceSchedules(device.id);
+          scheduleMap.set(device.id, schedules);
+        } catch (error) {
+          console.error(`Failed to fetch schedules for device ${device.id}:`, error);
+        }
+      }
+      setDeviceSchedules(scheduleMap);
+    };
+
+    if (devices.length > 0) {
+      loadDeviceSchedules();
+    }
+  }, [devices]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +87,38 @@ export const DevicesPage = () => {
   const handleDelete = async (id: number) => {
     if (confirm('Are you sure you want to delete this device?')) {
       await deleteDevice(id);
+    }
+  };
+
+  const handleOpenScheduleModal = (deviceId: number) => {
+    setSelectedDeviceForSchedule(deviceId);
+    setShowScheduleModal(true);
+  };
+
+  const handleAssignSchedule = async (scheduleId: number) => {
+    if (!selectedDeviceForSchedule) return;
+
+    try {
+      await assignScheduleToDevice(selectedDeviceForSchedule, scheduleId);
+      // Refresh device schedules
+      const schedules = await scheduleService.getDeviceSchedules(selectedDeviceForSchedule);
+      setDeviceSchedules(prev => new Map(prev).set(selectedDeviceForSchedule, schedules));
+      setShowScheduleModal(false);
+    } catch (error) {
+      // Error handled by store
+    }
+  };
+
+  const handleUnassignSchedule = async (deviceId: number, scheduleId: number) => {
+    if (confirm('Are you sure you want to unassign this schedule?')) {
+      try {
+        await unassignScheduleFromDevice(deviceId, scheduleId);
+        // Refresh device schedules
+        const schedules = await scheduleService.getDeviceSchedules(deviceId);
+        setDeviceSchedules(prev => new Map(prev).set(deviceId, schedules));
+      } catch (error) {
+        // Error handled by store
+      }
     }
   };
 
@@ -126,19 +186,61 @@ export const DevicesPage = () => {
                 </p>
               )}
 
-              <div className="flex gap-2 mt-4 pt-4 border-t dark:border-gray-700">
+              {/* Assigned Schedules */}
+              <div className="mt-3">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Schedules:</p>
+                {deviceSchedules.get(device.id)?.length ? (
+                  <div className="space-y-2">
+                    {deviceSchedules.get(device.id)!.map((schedule) => (
+                      <div
+                        key={schedule.id}
+                        className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 rounded px-3 py-2"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {schedule.name}
+                          </p>
+                          {schedule.isActive && (
+                            <span className="inline-block px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 rounded mt-1">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleUnassignSchedule(device.id, schedule.id)}
+                          className="ml-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No schedules assigned</p>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2 mt-4 pt-4 border-t dark:border-gray-700">
                 <button
-                  onClick={() => setScreenshotDeviceId(device.deviceId)}
-                  className="btn-primary text-sm flex-1"
+                  onClick={() => handleOpenScheduleModal(device.id)}
+                  className="btn-secondary text-sm"
                 >
-                  View Screenshot
+                  Assign Schedule
                 </button>
-                <button
-                  onClick={() => handleDelete(device.id)}
-                  className="btn-danger text-sm flex-1"
-                >
-                  Delete
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setScreenshotDeviceId(device.deviceId)}
+                    className="btn-primary text-sm flex-1"
+                  >
+                    View Screenshot
+                  </button>
+                  <button
+                    onClick={() => handleDelete(device.id)}
+                    className="btn-danger text-sm flex-1"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -297,6 +399,91 @@ export const DevicesPage = () => {
           deviceId={screenshotDeviceId}
           onClose={() => setScreenshotDeviceId(null)}
         />
+      )}
+
+      {/* Schedule Assignment Modal */}
+      {showScheduleModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-md w-full shadow-xl">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Assign Schedule</h2>
+
+            {schedules.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  No schedules available. Create a schedule first.
+                </p>
+                <button
+                  onClick={() => setShowScheduleModal(false)}
+                  className="btn-secondary"
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Select a schedule to assign to this device:
+                </p>
+
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {schedules.map((schedule) => {
+                    const alreadyAssigned = selectedDeviceForSchedule
+                      ? deviceSchedules.get(selectedDeviceForSchedule)?.some(s => s.id === schedule.id)
+                      : false;
+
+                    return (
+                      <button
+                        key={schedule.id}
+                        onClick={() => handleAssignSchedule(schedule.id)}
+                        disabled={alreadyAssigned}
+                        className={`w-full text-left p-4 rounded-lg border transition-colors ${
+                          alreadyAssigned
+                            ? 'border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 cursor-not-allowed opacity-50'
+                            : 'border-gray-300 dark:border-gray-600 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {schedule.name}
+                            </p>
+                            {schedule.description && (
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                {schedule.description}
+                              </p>
+                            )}
+                            <div className="flex gap-2 mt-2">
+                              {schedule.isActive && (
+                                <span className="inline-block px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 rounded">
+                                  Active
+                                </span>
+                              )}
+                              {alreadyAssigned && (
+                                <span className="inline-block px-2 py-0.5 text-xs font-medium bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-300 rounded">
+                                  Already Assigned
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowScheduleModal(false)}
+                    className="btn-secondary flex-1"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

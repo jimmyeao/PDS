@@ -37,7 +37,10 @@
       "Bash(node check-screenshots.js:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(cmd //c \"taskkill /F /PID 100844\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File stop-all.ps1)",
+      "Bash(powershell -ExecutionPolicy Bypass -File start-dev.ps1)"
     ]
   }
 }

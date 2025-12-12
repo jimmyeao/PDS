@@ -62,6 +62,7 @@ class DisplayController {
       await this.page.setViewport({
         width: config.displayWidth,
         height: config.displayHeight,
+        deviceScaleFactor: 1,
       });
 
       // Hide automation indicators
@@ -117,16 +118,43 @@ class DisplayController {
     });
 
     this.page.on('pageerror', (error) => {
-      logger.error('Page JavaScript error:', error.message);
-      websocketClient.sendErrorReport('Page JavaScript error', error.stack);
+      // Filter out common third-party errors that don't affect functionality
+      const errorMessage = error.message.toLowerCase();
+      const errorStack = error.stack?.toLowerCase() || '';
+      const isNoiseError =
+        errorMessage.includes('trustedtypepolicy') ||
+        errorMessage.includes('content security policy') ||
+        errorMessage.includes('wrongserverexception') ||
+        errorMessage.includes('getmastercategorylist') ||
+        errorMessage.includes('microsoft.exchange') ||
+        errorMessage === 'uncaught exception' ||
+        errorStack.includes('trustedtypepolicy') ||
+        errorStack.includes('content security') ||
+        errorStack.includes('wrongserverexception') ||
+        errorStack.includes('microsoft.exchange');
+
+      if (!isNoiseError) {
+        logger.error('Page JavaScript error:', error.message);
+        websocketClient.sendErrorReport('Page JavaScript error', error.stack);
+      }
     });
 
     this.page.on('console', (msg) => {
       const type = msg.type();
-      if (type === 'error') {
-        logger.error(`Page console error: ${msg.text()}`);
-      } else if (type === 'warning') {
-        logger.warn(`Page console warning: ${msg.text()}`);
+      const text = msg.text();
+
+      // Filter out noisy console errors (404s, 403s from third-party resources)
+      const isResourceError =
+        text.includes('Failed to load resource') ||
+        text.includes('status of 404') ||
+        text.includes('status of 403') ||
+        text.includes('TrustedTypePolicy') ||
+        text.includes('Content Security');
+
+      if (type === 'error' && !isResourceError) {
+        logger.error(`Page console error: ${text}`);
+      } else if (type === 'warning' && !isResourceError) {
+        logger.warn(`Page console warning: ${text}`);
       }
     });
   }
@@ -143,6 +171,19 @@ class DisplayController {
       await this.page.goto(url, {
         waitUntil: 'networkidle2',
         timeout: 30000,
+      });
+
+      // Force page to use full viewport (code runs in browser context via page.evaluate)
+      await this.page.evaluate(() => {
+        // @ts-ignore
+        if (!document.querySelector('meta[name="viewport"]')) {
+          // @ts-ignore
+          const meta = document.createElement('meta');
+          meta.name = 'viewport';
+          meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+          // @ts-ignore
+          document.head.appendChild(meta);
+        }
       });
 
       this.currentUrl = url;

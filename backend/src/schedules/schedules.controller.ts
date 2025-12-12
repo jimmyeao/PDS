@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   ParseIntPipe,
+  Logger,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { SchedulesService } from './schedules.service';
@@ -18,12 +19,21 @@ import { AssignScheduleDto } from './dto/assign-schedule.dto';
 import { Schedule } from './entities/schedule.entity';
 import { ScheduleItem } from './entities/schedule-item.entity';
 import { DeviceSchedule } from './entities/device-schedule.entity';
+import { WebSocketGatewayService } from '../websocket/websocket.gateway';
+import { DevicesService } from '../devices/devices.service';
+import { ServerToClientEvent, ContentUpdatePayload } from '@kiosk/shared';
 
 @ApiTags('Schedules')
 @ApiBearerAuth()
 @Controller('schedules')
 export class SchedulesController {
-  constructor(private readonly schedulesService: SchedulesService) {}
+  private readonly logger = new Logger(SchedulesController.name);
+
+  constructor(
+    private readonly schedulesService: SchedulesService,
+    private readonly websocketGateway: WebSocketGatewayService,
+    private readonly devicesService: DevicesService,
+  ) {}
 
   // Schedule Endpoints
   @Post()
@@ -108,8 +118,27 @@ export class SchedulesController {
   @ApiOperation({ summary: 'Assign schedule to device' })
   @ApiResponse({ status: 201, description: 'Schedule assigned successfully' })
   @ApiResponse({ status: 400, description: 'Schedule already assigned to device' })
-  assignToDevice(@Body() assignScheduleDto: AssignScheduleDto): Promise<DeviceSchedule> {
-    return this.schedulesService.assignScheduleToDevice(assignScheduleDto);
+  async assignToDevice(@Body() assignScheduleDto: AssignScheduleDto): Promise<DeviceSchedule> {
+    const assignment = await this.schedulesService.assignScheduleToDevice(assignScheduleDto);
+
+    // Send schedule to device if it's connected
+    try {
+      const device = await this.devicesService.findOne(assignScheduleDto.deviceId);
+      const scheduleItems = await this.schedulesService.getActiveScheduleByDeviceStringId(device.deviceId);
+
+      if (scheduleItems.length > 0) {
+        const payload: ContentUpdatePayload = {
+          scheduleId: scheduleItems[0].scheduleId,
+          items: scheduleItems,
+        };
+        this.websocketGateway.sendToDevice(device.deviceId, ServerToClientEvent.CONTENT_UPDATE, payload);
+        this.logger.log(`Sent schedule update to device ${device.deviceId} after assignment`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to send schedule to device after assignment: ${error.message}`);
+    }
+
+    return assignment;
   }
 
   @Get('device/:deviceId')
@@ -135,6 +164,23 @@ export class SchedulesController {
     @Param('scheduleId', ParseIntPipe) scheduleId: number,
   ): Promise<{ message: string }> {
     await this.schedulesService.unassignScheduleFromDevice(deviceId, scheduleId);
+
+    // Send updated schedule to device (which may be empty now)
+    try {
+      const device = await this.devicesService.findOne(deviceId);
+      const scheduleItems = await this.schedulesService.getActiveScheduleByDeviceStringId(device.deviceId);
+
+      // Send the updated schedule (empty if no other schedules assigned)
+      const payload: ContentUpdatePayload = {
+        scheduleId: scheduleItems.length > 0 ? scheduleItems[0].scheduleId : 0,
+        items: scheduleItems,
+      };
+      this.websocketGateway.sendToDevice(device.deviceId, ServerToClientEvent.CONTENT_UPDATE, payload);
+      this.logger.log(`Sent schedule update to device ${device.deviceId} after unassignment`);
+    } catch (error) {
+      this.logger.error(`Failed to send schedule to device after unassignment: ${error.message}`);
+    }
+
     return { message: 'Schedule unassigned successfully' };
   }
 }

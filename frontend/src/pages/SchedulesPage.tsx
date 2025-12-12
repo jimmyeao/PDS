@@ -30,7 +30,7 @@ export const SchedulesPage = () => {
   const [itemFormData, setItemFormData] = useState<Partial<CreateScheduleItemDto>>({
     scheduleId: 0,
     contentId: 0,
-    displayDuration: 30,
+    displayDuration: 30000, // 30 seconds in milliseconds
     orderIndex: 0,
     timeWindowStart: '',
     timeWindowEnd: '',
@@ -97,7 +97,7 @@ export const SchedulesPage = () => {
       setItemFormData({
         scheduleId: 0,
         contentId: 0,
-        displayDuration: 30,
+        displayDuration: 30000, // 30 seconds in milliseconds
         orderIndex: 0,
         timeWindowStart: '',
         timeWindowEnd: '',
@@ -240,7 +240,7 @@ export const SchedulesPage = () => {
                                 {item.content?.name || `Content ID: ${item.contentId}`}
                               </span>
                               <span className="px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded">
-                                {item.displayDuration}s
+                                {item.displayDuration / 1000}s
                               </span>
                             </div>
                             {(item.timeWindowStart || item.daysOfWeek) && (
@@ -384,19 +384,22 @@ export const SchedulesPage = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Display Duration (seconds)
                 </label>
                 <input
                   type="number"
-                  value={itemFormData.displayDuration}
+                  value={itemFormData.displayDuration ? itemFormData.displayDuration / 1000 : 30}
                   onChange={(e) =>
-                    setItemFormData({ ...itemFormData, displayDuration: Number(e.target.value) })
+                    setItemFormData({ ...itemFormData, displayDuration: Number(e.target.value) * 1000 })
                   }
                   className="input"
                   min="1"
                   required
                 />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  How long to display this content (in seconds)
+                </p>
               </div>
 
               <div>
