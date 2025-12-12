@@ -24,19 +24,47 @@ REPO_URL=https://github.com/jimmyeao/PDS.git curl -sSL https://raw.githubusercon
 
 ## After Installation
 
-### Configure the client:
+### 1. Create a device in the admin UI:
+1. Start your backend and frontend servers
+2. Open the admin UI (usually `http://localhost:5173`)
+3. Log in with your admin credentials
+4. Navigate to the Devices page
+5. Click "Add Device"
+6. Give it a name (e.g., "Lounge Pi")
+7. Copy the generated device token
+
+### 2. Configure the client:
 ```bash
 nano ~/kiosk-client/client/.env
 ```
 
-Set these values:
-- `SERVER_URL=http://your-server-ip:3000`
-- `DEVICE_TOKEN=your-device-token-from-admin-ui`
+Set these required values:
+```env
+SERVER_URL=http://your-server-ip:3000
+DEVICE_TOKEN=your-device-token-from-admin-ui
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+```
 
-### Restart after configuration:
+**Important**:
+- Replace `your-server-ip` with your actual server IP address
+- Paste the device token you copied from the admin UI
+- The `PUPPETEER_EXECUTABLE_PATH` is required for Raspberry Pi to use system Chromium
+
+### 3. Restart after configuration:
 ```bash
 sudo systemctl restart kiosk-client
+sudo systemctl status kiosk-client
 ```
+
+### 4. Verify it's working:
+```bash
+sudo journalctl -u kiosk-client -f
+```
+
+You should see:
+- "✅ Connected to server"
+- "Loaded playlist with X items"
+- No repeated disconnection warnings
 
 ### View logs:
 ```bash
@@ -84,6 +112,23 @@ sudo systemctl enable kiosk-client
 
 ## Troubleshooting
 
+### Client keeps disconnecting from server
+**Symptom**: Logs show "✅ Connected" followed immediately by "❌ Disconnected"
+
+**Solution**: This is usually an authentication issue.
+1. Make sure you created a device in the admin UI
+2. Copy the exact device token from the admin UI
+3. Paste it in `~/kiosk-client/client/.env` as `DEVICE_TOKEN=...`
+4. Restart: `sudo systemctl restart kiosk-client`
+
+### Browser fails to launch (Syntax error)
+**Symptom**: Logs show "Syntax error: '(' unexpected" or "chrome-linux64"
+
+**Solution**: Puppeteer downloaded wrong architecture. Set the executable path:
+1. Edit `~/kiosk-client/client/.env`
+2. Add: `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser`
+3. Restart: `sudo systemctl restart kiosk-client`
+
 ### Display not showing
 ```bash
 export DISPLAY=:0
@@ -98,6 +143,12 @@ sudo usermod -a -G video $USER
 ```bash
 sudo apt-get install chromium-browser chromium-codecs-ffmpeg
 ```
+
+### Check if backend is reachable
+```bash
+curl http://your-server-ip:3000/api/health
+```
+Should return: `{"status":"ok"}`
 
 ## Manual Installation
 
