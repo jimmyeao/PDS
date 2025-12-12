@@ -226,9 +226,15 @@ class DisplayController {
 
         // Force body and html to use 100% width/height and remove any scaling
         // @ts-ignore
-        document.documentElement.style.cssText = 'width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden;';
+        if (document.documentElement) {
+          // @ts-ignore
+          document.documentElement.style.cssText = 'width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden;';
+        }
         // @ts-ignore
-        document.body.style.cssText = 'width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: auto; zoom: 100%;';
+        if (document.body) {
+          // @ts-ignore
+          document.body.style.cssText = 'width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: auto; zoom: 100%;';
+        }
       });
 
       // Log page dimensions after navigation
@@ -242,9 +248,9 @@ class DisplayController {
           // @ts-ignore
           devicePixelRatio: window.devicePixelRatio,
           // @ts-ignore
-          bodyWidth: document.body.offsetWidth,
+          bodyWidth: document.body?.offsetWidth || 0,
           // @ts-ignore
-          bodyHeight: document.body.offsetHeight,
+          bodyHeight: document.body?.offsetHeight || 0,
         };
       });
       logger.info(`Page dimensions after navigation: ${JSON.stringify(pageDimensions)}`);
