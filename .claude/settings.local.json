@@ -48,7 +48,13 @@
       "Bash(node run-migration.js:*)",
       "Bash(powershell -ExecutionPolicy Bypass -File deploy-linux.ps1)",
       "Bash(npm update:*)",
-      "Bash(npm audit fix:*)"
+      "Bash(npm audit fix:*)",
+      "Bash(if [ -f package-lock.json ])",
+      "Bash(then grep -A 2 '\"\"\"\"node_modules/puppeteer\"\"\"\":' package-lock.json)",
+      "Bash(else echo \"No package-lock.json found\")",
+      "Bash(fi)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)"
     ]
   }
 }
