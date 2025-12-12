@@ -21,6 +21,7 @@ class DisplayController {
 
       const launchOptions: any = {
         headless: false,
+        userDataDir: '/tmp/kiosk-browser-profile', // Persist cookies and session data
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -34,9 +35,11 @@ class DisplayController {
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
           '--disable-renderer-backgrounding',
+          '--force-device-scale-factor=1', // Force 1:1 scaling
           `--window-size=${config.displayWidth},${config.displayHeight}`,
         ],
         ignoreDefaultArgs: ['--enable-automation'],
+        defaultViewport: null, // Use window size instead of viewport
       };
 
       // Use custom Chromium path if provided (e.g., system chromium on Raspberry Pi)
@@ -59,6 +62,8 @@ class DisplayController {
       logger.info('Browser launched successfully');
 
       this.page = await this.browser.newPage();
+
+      // Set viewport to match window size (for screenshots and page rendering)
       await this.page.setViewport({
         width: config.displayWidth,
         height: config.displayHeight,
