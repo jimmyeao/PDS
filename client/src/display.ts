@@ -156,10 +156,11 @@ class DisplayController {
       websocketClient.sendErrorReport('Page error', error.stack);
     });
 
-    this.page.on('pageerror', (error) => {
+    this.page.on('pageerror', (error: unknown) => {
       // Filter out common third-party errors that don't affect functionality
-      const errorMessage = error.message.toLowerCase();
-      const errorStack = error.stack?.toLowerCase() || '';
+      const err = error as Error;
+      const errorMessage = err.message.toLowerCase();
+      const errorStack = err.stack?.toLowerCase() || '';
       const isNoiseError =
         errorMessage.includes('trustedtypepolicy') ||
         errorMessage.includes('content security policy') ||
@@ -179,8 +180,8 @@ class DisplayController {
         errorStack.includes('imrworldwide.com');
 
       if (!isNoiseError) {
-        logger.error('Page JavaScript error:', error.message);
-        websocketClient.sendErrorReport('Page JavaScript error', error.stack);
+        logger.error('Page JavaScript error:', err.message);
+        websocketClient.sendErrorReport('Page JavaScript error', err.stack);
       }
     });
 
@@ -203,8 +204,6 @@ class DisplayController {
 
       if (type === 'error' && !isResourceError) {
         logger.error(`Page console error: ${text}`);
-      } else if (type === 'warning' && !isResourceError) {
-        logger.warn(`Page console warning: ${text}`);
       }
     });
   }
