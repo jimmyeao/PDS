@@ -46,7 +46,9 @@
       "Bash(dir:*)",
       "Bash(find:*)",
       "Bash(node run-migration.js:*)",
-      "Bash(powershell -ExecutionPolicy Bypass -File deploy-linux.ps1)"
+      "Bash(powershell -ExecutionPolicy Bypass -File deploy-linux.ps1)",
+      "Bash(npm update:*)",
+      "Bash(npm audit fix:*)"
     ]
   }
 }
