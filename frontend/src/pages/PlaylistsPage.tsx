@@ -1,34 +1,38 @@
 import { useEffect, useState } from 'react';
-import { useScheduleStore } from '../store/scheduleStore';
+import { usePlaylistStore } from '../store/playlistStore';
 import { useContentStore } from '../store/contentStore';
-import type { Schedule, CreateScheduleItemDto } from '@kiosk/shared';
+import type { Playlist, CreatePlaylistItemDto } from '@kiosk/shared';
 
-export const SchedulesPage = () => {
+export const PlaylistsPage = () => {
   const {
-    schedules,
-    fetchSchedules,
-    createSchedule,
-    deleteSchedule,
-    createScheduleItem,
-    deleteScheduleItem,
+    playlists,
+    fetchPlaylists,
+    createPlaylist,
+    updatePlaylist,
+    deletePlaylist,
+    createPlaylistItem,
+    updatePlaylistItem,
+    deletePlaylistItem,
     isLoading,
-  } = useScheduleStore();
+  } = usePlaylistStore();
 
   const { content, fetchContent } = useContentStore();
 
-  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showPlaylistModal, setShowPlaylistModal] = useState(false);
   const [showItemModal, setShowItemModal] = useState(false);
-  const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
-  const [expandedSchedule, setExpandedSchedule] = useState<number | null>(null);
+  const [editingPlaylist, setEditingPlaylist] = useState<number | null>(null);
+  const [editingPlaylistItem, setEditingPlaylistItem] = useState<number | null>(null);
+  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
+  const [expandedPlaylist, setExpandedPlaylist] = useState<number | null>(null);
 
-  const [scheduleFormData, setScheduleFormData] = useState({
+  const [playlistFormData, setPlaylistFormData] = useState({
     name: '',
     description: '',
     isActive: true,
   });
 
-  const [itemFormData, setItemFormData] = useState<Partial<CreateScheduleItemDto>>({
-    scheduleId: 0,
+  const [itemFormData, setItemFormData] = useState<Partial<CreatePlaylistItemDto>>({
+    playlistId: 0,
     contentId: 0,
     displayDuration: 30000, // 30 seconds in milliseconds
     orderIndex: 0,
@@ -38,34 +42,52 @@ export const SchedulesPage = () => {
   });
 
   useEffect(() => {
-    fetchSchedules();
+    fetchPlaylists();
     fetchContent();
-  }, [fetchSchedules, fetchContent]);
+  }, [fetchPlaylists, fetchContent]);
 
-  const handleCreateSchedule = async (e: React.FormEvent) => {
+  const handleCreatePlaylist = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createSchedule(scheduleFormData);
-      setShowScheduleModal(false);
-      setScheduleFormData({ name: '', description: '', isActive: true });
-      fetchSchedules();
+      if (editingPlaylist) {
+        await updatePlaylist(editingPlaylist, playlistFormData);
+        setShowPlaylistModal(false);
+        setEditingPlaylist(null);
+        setPlaylistFormData({ name: '', description: '', isActive: true });
+        fetchPlaylists();
+      } else {
+        await createPlaylist(playlistFormData);
+        setShowPlaylistModal(false);
+        setPlaylistFormData({ name: '', description: '', isActive: true });
+        fetchPlaylists();
+      }
     } catch (error) {
       // Error handled by store
     }
   };
 
-  const handleDeleteSchedule = async (id: number) => {
-    if (confirm('Are you sure you want to delete this schedule? All items will be removed.')) {
-      await deleteSchedule(id);
+  const handleEditPlaylist = (playlist: Playlist) => {
+    setPlaylistFormData({
+      name: playlist.name,
+      description: playlist.description || '',
+      isActive: playlist.isActive,
+    });
+    setEditingPlaylist(playlist.id);
+    setShowPlaylistModal(true);
+  };
+
+  const handleDeletePlaylist = async (id: number) => {
+    if (confirm('Are you sure you want to delete this playlist? All items will be removed.')) {
+      await deletePlaylist(id);
     }
   };
 
-  const handleOpenItemModal = (schedule: Schedule) => {
-    setSelectedSchedule(schedule);
+  const handleOpenItemModal = (playlist: Playlist) => {
+    setSelectedPlaylist(playlist);
     setItemFormData({
       ...itemFormData,
-      scheduleId: schedule.id,
-      orderIndex: schedule.items?.length || 0,
+      playlistId: playlist.id,
+      orderIndex: playlist.items?.length || 0,
     });
     setShowItemModal(true);
   };
@@ -74,8 +96,8 @@ export const SchedulesPage = () => {
     e.preventDefault();
     try {
       // Clean up empty optional fields
-      const cleanedData: CreateScheduleItemDto = {
-        scheduleId: itemFormData.scheduleId!,
+      const cleanedData: any = {
+        playlistId: itemFormData.playlistId!,
         contentId: itemFormData.contentId!,
         displayDuration: itemFormData.displayDuration!,
         orderIndex: itemFormData.orderIndex!,
@@ -92,10 +114,17 @@ export const SchedulesPage = () => {
         cleanedData.daysOfWeek = itemFormData.daysOfWeek;
       }
 
-      await createScheduleItem(cleanedData);
-      setShowItemModal(false);
+      if (editingPlaylistItem) {
+        await updatePlaylistItem(editingPlaylistItem, cleanedData);
+        setShowItemModal(false);
+        setEditingPlaylistItem(null);
+      } else {
+        await createPlaylistItem(cleanedData);
+        setShowItemModal(false);
+      }
+
       setItemFormData({
-        scheduleId: 0,
+        playlistId: 0,
         contentId: 0,
         displayDuration: 30000, // 30 seconds in milliseconds
         orderIndex: 0,
@@ -103,21 +132,36 @@ export const SchedulesPage = () => {
         timeWindowEnd: '',
         daysOfWeek: [],
       });
-      fetchSchedules();
+      fetchPlaylists();
     } catch (error) {
       // Error handled by store
     }
   };
 
+  const handleEditPlaylistItem = (item: any, playlist: Playlist) => {
+    setItemFormData({
+      playlistId: playlist.id,
+      contentId: item.contentId,
+      displayDuration: item.displayDuration,
+      orderIndex: item.orderIndex,
+      timeWindowStart: item.timeWindowStart || '',
+      timeWindowEnd: item.timeWindowEnd || '',
+      daysOfWeek: item.daysOfWeek ? JSON.parse(item.daysOfWeek) : [],
+    });
+    setSelectedPlaylist(playlist);
+    setEditingPlaylistItem(item.id);
+    setShowItemModal(true);
+  };
+
   const handleDeleteItem = async (itemId: number) => {
-    if (confirm('Are you sure you want to remove this item from the schedule?')) {
-      await deleteScheduleItem(itemId);
-      fetchSchedules();
+    if (confirm('Are you sure you want to remove this item from the playlist?')) {
+      await deletePlaylistItem(itemId);
+      fetchPlaylists();
     }
   };
 
-  const toggleSchedule = (scheduleId: number) => {
-    setExpandedSchedule(expandedSchedule === scheduleId ? null : scheduleId);
+  const togglePlaylist = (playlistId: number) => {
+    setExpandedPlaylist(expandedPlaylist === playlistId ? null : playlistId);
   };
 
   const daysOfWeekOptions = [
@@ -141,90 +185,107 @@ export const SchedulesPage = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Content Schedules</h1>
-        <button onClick={() => setShowScheduleModal(true)} className="btn-primary">
-          + Create Schedule
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Content Playlists</h1>
+        <button
+          onClick={() => {
+            setEditingPlaylist(null);
+            setPlaylistFormData({ name: '', description: '', isActive: true });
+            setShowPlaylistModal(true);
+          }}
+          className="btn-primary"
+        >
+          + Create Playlist
         </button>
       </div>
 
       {isLoading ? (
         <div className="text-center py-12">
-          <p className="text-gray-600">Loading schedules...</p>
+          <p className="text-gray-600">Loading playlists...</p>
         </div>
-      ) : schedules.length === 0 ? (
+      ) : playlists.length === 0 ? (
         <div className="card text-center py-12">
-          <p className="text-gray-600 mb-4">No schedules created yet.</p>
-          <button onClick={() => setShowScheduleModal(true)} className="btn-primary">
-            Create Your First Schedule
+          <p className="text-gray-600 mb-4">No playlists created yet.</p>
+          <button onClick={() => setShowPlaylistModal(true)} className="btn-primary">
+            Create Your First Playlist
           </button>
         </div>
       ) : (
         <div className="space-y-4">
-          {schedules.map((schedule) => (
-            <div key={schedule.id} className="card hover:shadow-lg transition-shadow duration-200">
+          {playlists.map((playlist) => (
+            <div key={playlist.id} className="card hover:shadow-lg transition-shadow duration-200">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">{schedule.name}</h3>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">{playlist.name}</h3>
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        schedule.isActive
+                        playlist.isActive
                           ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
                           : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
                       }`}
                     >
-                      {schedule.isActive ? '● Active' : '○ Inactive'}
+                      {playlist.isActive ? '● Active' : '○ Inactive'}
                     </span>
                   </div>
-                  {schedule.description && (
-                    <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">{schedule.description}</p>
+                  {playlist.description && (
+                    <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">{playlist.description}</p>
                   )}
                   <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
                     <span className="flex items-center gap-1">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                       </svg>
-                      {schedule.items?.length || 0} item{schedule.items?.length !== 1 ? 's' : ''}
+                      {playlist.items?.length || 0} item{playlist.items?.length !== 1 ? 's' : ''}
                     </span>
                     <span className="flex items-center gap-1">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                       </svg>
-                      {schedule.deviceSchedules?.length || 0} device{schedule.deviceSchedules?.length !== 1 ? 's' : ''}
+                      {playlist.devicePlaylists?.length || 0} device{playlist.devicePlaylists?.length !== 1 ? 's' : ''}
                     </span>
                   </div>
                 </div>
 
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleOpenItemModal(schedule)}
+                    onClick={() => {
+                      setEditingPlaylistItem(null);
+                      handleOpenItemModal(playlist);
+                    }}
                     className="btn-secondary text-sm"
-                    title="Add content item to schedule"
+                    title="Add content item to playlist"
                   >
                     + Add Item
                   </button>
                   <button
-                    onClick={() => toggleSchedule(schedule.id)}
+                    onClick={() => togglePlaylist(playlist.id)}
                     className="btn-secondary text-sm"
-                    title={expandedSchedule === schedule.id ? 'Hide items' : 'View items'}
+                    title={expandedPlaylist === playlist.id ? 'Hide items' : 'View items'}
                   >
-                    {expandedSchedule === schedule.id ? '▲ Hide' : '▼ View'}
+                    {expandedPlaylist === playlist.id ? '▲ Hide' : '▼ View'}
                   </button>
                   <button
-                    onClick={() => handleDeleteSchedule(schedule.id)}
+                    onClick={() => handleEditPlaylist(playlist)}
+                    className="btn-secondary text-sm"
+                    title="Edit playlist"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDeletePlaylist(playlist.id)}
                     className="btn-danger text-sm"
-                    title="Delete schedule"
+                    title="Delete playlist"
                   >
                     Delete
                   </button>
                 </div>
               </div>
 
-              {expandedSchedule === schedule.id && schedule.items && schedule.items.length > 0 && (
+              {expandedPlaylist === playlist.id && playlist.items && playlist.items.length > 0 && (
                 <div className="mt-6 pt-6 border-t border-gray-200">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-4">Schedule Items:</h4>
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-4">Playlist Items:</h4>
                   <div className="space-y-3">
-                    {schedule.items
+                    {playlist.items
                       .sort((a, b) => a.orderIndex - b.orderIndex)
                       .map((item) => (
                         <div
@@ -266,12 +327,20 @@ export const SchedulesPage = () => {
                               </div>
                             )}
                           </div>
-                          <button
-                            onClick={() => handleDeleteItem(item.id)}
-                            className="btn-danger text-sm"
-                          >
-                            Remove
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEditPlaylistItem(item, playlist)}
+                              className="btn-secondary text-sm"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteItem(item.id)}
+                              className="btn-danger text-sm"
+                            >
+                              Remove
+                            </button>
+                          </div>
                         </div>
                       ))}
                   </div>
@@ -282,21 +351,23 @@ export const SchedulesPage = () => {
         </div>
       )}
 
-      {/* Create Schedule Modal */}
-      {showScheduleModal && (
+      {/* Create/Edit Playlist Modal */}
+      {showPlaylistModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-md w-full shadow-2xl">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Create New Schedule</h2>
-            <form onSubmit={handleCreateSchedule} className="space-y-4">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+              {editingPlaylist ? 'Edit Playlist' : 'Create New Playlist'}
+            </h2>
+            <form onSubmit={handleCreatePlaylist} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Schedule Name
+                  Playlist Name
                 </label>
                 <input
                   type="text"
-                  value={scheduleFormData.name}
+                  value={playlistFormData.name}
                   onChange={(e) =>
-                    setScheduleFormData({ ...scheduleFormData, name: e.target.value })
+                    setPlaylistFormData({ ...playlistFormData, name: e.target.value })
                   }
                   className="input"
                   placeholder="e.g., Main Lobby Rotation"
@@ -309,9 +380,9 @@ export const SchedulesPage = () => {
                   Description
                 </label>
                 <textarea
-                  value={scheduleFormData.description}
+                  value={playlistFormData.description}
                   onChange={(e) =>
-                    setScheduleFormData({ ...scheduleFormData, description: e.target.value })
+                    setPlaylistFormData({ ...playlistFormData, description: e.target.value })
                   }
                   className="input"
                   rows={3}
@@ -323,9 +394,9 @@ export const SchedulesPage = () => {
                 <input
                   type="checkbox"
                   id="isActive"
-                  checked={scheduleFormData.isActive}
+                  checked={playlistFormData.isActive}
                   onChange={(e) =>
-                    setScheduleFormData({ ...scheduleFormData, isActive: e.target.checked })
+                    setPlaylistFormData({ ...playlistFormData, isActive: e.target.checked })
                   }
                   className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 />
@@ -337,13 +408,17 @@ export const SchedulesPage = () => {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowScheduleModal(false)}
+                  onClick={() => {
+                    setShowPlaylistModal(false);
+                    setEditingPlaylist(null);
+                    setPlaylistFormData({ name: '', description: '', isActive: true });
+                  }}
                   className="btn-secondary flex-1"
                 >
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary flex-1">
-                  Create Schedule
+                  {editingPlaylist ? 'Update Playlist' : 'Create Playlist'}
                 </button>
               </div>
             </form>
@@ -356,10 +431,10 @@ export const SchedulesPage = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Add Item to Schedule
+              {editingPlaylistItem ? 'Edit Playlist Item' : 'Add Item to Playlist'}
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-              {selectedSchedule?.name}
+              {selectedPlaylist?.name}
             </p>
             <form onSubmit={handleCreateItem} className="space-y-5">
               <div>
@@ -484,13 +559,16 @@ export const SchedulesPage = () => {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowItemModal(false)}
+                  onClick={() => {
+                    setShowItemModal(false);
+                    setEditingPlaylistItem(null);
+                  }}
                   className="btn-secondary flex-1"
                 >
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary flex-1">
-                  Add Item
+                  {editingPlaylistItem ? 'Update Item' : 'Add Item'}
                 </button>
               </div>
             </form>

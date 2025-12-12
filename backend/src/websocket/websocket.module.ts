@@ -4,7 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { WebSocketGatewayService } from './websocket.gateway';
 import { DevicesModule } from '../devices/devices.module';
 import { ScreenshotsModule } from '../screenshots/screenshots.module';
-import { SchedulesModule } from '../schedules/schedules.module';
+import { PlaylistsModule } from '../playlists/playlists.module';
 
 @Module({
   imports: [
@@ -18,7 +18,7 @@ import { SchedulesModule } from '../schedules/schedules.module';
     }),
     forwardRef(() => DevicesModule),
     forwardRef(() => ScreenshotsModule),
-    forwardRef(() => SchedulesModule),
+    forwardRef(() => PlaylistsModule),
   ],
   providers: [WebSocketGatewayService],
   exports: [WebSocketGatewayService],

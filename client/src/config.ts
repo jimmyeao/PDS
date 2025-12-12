@@ -9,8 +9,7 @@ export interface ClientConfig {
   serverUrl: string;
 
   // Device
-  deviceId: string;
-  deviceToken: string;
+  deviceToken: string; // Token contains all device identity info
 
   // Display
   displayWidth: number;
@@ -37,7 +36,6 @@ class ConfigManager {
   private loadConfig(): ClientConfig {
     return {
       serverUrl: process.env.SERVER_URL || 'http://localhost:3000',
-      deviceId: process.env.DEVICE_ID || '',
       deviceToken: process.env.DEVICE_TOKEN || '',
       displayWidth: parseInt(process.env.DISPLAY_WIDTH || '1920', 10),
       displayHeight: parseInt(process.env.DISPLAY_HEIGHT || '1080', 10),
@@ -51,10 +49,6 @@ class ConfigManager {
 
   private validateConfig(): void {
     const errors: string[] = [];
-
-    if (!this.config.deviceId) {
-      errors.push('DEVICE_ID is required');
-    }
 
     if (!this.config.deviceToken) {
       errors.push('DEVICE_TOKEN is required');

@@ -1,15 +1,26 @@
 # Kiosk Digital Signage Client
 
-Raspberry Pi client application for the Kiosk Digital Signage system.
+**Cross-platform client** for the Kiosk Digital Signage system.
+
+Supports **Windows (Intel NUCs, PCs)**, **Linux**, and **Raspberry Pi**.
 
 ## Features
 
+- **Cross-Platform**: Works on Windows, Linux, and Raspberry Pi
 - **WebSocket Communication**: Real-time connection to backend server
 - **Content Scheduling**: Automatic content rotation based on schedules
 - **Health Monitoring**: CPU, memory, and temperature reporting
 - **Screenshot Capture**: Periodic and on-demand screenshots
-- **Kiosk Mode**: Fullscreen display using Chromium
+- **Kiosk Mode**: Fullscreen display using Chrome/Chromium/Edge
 - **Remote Control**: Restart, refresh, and navigate commands from admin UI
+
+## Platform Support
+
+| Platform | Status | Recommended For |
+|----------|--------|-----------------|
+| **Windows** | ✅ Fully Supported | Intel NUCs, desktop PCs, enterprise displays |
+| **Linux** | ✅ Fully Supported | Ubuntu, Debian, other Linux distros |
+| **Raspberry Pi** | ✅ Fully Supported | Budget displays, IoT deployments |
 
 ## Installation
 
@@ -26,7 +37,23 @@ cd client
 npm install
 ```
 
-### Deployment to Raspberry Pi
+## Quick Start by Platform
+
+### Windows (Intel NUC, PC)
+
+**See [README-WINDOWS.md](README-WINDOWS.md) for detailed Windows setup instructions.**
+
+Quick steps:
+1. Run deployment script: `npm run deploy:win`
+2. Copy `deploy` folder to your Windows machine
+3. Copy `.env.example` to `.env` and configure
+4. Run `start.bat` or install as Windows Service with NSSM
+
+### Raspberry Pi / Linux
+
+**See instructions below for Linux/Raspberry Pi setup.**
+
+### Deployment Overview
 
 The client depends on the `@kiosk/shared` package which is part of the monorepo. Use one of these deployment methods:
 
@@ -34,19 +61,19 @@ The client depends on the `@kiosk/shared` package which is part of the monorepo.
 
 From your development machine, run the deployment script:
 
-**Linux/Mac:**
-```bash
-cd client
-npm run deploy
-```
-
-**Windows:**
+**For Windows deployment:**
 ```powershell
 cd client
 npm run deploy:win
 ```
 
-This creates a `client/deploy` folder with everything bundled. Transfer this folder to your Raspberry Pi:
+**For Linux/Raspberry Pi deployment:**
+```bash
+cd client
+npm run deploy
+```
+
+This creates a `client/deploy` folder with everything bundled. Transfer this folder to your target machine:
 
 ```bash
 # On your development machine
@@ -106,7 +133,6 @@ cp .env.example .env
 2. Edit `.env` with your settings:
 ```env
 SERVER_URL=http://your-server:3000
-DEVICE_ID=rpi-001
 DEVICE_TOKEN=your-jwt-token-here
 DISPLAY_WIDTH=1920
 DISPLAY_HEIGHT=1080

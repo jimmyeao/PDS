@@ -1,17 +1,17 @@
-export interface Schedule {
+export interface Playlist {
   id: number;
   name: string;
   description?: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
-  items?: ScheduleItem[];
-  deviceSchedules?: DeviceScheduleAssignment[];
+  items?: PlaylistItem[];
+  devicePlaylists?: DevicePlaylistAssignment[];
 }
 
-export interface ScheduleItem {
+export interface PlaylistItem {
   id: number;
-  scheduleId: number;
+  playlistId: number;
   contentId: number;
   displayDuration: number; // seconds
   orderIndex: number;
@@ -26,20 +26,20 @@ export interface ScheduleItem {
   };
 }
 
-export interface CreateScheduleDto {
+export interface CreatePlaylistDto {
   name: string;
   description?: string;
   isActive?: boolean;
 }
 
-export interface UpdateScheduleDto {
+export interface UpdatePlaylistDto {
   name?: string;
   description?: string;
   isActive?: boolean;
 }
 
-export interface CreateScheduleItemDto {
-  scheduleId: number;
+export interface CreatePlaylistItemDto {
+  playlistId: number;
   contentId: number;
   displayDuration: number;
   orderIndex: number;
@@ -48,7 +48,7 @@ export interface CreateScheduleItemDto {
   daysOfWeek?: number[];
 }
 
-export interface UpdateScheduleItemDto {
+export interface UpdatePlaylistItemDto {
   displayDuration?: number;
   orderIndex?: number;
   timeWindowStart?: string;
@@ -56,9 +56,9 @@ export interface UpdateScheduleItemDto {
   daysOfWeek?: number[];
 }
 
-export interface DeviceScheduleAssignment {
+export interface DevicePlaylistAssignment {
   id: number;
   deviceId: number;
-  scheduleId: number;
+  playlistId: number;
   assignedAt: Date;
 }

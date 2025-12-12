@@ -57,7 +57,7 @@ class HealthMonitor {
     const diskUsage = disk.length > 0 ? disk[0].use : 0;
 
     return {
-      deviceId: config.deviceId,
+      deviceId: 'unknown', // Set by backend from authenticated WebSocket connection
       cpuUsage: currentLoad.currentLoad,
       memoryUsage: (mem.used / mem.total) * 100,
       diskUsage,

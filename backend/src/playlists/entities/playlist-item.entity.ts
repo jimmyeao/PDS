@@ -5,16 +5,16 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { Schedule } from './schedule.entity';
+import { Playlist } from './playlist.entity';
 import { Content } from '../../content/entities/content.entity';
 
-@Entity('schedule_items')
-export class ScheduleItem {
+@Entity('playlist_items')
+export class PlaylistItem {
   @PrimaryGeneratedColumn()
   id: number;
 
   @Column()
-  scheduleId: number;
+  playlistId: number;
 
   @Column()
   contentId: number;
@@ -34,11 +34,11 @@ export class ScheduleItem {
   @Column({ type: 'text', nullable: true })
   daysOfWeek: string; // Store as JSON string
 
-  @ManyToOne(() => Schedule, (schedule) => schedule.items, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'scheduleId' })
-  schedule: Schedule;
+  @ManyToOne(() => Playlist, (playlist) => playlist.items, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'playlistId' })
+  playlist: Playlist;
 
-  @ManyToOne(() => Content, (content) => content.scheduleItems, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Content, (content) => content.playlistItems, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'contentId' })
   content: Content;
 }

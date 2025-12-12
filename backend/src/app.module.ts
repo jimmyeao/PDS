@@ -7,7 +7,7 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
 import { DevicesModule } from './devices/devices.module';
 import { ContentModule } from './content/content.module';
-import { SchedulesModule } from './schedules/schedules.module';
+import { PlaylistsModule } from './playlists/playlists.module';
 import { ScreenshotsModule } from './screenshots/screenshots.module';
 import { WebSocketModule } from './websocket/websocket.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -24,7 +24,7 @@ import configuration from './config/configuration';
     AuthModule,
     DevicesModule,
     ContentModule,
-    SchedulesModule,
+    PlaylistsModule,
     ScreenshotsModule,
     WebSocketModule,
   ],

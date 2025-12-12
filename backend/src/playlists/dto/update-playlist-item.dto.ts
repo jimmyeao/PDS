@@ -2,7 +2,7 @@ import { IsNumber, IsOptional, IsString, IsArray, Min, Matches } from 'class-val
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
-export class UpdateScheduleItemDto {
+export class UpdatePlaylistItemDto {
   @ApiProperty({ example: 45, description: 'Display duration in seconds', required: false })
   @IsNumber()
   @IsOptional()

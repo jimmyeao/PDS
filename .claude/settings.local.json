@@ -41,7 +41,11 @@
       "Bash(cmd //c \"taskkill /F /PID 100844\")",
       "Bash(powershell -ExecutionPolicy Bypass -File stop-all.ps1)",
       "Bash(powershell -ExecutionPolicy Bypass -File start-dev.ps1)",
-      "Bash(timeout 5 bash -c 'while ! netstat -ano | findstr :3000 > /dev/null 2>&1; do sleep 0.5; done; echo \"\"Backend restarted successfully\"\"')"
+      "Bash(timeout 5 bash -c 'while ! netstat -ano | findstr :3000 > /dev/null 2>&1; do sleep 0.5; done; echo \"\"Backend restarted successfully\"\"')",
+      "Bash(powershell -ExecutionPolicy Bypass -File deploy-windows.ps1)",
+      "Bash(dir:*)",
+      "Bash(find:*)",
+      "Bash(node run-migration.js:*)"
     ]
   }
 }

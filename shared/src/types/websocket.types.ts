@@ -1,5 +1,5 @@
 import { DeviceInfo, DeviceHealthMetrics, DeviceStatus } from './device.types';
-import { ScheduleItem } from './schedule.types';
+import { PlaylistItem } from './playlist.types';
 
 // WebSocket Events - Backend to Client (Devices)
 export enum ServerToClientEvent {
@@ -32,8 +32,8 @@ export enum ClientToServerEvent {
 
 // Payload types for Backend → Client
 export interface ContentUpdatePayload {
-  scheduleId: number;
-  items: ScheduleItem[];
+  playlistId: number;
+  items: PlaylistItem[];
 }
 
 export interface DisplayNavigatePayload {
@@ -60,13 +60,12 @@ export interface DisplayRefreshPayload {
 }
 
 // Payload types for Client → Backend
+// Note: deviceId is no longer included in these payloads - it's determined from the authenticated WebSocket connection
 export interface DeviceRegisterPayload {
-  deviceId: string;
   deviceInfo: DeviceInfo;
 }
 
 export interface ScreenshotUploadPayload {
-  deviceId: string;
   image: string; // Base64 encoded
   timestamp: number;
   currentUrl: string;
@@ -75,13 +74,11 @@ export interface ScreenshotUploadPayload {
 export interface HealthReportPayload extends DeviceHealthMetrics {}
 
 export interface DeviceStatusPayload {
-  deviceId: string;
   status: DeviceStatus;
   message?: string;
 }
 
 export interface ErrorReportPayload {
-  deviceId: string;
   error: string;
   stack?: string;
   context?: any;
@@ -124,7 +121,6 @@ export interface AdminErrorPayload {
 
 // WebSocket Authentication
 export interface WebSocketAuthPayload {
-  deviceId?: string;
   token?: string;
   role?: 'device' | 'admin';
 }

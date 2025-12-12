@@ -1,8 +1,8 @@
 import { IsString, IsOptional, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
-export class UpdateScheduleDto {
-  @ApiProperty({ example: 'Updated Schedule Name', required: false })
+export class UpdatePlaylistDto {
+  @ApiProperty({ example: 'Updated Playlist Name', required: false })
   @IsString()
   @IsOptional()
   name?: string;

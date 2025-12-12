@@ -1,0 +1,3 @@
+@echo off
+echo Starting Kiosk Client...
+node dist\index.js

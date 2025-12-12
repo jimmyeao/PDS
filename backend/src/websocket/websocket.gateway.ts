@@ -31,11 +31,13 @@ import type {
   ContentUpdatePayload,
 } from '@kiosk/shared';
 import { ScreenshotsService } from '../screenshots/screenshots.service';
-import { SchedulesService } from '../schedules/schedules.service';
+import { PlaylistsService } from '../playlists/playlists.service';
 import { DevicesService } from '../devices/devices.service';
+import { Device } from '../devices/entities/device.entity';
 
 interface AuthenticatedSocket extends Socket {
   deviceId?: string;
+  device?: Device; // Full device entity for device connections
   role?: 'device' | 'admin';
   userId?: number;
 }
@@ -64,8 +66,8 @@ export class WebSocketGatewayService
     private devicesService: DevicesService,
     @Inject(forwardRef(() => ScreenshotsService))
     private screenshotsService: ScreenshotsService,
-    @Inject(forwardRef(() => SchedulesService))
-    private schedulesService: SchedulesService,
+    @Inject(forwardRef(() => PlaylistsService))
+    private playlistsService: PlaylistsService,
   ) {}
 
   async handleConnection(client: AuthenticatedSocket) {
@@ -104,39 +106,54 @@ export class WebSocketGatewayService
           this.logger.debug(`Sent ${connectedDeviceIds.length} connected devices to admin ${client.id}`);
         }
       } else if (role === 'device') {
-        const deviceId = client.handshake.auth?.deviceId;
-        if (!deviceId) {
-          this.logger.warn(`Device connection rejected: No deviceId provided`);
+        // Get device info from JWT payload
+        const deviceDbId = payload.sub; // Database ID
+        const deviceId = payload.deviceId; // String ID for display/logging
+
+        if (!deviceDbId || !deviceId) {
+          this.logger.warn(`Device connection rejected: Invalid token payload`);
           client.disconnect();
           return;
         }
 
-        client.role = 'device';
-        client.deviceId = deviceId;
-        this.deviceSockets.set(deviceId, client);
-        this.logger.log(`Device connected: ${deviceId} (Socket: ${client.id})`);
-
-        // Notify admins
-        this.notifyAdmins(ServerToAdminEvent.DEVICE_CONNECTED, {
-          deviceId,
-          timestamp: new Date(),
-        } as AdminDeviceConnectedPayload);
-
-        // Send device's schedule
+        // Load full device entity from database
         try {
-          const scheduleItems = await this.schedulesService.getActiveScheduleByDeviceStringId(deviceId);
-          if (scheduleItems.length > 0) {
-            const payload: ContentUpdatePayload = {
-              scheduleId: scheduleItems[0].scheduleId,
-              items: scheduleItems,
-            };
-            client.emit(ServerToClientEvent.CONTENT_UPDATE, payload);
-            this.logger.log(`Sent schedule with ${scheduleItems.length} items to device ${deviceId}`);
-          } else {
-            this.logger.debug(`No active schedule found for device ${deviceId}`);
+          const device = await this.devicesService.findOne(deviceDbId);
+
+          client.role = 'device';
+          client.deviceId = deviceId; // String ID for Map key
+          client.device = device; // Full entity
+          this.deviceSockets.set(deviceId, client);
+          this.logger.log(`Device connected: ${deviceId} (Socket: ${client.id})`);
+
+          // Notify admins
+          this.notifyAdmins(ServerToAdminEvent.DEVICE_CONNECTED, {
+            deviceId,
+            timestamp: new Date(),
+          } as AdminDeviceConnectedPayload);
+
+          // Send device's playlist
+          try {
+            const playlists = await this.playlistsService.getDevicePlaylists(device.id);
+            const activePlaylist = playlists.find(p => p.isActive);
+
+            if (activePlaylist && activePlaylist.items && activePlaylist.items.length > 0) {
+              const payload: ContentUpdatePayload = {
+                playlistId: activePlaylist.id,
+                items: activePlaylist.items,
+              };
+              client.emit(ServerToClientEvent.CONTENT_UPDATE, payload);
+              this.logger.log(`Sent playlist with ${activePlaylist.items.length} items to device ${deviceId}`);
+            } else {
+              this.logger.debug(`No active playlist found for device ${deviceId}`);
+            }
+          } catch (error) {
+            this.logger.error(`Failed to send playlist to device ${deviceId}: ${error.message}`);
           }
         } catch (error) {
-          this.logger.error(`Failed to send schedule to device ${deviceId}: ${error.message}`);
+          this.logger.error(`Device lookup failed for ID ${deviceDbId}: ${error.message}`);
+          client.disconnect();
+          return;
         }
       }
     } catch (error) {
@@ -167,7 +184,7 @@ export class WebSocketGatewayService
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() payload: DeviceRegisterPayload,
   ) {
-    this.logger.log(`Device registered: ${payload.deviceId}`);
+    this.logger.log(`Device registered: ${client.deviceId}`);
     // Device registration logic handled in handleConnection
     return { success: true };
   }
@@ -194,11 +211,13 @@ export class WebSocketGatewayService
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() payload: DeviceStatusPayload,
   ) {
-    this.logger.log(`Device status update: ${payload.deviceId} - ${payload.status}`);
+    if (!client.deviceId) return;
+
+    this.logger.log(`Device status update: ${client.deviceId} - ${payload.status}`);
 
     // Notify admins
     this.notifyAdmins(ServerToAdminEvent.DEVICE_STATUS_CHANGED, {
-      deviceId: payload.deviceId,
+      deviceId: client.deviceId,
       status: payload.status,
       timestamp: new Date(),
     } as AdminDeviceStatusPayload);
@@ -209,11 +228,16 @@ export class WebSocketGatewayService
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() payload: ErrorReportPayload,
   ) {
-    this.logger.error(`Error from device ${payload.deviceId}: ${payload.error}`);
+    if (!client.device) {
+      this.logger.error('Error report from unauthenticated client');
+      return;
+    }
+
+    this.logger.error(`Error from device ${client.deviceId}: ${payload.error}`);
 
     // Notify admins
     this.notifyAdmins(ServerToAdminEvent.ERROR_OCCURRED, {
-      deviceId: payload.deviceId,
+      deviceId: client.deviceId!,
       error: payload.error,
       timestamp: new Date(),
     } as AdminErrorPayload);
@@ -224,26 +248,24 @@ export class WebSocketGatewayService
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() payload: ScreenshotUploadPayload,
   ) {
-    this.logger.log(`Screenshot received from ${payload.deviceId}`);
+    if (!client.device) {
+      this.logger.error('Screenshot upload from unauthenticated client');
+      return;
+    }
+
+    this.logger.log(`Screenshot received from ${client.deviceId}`);
 
     try {
-      // Look up device by deviceId string to get numeric ID
-      const device = await this.devicesService.findByDeviceId(payload.deviceId);
-      if (!device) {
-        this.logger.error(`Device not found: ${payload.deviceId}`);
-        return;
-      }
-
-      // Save screenshot to database
-      const screenshot = await this.screenshotsService.create({
-        deviceId: device.id,
-        imageData: payload.image,
-        url: payload.currentUrl,
-      });
+      // Save screenshot to database using authenticated device
+      const screenshot = await this.screenshotsService.saveScreenshot(
+        client.device.deviceId,
+        payload.image,
+        payload.currentUrl,
+      );
 
       // Notify admins
       this.notifyAdmins(ServerToAdminEvent.SCREENSHOT_RECEIVED, {
-        deviceId: payload.deviceId,
+        deviceId: client.deviceId!,
         screenshotId: screenshot.id,
         timestamp: new Date(),
       } as AdminScreenshotReceivedPayload);

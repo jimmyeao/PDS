@@ -6,7 +6,7 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
-import { ScheduleItem } from '../../schedules/entities/schedule-item.entity';
+import { PlaylistItem } from '../../playlists/entities/playlist-item.entity';
 
 @Entity('content')
 export class Content {
@@ -34,6 +34,6 @@ export class Content {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @OneToMany(() => ScheduleItem, (item) => item.content)
-  scheduleItems: ScheduleItem[];
+  @OneToMany(() => PlaylistItem, (item) => item.content)
+  playlistItems: PlaylistItem[];
 }

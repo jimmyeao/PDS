@@ -1,8 +1,8 @@
 import { IsString, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
-export class CreateScheduleDto {
-  @ApiProperty({ example: 'Main Lobby Schedule' })
+export class CreatePlaylistDto {
+  @ApiProperty({ example: 'Main Lobby Playlist' })
   @IsString()
   @IsNotEmpty()
   name: string;

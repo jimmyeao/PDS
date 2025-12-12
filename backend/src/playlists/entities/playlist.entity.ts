@@ -6,11 +6,11 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
-import { ScheduleItem } from './schedule-item.entity';
-import { DeviceSchedule } from './device-schedule.entity';
+import { PlaylistItem } from './playlist-item.entity';
+import { DevicePlaylist } from './device-playlist.entity';
 
-@Entity('schedules')
-export class Schedule {
+@Entity('playlists')
+export class Playlist {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -29,9 +29,9 @@ export class Schedule {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @OneToMany(() => ScheduleItem, (item) => item.schedule, { cascade: true })
-  items: ScheduleItem[];
+  @OneToMany(() => PlaylistItem, (item) => item.playlist, { cascade: true })
+  items: PlaylistItem[];
 
-  @OneToMany(() => DeviceSchedule, (ds) => ds.schedule)
-  deviceSchedules: DeviceSchedule[];
+  @OneToMany(() => DevicePlaylist, (dp) => dp.playlist)
+  devicePlaylists: DevicePlaylist[];
 }

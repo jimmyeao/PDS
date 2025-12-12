@@ -80,8 +80,8 @@ export const DashboardLayout = () => {
             <Link to="/content" className={navLinkClass('/content')}>
               🎬 Content
             </Link>
-            <Link to="/schedules" className={navLinkClass('/schedules')}>
-              📅 Schedules
+            <Link to="/playlists" className={navLinkClass('/playlists')}>
+              📅 Playlists
             </Link>
           </nav>
         </aside>

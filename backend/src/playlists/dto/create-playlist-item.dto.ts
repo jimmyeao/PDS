@@ -2,12 +2,12 @@ import { IsNumber, IsNotEmpty, IsOptional, IsString, IsArray, Min, Matches } fro
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
-export class CreateScheduleItemDto {
+export class CreatePlaylistItemDto {
   @ApiProperty({ example: 1 })
   @IsNumber()
   @IsNotEmpty()
   @Type(() => Number)
-  scheduleId: number;
+  playlistId: number;
 
   @ApiProperty({ example: 1 })
   @IsNumber()

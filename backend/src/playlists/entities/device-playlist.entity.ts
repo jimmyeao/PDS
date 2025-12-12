@@ -8,11 +8,11 @@ import {
   Unique,
 } from 'typeorm';
 import { Device } from '../../devices/entities/device.entity';
-import { Schedule } from './schedule.entity';
+import { Playlist } from './playlist.entity';
 
-@Entity('device_schedules')
-@Unique(['deviceId', 'scheduleId'])
-export class DeviceSchedule {
+@Entity('device_playlists')
+@Unique(['deviceId', 'playlistId'])
+export class DevicePlaylist {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -20,7 +20,7 @@ export class DeviceSchedule {
   deviceId: number;
 
   @Column()
-  scheduleId: number;
+  playlistId: number;
 
   @CreateDateColumn()
   assignedAt: Date;
@@ -29,7 +29,7 @@ export class DeviceSchedule {
   @JoinColumn({ name: 'deviceId' })
   device: Device;
 
-  @ManyToOne(() => Schedule, (schedule) => schedule.deviceSchedules, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'scheduleId' })
-  schedule: Schedule;
+  @ManyToOne(() => Playlist, (playlist) => playlist.devicePlaylists, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'playlistId' })
+  playlist: Playlist;
 }

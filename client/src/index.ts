@@ -6,7 +6,7 @@ import { websocketClient, DeviceStatusValues } from './websocket';
 import { displayController } from './display';
 import { healthMonitor } from './health';
 import { screenshotManager } from './screenshot';
-import { scheduler } from './scheduler';
+import { playlistExecutor } from './playlist-executor';
 
 class KioskClient {
   private isShuttingDown = false;
@@ -16,7 +16,6 @@ class KioskClient {
       logger.info('===========================================');
       logger.info('  Kiosk Digital Signage Client Starting');
       logger.info('===========================================');
-      logger.info(`Device ID: ${config.deviceId}`);
       logger.info(`Server URL: ${config.serverUrl}`);
       logger.info(`Display: ${config.displayWidth}x${config.displayHeight}`);
       logger.info(`Kiosk Mode: ${config.kioskMode ? 'Enabled' : 'Disabled'}`);
@@ -39,7 +38,7 @@ class KioskClient {
       screenshotManager.start();
 
       logger.info('✅ Kiosk client started successfully');
-      logger.info('Waiting for schedule from server...');
+      logger.info('Waiting for playlist from server...');
     } catch (error: any) {
       logger.error('Failed to start kiosk client:', error.message);
       logger.error(error.stack);
@@ -51,8 +50,8 @@ class KioskClient {
     // Content update handler
     websocketClient.onContentUpdate((payload) => {
       logger.info(`Received content update with ${payload.items.length} items`);
-      scheduler.loadSchedule(payload.items);
-      scheduler.start();
+      playlistExecutor.loadPlaylist(payload.items);
+      playlistExecutor.start();
     });
 
     // Display navigate handler
@@ -133,7 +132,7 @@ class KioskClient {
       logger.warn('Restarting kiosk client...');
 
       // Stop all services
-      scheduler.stop();
+      playlistExecutor.stop();
       screenshotManager.stop();
       healthMonitor.stop();
 
@@ -144,9 +143,9 @@ class KioskClient {
       healthMonitor.start();
       screenshotManager.start();
 
-      // Restart scheduler if it has a schedule
-      if (scheduler.hasSchedule()) {
-        scheduler.start();
+      // Restart playlist executor if it has a playlist
+      if (playlistExecutor.hasPlaylist()) {
+        playlistExecutor.start();
       }
 
       logger.info('✅ Kiosk client restarted successfully');
@@ -169,7 +168,7 @@ class KioskClient {
     websocketClient.sendDeviceStatus(DeviceStatusValues.OFFLINE, 'Client shutting down');
 
     // Stop all services
-    scheduler.stop();
+    playlistExecutor.stop();
     screenshotManager.stop();
     healthMonitor.stop();
 

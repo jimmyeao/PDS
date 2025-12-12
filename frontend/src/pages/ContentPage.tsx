@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useContentStore } from '../store/contentStore';
 
 export const ContentPage = () => {
-  const { content, fetchContent, createContent, deleteContent, isLoading } = useContentStore();
+  const { content, fetchContent, createContent, updateContent, deleteContent, isLoading } = useContentStore();
   const [showModal, setShowModal] = useState(false);
+  const [editingContent, setEditingContent] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     url: '',
@@ -18,13 +19,32 @@ export const ContentPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createContent(formData);
-      setShowModal(false);
-      setFormData({ name: '', url: '', description: '', requiresInteraction: false });
-      fetchContent();
+      if (editingContent) {
+        await updateContent(editingContent, formData);
+        setShowModal(false);
+        setEditingContent(null);
+        setFormData({ name: '', url: '', description: '', requiresInteraction: false });
+        fetchContent();
+      } else {
+        await createContent(formData);
+        setShowModal(false);
+        setFormData({ name: '', url: '', description: '', requiresInteraction: false });
+        fetchContent();
+      }
     } catch (error) {
       // Error handled by store
     }
+  };
+
+  const handleEdit = (item: any) => {
+    setFormData({
+      name: item.name,
+      url: item.url,
+      description: item.description || '',
+      requiresInteraction: item.requiresInteraction || false,
+    });
+    setEditingContent(item.id);
+    setShowModal(true);
   };
 
   const handleDelete = async (id: number) => {
@@ -36,9 +56,13 @@ export const ContentPage = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Content</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Content</h1>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() => {
+            setEditingContent(null);
+            setFormData({ name: '', url: '', description: '', requiresInteraction: false });
+            setShowModal(true);
+          }}
           className="btn-primary"
         >
           + Add Content
@@ -85,7 +109,13 @@ export const ContentPage = () => {
                 <p className="text-gray-600 text-sm mb-3">{item.description}</p>
               )}
 
-              <div className="flex gap-2 mt-4 pt-4 border-t">
+              <div className="flex gap-2 mt-4 pt-4 border-t dark:border-gray-700">
+                <button
+                  onClick={() => handleEdit(item)}
+                  className="btn-secondary text-sm flex-1"
+                >
+                  Edit
+                </button>
                 <button
                   onClick={() => handleDelete(item.id)}
                   className="btn-danger text-sm flex-1"
@@ -98,11 +128,13 @@ export const ContentPage = () => {
         </div>
       )}
 
-      {/* Add Content Modal */}
+      {/* Add/Edit Content Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-md w-full">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Add New Content</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-md w-full shadow-xl">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+              {editingContent ? 'Edit Content' : 'Add New Content'}
+            </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -161,13 +193,17 @@ export const ContentPage = () => {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false);
+                    setEditingContent(null);
+                    setFormData({ name: '', url: '', description: '', requiresInteraction: false });
+                  }}
                   className="btn-secondary flex-1"
                 >
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary flex-1">
-                  Add Content
+                  {editingContent ? 'Update Content' : 'Add Content'}
                 </button>
               </div>
             </form>

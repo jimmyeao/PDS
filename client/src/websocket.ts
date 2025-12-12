@@ -76,7 +76,6 @@ class WebSocketClient {
       auth: {
         token: config.deviceToken,
         role: 'device',
-        deviceId: config.deviceId,
       },
       transports: ['websocket', 'polling'],
       reconnection: true,
@@ -147,8 +146,8 @@ class WebSocketClient {
 
   private registerDevice(): void {
     const deviceInfo: DeviceInfo = {
-      deviceId: config.deviceId,
-      name: config.deviceId, // Will be overridden by backend
+      deviceId: 'unknown', // Will be set by backend from token
+      name: 'Client Device', // Will be overridden by backend
       ipAddress: '0.0.0.0', // Will be detected by backend
       screenResolution: `${config.displayWidth}x${config.displayHeight}`,
       osVersion: `${process.platform} ${process.arch}`,
@@ -156,12 +155,11 @@ class WebSocketClient {
     };
 
     const payload: DeviceRegisterPayload = {
-      deviceId: config.deviceId,
       deviceInfo,
     };
 
     this.socket?.emit(ClientToServerEventValues.DEVICE_REGISTER, payload);
-    logger.debug('Device registration sent', payload);
+    logger.debug('Device registration sent');
   }
 
   public disconnect(): void {
@@ -194,7 +192,6 @@ class WebSocketClient {
     }
 
     const payload: DeviceStatusPayload = {
-      deviceId: config.deviceId,
       status,
       message,
     };
@@ -210,7 +207,6 @@ class WebSocketClient {
     }
 
     const payload: ErrorReportPayload = {
-      deviceId: config.deviceId,
       error,
       stack,
       context,
@@ -227,7 +223,6 @@ class WebSocketClient {
     }
 
     const payload: ScreenshotUploadPayload = {
-      deviceId: config.deviceId,
       image,
       timestamp: Date.now(),
       currentUrl,

@@ -1,16 +1,17 @@
 {
   "name": "@kiosk/client",
   "version": "1.0.0",
-  "description": "Raspberry Pi client for kiosk digital signage",
+  "description": "Cross-platform client for kiosk digital signage (Windows, Linux, Raspberry Pi)",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "watch": "tsc --watch",
-    "deploy": "bash deploy.sh"
+    "deploy": "bash deploy.sh",
+    "deploy:win": "powershell -ExecutionPolicy Bypass -File deploy-windows.ps1"
   },
-  "keywords": ["kiosk", "digital-signage", "raspberry-pi"],
+  "keywords": ["kiosk", "digital-signage", "raspberry-pi", "windows", "intel-nuc", "chromium"],
   "author": "",
   "license": "MIT",
   "dependencies": {

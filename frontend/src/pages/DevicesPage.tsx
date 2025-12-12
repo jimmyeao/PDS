@@ -1,20 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useDeviceStore } from '../store/deviceStore';
 import { useWebSocketStore } from '../store/websocketStore';
-import { useScheduleStore } from '../store/scheduleStore';
-import { scheduleService } from '../services/schedule.service';
+import { usePlaylistStore } from '../store/playlistStore';
+import { playlistService } from '../services/playlist.service';
 import { ScreenshotViewer } from '../components/ScreenshotViewer';
-import type { Schedule } from '@kiosk/shared';
+import type { Playlist } from '@kiosk/shared';
 
 export const DevicesPage = () => {
-  const { devices, fetchDevices, createDevice, deleteDevice, isLoading } = useDeviceStore();
+  const { devices, fetchDevices, createDevice, updateDevice, deleteDevice, isLoading } = useDeviceStore();
   const { connectedDevices } = useWebSocketStore();
-  const { schedules, fetchSchedules, assignScheduleToDevice, unassignScheduleFromDevice } = useScheduleStore();
+  const { playlists, fetchPlaylists, assignPlaylistToDevice, unassignPlaylistFromDevice } = usePlaylistStore();
   const [showModal, setShowModal] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
-  const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [selectedDeviceForSchedule, setSelectedDeviceForSchedule] = useState<number | null>(null);
-  const [deviceSchedules, setDeviceSchedules] = useState<Map<number, Schedule[]>>(new Map());
+  const [showPlaylistModal, setShowPlaylistModal] = useState(false);
+  const [editingDevice, setEditingDevice] = useState<number | null>(null);
+  const [selectedDeviceForPlaylist, setSelectedDeviceForPlaylist] = useState<number | null>(null);
+  const [devicePlaylists, setDevicePlaylists] = useState<Map<number, Playlist[]>>(new Map());
   const [deviceToken, setDeviceToken] = useState('');
   const [copiedToken, setCopiedToken] = useState(false);
   const [screenshotDeviceId, setScreenshotDeviceId] = useState<string | null>(null);
@@ -31,47 +32,68 @@ export const DevicesPage = () => {
 
   useEffect(() => {
     fetchDevices();
-    fetchSchedules();
-  }, [fetchDevices, fetchSchedules]);
+    fetchPlaylists();
+  }, [fetchDevices, fetchPlaylists]);
 
   useEffect(() => {
-    // Fetch schedules for all devices when devices change
-    const loadDeviceSchedules = async () => {
-      const scheduleMap = new Map<number, Schedule[]>();
+    // Fetch playlists for all devices when devices change
+    const loadDevicePlaylists = async () => {
+      const playlistMap = new Map<number, Playlist[]>();
       for (const device of devices) {
         try {
-          const schedules = await scheduleService.getDeviceSchedules(device.id);
-          scheduleMap.set(device.id, schedules);
+          const playlists = await playlistService.getDevicePlaylists(device.id);
+          playlistMap.set(device.id, playlists);
         } catch (error) {
-          console.error(`Failed to fetch schedules for device ${device.id}:`, error);
+          console.error(`Failed to fetch playlists for device ${device.id}:`, error);
         }
       }
-      setDeviceSchedules(scheduleMap);
+      setDevicePlaylists(playlistMap);
     };
 
     if (devices.length > 0) {
-      loadDeviceSchedules();
+      loadDevicePlaylists();
     }
   }, [devices]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const device = await createDevice(formData);
-      setShowModal(false);
-      setFormData({ deviceId: '', name: '', description: '', location: '' });
+      if (editingDevice) {
+        // Update existing device
+        await updateDevice(editingDevice, formData);
+        setShowModal(false);
+        setEditingDevice(null);
+        setFormData({ deviceId: '', name: '', description: '', location: '' });
+        fetchDevices();
+      } else {
+        // Create new device
+        const device = await createDevice(formData);
+        setShowModal(false);
+        setFormData({ deviceId: '', name: '', description: '', location: '' });
 
-      // Show token modal if token was returned
-      if (device.token) {
-        setDeviceToken(device.token);
-        setShowTokenModal(true);
-        setCopiedToken(false);
+        // Show token modal if token was returned
+        if (device.token) {
+          setDeviceToken(device.token);
+          setShowTokenModal(true);
+          setCopiedToken(false);
+        }
+
+        fetchDevices();
       }
-
-      fetchDevices();
     } catch (error) {
       // Error handled by store
     }
+  };
+
+  const handleEdit = (device: any) => {
+    setFormData({
+      deviceId: device.deviceId,
+      name: device.name,
+      description: device.description || '',
+      location: device.location || '',
+    });
+    setEditingDevice(device.id);
+    setShowModal(true);
   };
 
   const handleCopyToken = async () => {
@@ -90,32 +112,32 @@ export const DevicesPage = () => {
     }
   };
 
-  const handleOpenScheduleModal = (deviceId: number) => {
-    setSelectedDeviceForSchedule(deviceId);
-    setShowScheduleModal(true);
+  const handleOpenPlaylistModal = (deviceId: number) => {
+    setSelectedDeviceForPlaylist(deviceId);
+    setShowPlaylistModal(true);
   };
 
-  const handleAssignSchedule = async (scheduleId: number) => {
-    if (!selectedDeviceForSchedule) return;
+  const handleAssignPlaylist = async (playlistId: number) => {
+    if (!selectedDeviceForPlaylist) return;
 
     try {
-      await assignScheduleToDevice(selectedDeviceForSchedule, scheduleId);
-      // Refresh device schedules
-      const schedules = await scheduleService.getDeviceSchedules(selectedDeviceForSchedule);
-      setDeviceSchedules(prev => new Map(prev).set(selectedDeviceForSchedule, schedules));
-      setShowScheduleModal(false);
+      await assignPlaylistToDevice(selectedDeviceForPlaylist, playlistId);
+      // Refresh device playlists
+      const playlists = await playlistService.getDevicePlaylists(selectedDeviceForPlaylist);
+      setDevicePlaylists(prev => new Map(prev).set(selectedDeviceForPlaylist, playlists));
+      setShowPlaylistModal(false);
     } catch (error) {
       // Error handled by store
     }
   };
 
-  const handleUnassignSchedule = async (deviceId: number, scheduleId: number) => {
-    if (confirm('Are you sure you want to unassign this schedule?')) {
+  const handleUnassignPlaylist = async (deviceId: number, playlistId: number) => {
+    if (confirm('Are you sure you want to unassign this playlist?')) {
       try {
-        await unassignScheduleFromDevice(deviceId, scheduleId);
-        // Refresh device schedules
-        const schedules = await scheduleService.getDeviceSchedules(deviceId);
-        setDeviceSchedules(prev => new Map(prev).set(deviceId, schedules));
+        await unassignPlaylistFromDevice(deviceId, playlistId);
+        // Refresh device playlists
+        const playlists = await playlistService.getDevicePlaylists(deviceId);
+        setDevicePlaylists(prev => new Map(prev).set(deviceId, playlists));
       } catch (error) {
         // Error handled by store
       }
@@ -127,7 +149,11 @@ export const DevicesPage = () => {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Devices</h1>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() => {
+            setEditingDevice(null);
+            setFormData({ deviceId: '', name: '', description: '', location: '' });
+            setShowModal(true);
+          }}
           className="btn-primary"
         >
           + Add Device
@@ -186,28 +212,28 @@ export const DevicesPage = () => {
                 </p>
               )}
 
-              {/* Assigned Schedules */}
+              {/* Assigned Playlists */}
               <div className="mt-3">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Schedules:</p>
-                {deviceSchedules.get(device.id)?.length ? (
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Playlists:</p>
+                {devicePlaylists.get(device.id)?.length ? (
                   <div className="space-y-2">
-                    {deviceSchedules.get(device.id)!.map((schedule) => (
+                    {devicePlaylists.get(device.id)!.map((playlist) => (
                       <div
-                        key={schedule.id}
+                        key={playlist.id}
                         className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 rounded px-3 py-2"
                       >
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                            {schedule.name}
+                            {playlist.name}
                           </p>
-                          {schedule.isActive && (
+                          {playlist.isActive && (
                             <span className="inline-block px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 rounded mt-1">
                               Active
                             </span>
                           )}
                         </div>
                         <button
-                          onClick={() => handleUnassignSchedule(device.id, schedule.id)}
+                          onClick={() => handleUnassignPlaylist(device.id, playlist.id)}
                           className="ml-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm"
                         >
                           Remove
@@ -216,23 +242,29 @@ export const DevicesPage = () => {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">No schedules assigned</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No playlists assigned</p>
                 )}
               </div>
 
               <div className="flex flex-col gap-2 mt-4 pt-4 border-t dark:border-gray-700">
                 <button
-                  onClick={() => handleOpenScheduleModal(device.id)}
+                  onClick={() => handleOpenPlaylistModal(device.id)}
                   className="btn-secondary text-sm"
                 >
-                  Assign Schedule
+                  Assign Playlist
                 </button>
                 <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEdit(device)}
+                    className="btn-secondary text-sm flex-1"
+                  >
+                    Edit
+                  </button>
                   <button
                     onClick={() => setScreenshotDeviceId(device.deviceId)}
                     className="btn-primary text-sm flex-1"
                   >
-                    View Screenshot
+                    Screenshot
                   </button>
                   <button
                     onClick={() => handleDelete(device.id)}
@@ -247,11 +279,13 @@ export const DevicesPage = () => {
         </div>
       )}
 
-      {/* Add Device Modal */}
+      {/* Add/Edit Device Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-md w-full shadow-xl">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Add New Device</h2>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+              {editingDevice ? 'Edit Device' : 'Add New Device'}
+            </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -264,6 +298,7 @@ export const DevicesPage = () => {
                   className="input"
                   placeholder="e.g., rpi-001"
                   required
+                  disabled={!!editingDevice}
                 />
               </div>
 
@@ -310,13 +345,17 @@ export const DevicesPage = () => {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false);
+                    setEditingDevice(null);
+                    setFormData({ deviceId: '', name: '', description: '', location: '' });
+                  }}
                   className="btn-secondary flex-1"
                 >
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary flex-1">
-                  Add Device
+                  {editingDevice ? 'Update Device' : 'Add Device'}
                 </button>
               </div>
             </form>
@@ -401,19 +440,19 @@ export const DevicesPage = () => {
         />
       )}
 
-      {/* Schedule Assignment Modal */}
-      {showScheduleModal && (
+      {/* Playlist Assignment Modal */}
+      {showPlaylistModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-md w-full shadow-xl">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Assign Schedule</h2>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Assign Playlist</h2>
 
-            {schedules.length === 0 ? (
+            {playlists.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-gray-600 dark:text-gray-400 mb-4">
-                  No schedules available. Create a schedule first.
+                  No playlists available. Create a playlist first.
                 </p>
                 <button
-                  onClick={() => setShowScheduleModal(false)}
+                  onClick={() => setShowPlaylistModal(false)}
                   className="btn-secondary"
                 >
                   Close
@@ -422,19 +461,19 @@ export const DevicesPage = () => {
             ) : (
               <div className="space-y-4">
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  Select a schedule to assign to this device:
+                  Select a playlist to assign to this device:
                 </p>
 
                 <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {schedules.map((schedule) => {
-                    const alreadyAssigned = selectedDeviceForSchedule
-                      ? deviceSchedules.get(selectedDeviceForSchedule)?.some(s => s.id === schedule.id)
+                  {playlists.map((playlist) => {
+                    const alreadyAssigned = selectedDeviceForPlaylist
+                      ? devicePlaylists.get(selectedDeviceForPlaylist)?.some(p => p.id === playlist.id)
                       : false;
 
                     return (
                       <button
-                        key={schedule.id}
-                        onClick={() => handleAssignSchedule(schedule.id)}
+                        key={playlist.id}
+                        onClick={() => handleAssignPlaylist(playlist.id)}
                         disabled={alreadyAssigned}
                         className={`w-full text-left p-4 rounded-lg border transition-colors ${
                           alreadyAssigned
@@ -445,15 +484,15 @@ export const DevicesPage = () => {
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
                             <p className="font-medium text-gray-900 dark:text-white">
-                              {schedule.name}
+                              {playlist.name}
                             </p>
-                            {schedule.description && (
+                            {playlist.description && (
                               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                {schedule.description}
+                                {playlist.description}
                               </p>
                             )}
                             <div className="flex gap-2 mt-2">
-                              {schedule.isActive && (
+                              {playlist.isActive && (
                                 <span className="inline-block px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 rounded">
                                   Active
                                 </span>
@@ -474,7 +513,7 @@ export const DevicesPage = () => {
                 <div className="flex gap-3 pt-4">
                   <button
                     type="button"
-                    onClick={() => setShowScheduleModal(false)}
+                    onClick={() => setShowPlaylistModal(false)}
                     className="btn-secondary flex-1"
                   >
                     Cancel
