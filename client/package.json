@@ -4,10 +4,10 @@
   "description": "Cross-platform client for kiosk digital signage (Windows, Linux, Raspberry Pi)",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "npx tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "watch": "tsc --watch",
+    "watch": "npx tsc --watch",
     "deploy": "bash deploy.sh",
     "deploy:win": "powershell -ExecutionPolicy Bypass -File deploy-windows.ps1"
   },
