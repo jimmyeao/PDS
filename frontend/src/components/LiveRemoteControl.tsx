@@ -10,8 +10,6 @@ interface LiveRemoteControlProps {
 
 export const LiveRemoteControl = ({ deviceId, deviceName, onClose }: LiveRemoteControlProps) => {
   const [message, setMessage] = useState('');
-  const [textInput, setTextInput] = useState('');
-  const [showKeyboard, setShowKeyboard] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [fps, setFps] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -20,6 +18,8 @@ export const LiveRemoteControl = ({ deviceId, deviceName, onClose }: LiveRemoteC
 
   // FPS counter
   const lastFpsUpdateRef = useRef(Date.now());
+  const lastFrameAtRef = useRef<number>(0);
+  const lastResizeRef = useRef<{w:number;h:number}>({ w: 1280, h: 720 });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -36,10 +36,16 @@ export const LiveRemoteControl = ({ deviceId, deviceName, onClose }: LiveRemoteC
       try {
         // Update dimensions if they changed
         const metadata = payload.metadata;
-        if (metadata && (metadata.width !== dimensions.width || metadata.height !== dimensions.height)) {
-          setDimensions({ width: metadata.width || 1280, height: metadata.height || 720 });
-          canvas.width = metadata.width || 1280;
-          canvas.height = metadata.height || 720;
+        if (metadata) {
+          const newW = metadata.width || 1280;
+          const newH = metadata.height || 720;
+          if (newW !== lastResizeRef.current.w || newH !== lastResizeRef.current.h) {
+            // Debounce rapid resize to reduce flicker
+            lastResizeRef.current = { w: newW, h: newH };
+            setDimensions({ width: newW, height: newH });
+            canvas.width = newW;
+            canvas.height = newH;
+          }
         }
 
         // Decode and draw frame
@@ -58,7 +64,12 @@ export const LiveRemoteControl = ({ deviceId, deviceName, onClose }: LiveRemoteC
         };
         img.src = `data:image/jpeg;base64,${payload.data}`;
 
-        if (!isConnected) setIsConnected(true);
+        if (!isConnected) {
+          setIsConnected(true);
+        }
+        // Always clear connecting banner once we receive any frame
+        setMessage('');
+        lastFrameAtRef.current = Date.now();
       } catch (error) {
         console.error('Error rendering frame:', error);
       }
@@ -66,10 +77,12 @@ export const LiveRemoteControl = ({ deviceId, deviceName, onClose }: LiveRemoteC
 
     websocketService.onScreencastFrame(handleFrame);
     setMessage('Connecting to live stream...');
-
-    // Timeout to show error if no frames received
+      websocketService.onScreencastFrame(handleFrame);
+      // Show connecting only when truly not connected; clear on first frame
+      setMessage(isConnected ? '' : 'Connecting to live stream...');
     const timeout = setTimeout(() => {
-      if (!isConnected) {
+      // Only show if we truly haven't received any frames recently
+      if (!isConnected && (Date.now() - lastFrameAtRef.current > 4500)) {
         setMessage('No live stream received. Make sure the device is running.');
       }
     }, 5000);
@@ -78,7 +91,7 @@ export const LiveRemoteControl = ({ deviceId, deviceName, onClose }: LiveRemoteC
       websocketService.offScreencastFrame(handleFrame);
       clearTimeout(timeout);
     };
-  }, [deviceId, isConnected, dimensions]);
+  }, [deviceId]);
 
   // Handle keyboard input directly on canvas
   useEffect(() => {
@@ -124,11 +137,6 @@ export const LiveRemoteControl = ({ deviceId, deviceName, onClose }: LiveRemoteC
     };
   }, [deviceId]);
 
-  const showMsg = (msg: string) => {
-    setMessage(msg);
-    setTimeout(() => setMessage(''), 3000);
-  };
-
   const handleCanvasClick = async (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -142,32 +150,15 @@ export const LiveRemoteControl = ({ deviceId, deviceName, onClose }: LiveRemoteC
 
     try {
       await deviceService.remoteClick(deviceId, x, y);
-      showMsg(`Clicked at (${x}, ${y})`);
     } catch (error) {
-      showMsg('Error: Failed to send click');
-      console.error(error);
-    }
-  };
-
-  const handleTypeText = async () => {
-    if (!textInput) return;
-
-    try {
-      await deviceService.remoteType(deviceId, textInput);
-      showMsg(`Typed: "${textInput.substring(0, 20)}${textInput.length > 20 ? '...' : ''}"`);
-      setTextInput('');
-    } catch (error) {
-      showMsg('Error: Failed to type text');
-      console.error(error);
+      console.error('Error: Failed to send click', error);
     }
   };
 
   const handleKeyPress = async (key: string, modifiers?: string[]) => {
     try {
       await deviceService.remoteKey(deviceId, key, modifiers);
-      showMsg(`Pressed: ${key}${modifiers ? ` (${modifiers.join('+')})` : ''}`);
     } catch (error) {
-      showMsg('Error: Failed to send key');
       console.error(error);
     }
   };
@@ -175,9 +166,7 @@ export const LiveRemoteControl = ({ deviceId, deviceName, onClose }: LiveRemoteC
   const handleScroll = async (deltaY: number) => {
     try {
       await deviceService.remoteScroll(deviceId, undefined, undefined, undefined, deltaY);
-      showMsg(`Scrolled ${deltaY > 0 ? 'down' : 'up'}`);
     } catch (error) {
-      showMsg('Error: Failed to scroll');
       console.error(error);
     }
   };
@@ -209,7 +198,7 @@ export const LiveRemoteControl = ({ deviceId, deviceName, onClose }: LiveRemoteC
           </button>
         </div>
 
-        {/* Status Message */}
+        {/* Status Message: only for connection status */}
         {message && (
           <div className="mx-4 mt-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
             <p className="text-sm text-blue-800 dark:text-blue-200">{message}</p>
@@ -239,14 +228,7 @@ export const LiveRemoteControl = ({ deviceId, deviceName, onClose }: LiveRemoteC
                 <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
                 LIVE
               </div>
-              {isCanvasFocused && (
-                <div className="absolute top-2 left-2 bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold flex items-center gap-2">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M12.432 0c1.34 0 2.01.912 2.01 1.957 0 1.305-1.164 2.512-2.679 2.512-1.269 0-2.009-.75-1.974-1.99C9.789 1.436 10.67 0 12.432 0zM8.309 20c-1.058 0-1.833-.652-1.093-3.524l1.214-5.092c.211-.814.246-1.141 0-1.141-.317 0-1.689.562-2.502 1.117l-.528-.88c2.572-2.186 5.531-3.467 6.801-3.467 1.057 0 1.233 1.273.705 3.23l-1.391 5.352c-.246.945-.141 1.271.106 1.271.317 0 1.357-.392 2.379-1.207l.6.814C12.098 19.02 9.365 20 8.309 20z"/>
-                  </svg>
-                  ⌨️ KEYBOARD ACTIVE
-                </div>
-              )}
+              {/* Keyboard active badge removed */}
               {!isConnected && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
                   <div className="text-white text-center">
@@ -258,98 +240,7 @@ export const LiveRemoteControl = ({ deviceId, deviceName, onClose }: LiveRemoteC
             </div>
           </div>
 
-          {/* Control Panel Sidebar */}
-          <div className="w-80 border-l dark:border-gray-700 bg-white dark:bg-gray-800 overflow-auto">
-            <div className="p-4 space-y-4">
-              {/* Keyboard Input */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center justify-between">
-                  <span>Keyboard</span>
-                  <button
-                    onClick={() => setShowKeyboard(!showKeyboard)}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                  >
-                    {showKeyboard ? 'Hide' : 'Show'}
-                  </button>
-                </h3>
-
-                <div className="space-y-2">
-                  <input
-                    type="text"
-                    value={textInput}
-                    onChange={(e) => setTextInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleTypeText()}
-                    placeholder="Type text here..."
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  />
-                  <button
-                    onClick={handleTypeText}
-                    disabled={!textInput}
-                    className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                  >
-                    Type Text
-                  </button>
-                </div>
-
-                {showKeyboard && (
-                  <div className="mt-3 grid grid-cols-3 gap-1">
-                    <button onClick={() => handleKeyPress('Enter')} className="px-2 py-1.5 bg-gray-200 dark:bg-gray-700 rounded text-xs hover:bg-gray-300 dark:hover:bg-gray-600">Enter</button>
-                    <button onClick={() => handleKeyPress('Tab')} className="px-2 py-1.5 bg-gray-200 dark:bg-gray-700 rounded text-xs hover:bg-gray-300 dark:hover:bg-gray-600">Tab</button>
-                    <button onClick={() => handleKeyPress('Escape')} className="px-2 py-1.5 bg-gray-200 dark:bg-gray-700 rounded text-xs hover:bg-gray-300 dark:hover:bg-gray-600">ESC</button>
-                    <button onClick={() => handleKeyPress('Backspace')} className="px-2 py-1.5 bg-gray-200 dark:bg-gray-700 rounded text-xs hover:bg-gray-300 dark:hover:bg-gray-600">⌫ Back</button>
-                    <button onClick={() => handleKeyPress('Delete')} className="px-2 py-1.5 bg-gray-200 dark:bg-gray-700 rounded text-xs hover:bg-gray-300 dark:hover:bg-gray-600">Delete</button>
-                    <button onClick={() => handleKeyPress('KeyA', ['Control'])} className="px-2 py-1.5 bg-gray-200 dark:bg-gray-700 rounded text-xs hover:bg-gray-300 dark:hover:bg-gray-600">Ctrl+A</button>
-                    <button onClick={() => handleKeyPress('ArrowUp')} className="px-2 py-1.5 bg-gray-200 dark:bg-gray-700 rounded text-xs hover:bg-gray-300 dark:hover:bg-gray-600">↑</button>
-                    <button onClick={() => handleKeyPress('ArrowDown')} className="px-2 py-1.5 bg-gray-200 dark:bg-gray-700 rounded text-xs hover:bg-gray-300 dark:hover:bg-gray-600">↓</button>
-                    <button onClick={() => handleKeyPress('ArrowLeft')} className="px-2 py-1.5 bg-gray-200 dark:bg-gray-700 rounded text-xs hover:bg-gray-300 dark:hover:bg-gray-600">←</button>
-                  </div>
-                )}
-              </div>
-
-              {/* Scroll Controls */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Scroll</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => handleScroll(-300)}
-                    className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
-                  >
-                    ↑ Up
-                  </button>
-                  <button
-                    onClick={() => handleScroll(300)}
-                    className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
-                  >
-                    ↓ Down
-                  </button>
-                </div>
-              </div>
-
-              {/* Quick Actions */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Quick Actions</h3>
-                <div className="space-y-2">
-                  <button
-                    onClick={() => handleKeyPress('F5')}
-                    className="w-full px-3 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-sm"
-                  >
-                    Refresh Page (F5)
-                  </button>
-                </div>
-              </div>
-
-              {/* Instructions */}
-              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                <h4 className="text-xs font-semibold text-blue-900 dark:text-blue-200 mb-1">Live Streaming:</h4>
-                <ul className="text-xs text-blue-800 dark:text-blue-300 space-y-1">
-                  <li>• Real-time video feed from device</li>
-                  <li>• Click anywhere to interact</li>
-                  <li>• Type and use keyboard shortcuts</li>
-                  <li>• VNC-like remote control experience</li>
-                </ul>
-              </div>
-            </div>
-          </div>
+          {/* Control Panel Sidebar removed as typing is supported directly */}
         </div>
       </div>
     </div>
