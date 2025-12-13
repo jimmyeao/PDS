@@ -64,7 +64,7 @@ class WebSocketClient {
       return;
     }
 
-    const wsUrl = `${config.serverUrl.replace(/^http/, 'ws')}/ws?role=device&deviceId=${encodeURIComponent(config.deviceId)}`;
+    const wsUrl = `${config.serverUrl.replace(/^http/, 'ws')}/ws?role=device&token=${encodeURIComponent(config.deviceToken)}`;
     logger.info(`Connecting to server: ${wsUrl}`);
 
     this.socket = new WebSocket(wsUrl);
@@ -129,7 +129,7 @@ class WebSocketClient {
   }
 
   private registerDevice(): void {
-    const payload = { deviceId: config.deviceId };
+    const payload = { token: config.deviceToken };
     this.send(ClientToServerEventValues.DEVICE_REGISTER, payload);
     logger.debug('Device registration sent');
   }

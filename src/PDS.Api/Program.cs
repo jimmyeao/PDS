@@ -225,6 +225,42 @@ app.Map("/ws", async context =>
         return;
     }
 
+    var token = context.Request.Query["token"].ToString();
+    var deviceId = context.Request.Query["deviceId"].ToString();
+
+    // Resolve deviceId from token if provided
+    if (!string.IsNullOrEmpty(token) && string.IsNullOrEmpty(deviceId))
+    {
+        try
+        {
+            using var scope = context.RequestServices.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<PdsDbContext>();
+            var device = await db.Devices.FirstOrDefaultAsync(d => d.Token == token);
+            if (device != null)
+            {
+                deviceId = device.DeviceId;
+            }
+            else
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsync("unauthorized");
+                return;
+            }
+        }
+        catch
+        {
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            await context.Response.WriteAsync("error");
+            return;
+        }
+    }
+
+    // Attach resolved deviceId for downstream handling
+    if (!string.IsNullOrEmpty(deviceId))
+    {
+        context.Items["__resolvedDeviceId"] = deviceId;
+    }
+
     var socket = await context.WebSockets.AcceptWebSocketAsync();
     await RealtimeHub.HandleAsync(context, socket);
 });
@@ -724,7 +760,9 @@ public static class RealtimeHub
     public static async Task HandleAsync(HttpContext ctx, System.Net.WebSockets.WebSocket ws)
     {
         var role = (ctx.Request.Query["role"].ToString() ?? "admin").ToLowerInvariant();
-        var deviceId = ctx.Request.Query["deviceId"].ToString();
+        var deviceId = ctx.Items.ContainsKey("__resolvedDeviceId")
+            ? ctx.Items["__resolvedDeviceId"]?.ToString()
+            : ctx.Request.Query["deviceId"].ToString();
 
         if (role == "device" && !string.IsNullOrEmpty(deviceId)) Devices[deviceId] = ws; else Admins[Guid.NewGuid().ToString()] = ws;
 
