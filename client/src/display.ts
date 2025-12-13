@@ -36,13 +36,12 @@ class DisplayController {
           ...(process.platform === 'win32' ? ['--use-angle=d3d11'] : []),
           ...(process.platform === 'linux'
             ? [
-                // Raspberry Pi / Linux: prefer EGL + hardware acceleration
+                // Raspberry Pi / Linux: prefer EGL + hardware acceleration (X11-compatible)
                 '--use-gl=egl',
                 '--enable-gpu-rasterization',
                 '--enable-zero-copy',
-                '--canvas-msaa-tablet',
-                '--ozone-platform=wayland',
-                '--in-process-gpu',
+                '--autoplay-policy=no-user-gesture-required',
+                // Avoid Wayland-only flags since DISPLAY=:0 indicates X11
               ]
             : []),
           '--disable-blink-features=AutomationControlled',
@@ -55,9 +54,14 @@ class DisplayController {
           '--force-color-profile=srgb',
           `--window-size=${config.displayWidth},${config.displayHeight}`,
           `--window-position=0,0`,
+          '--new-window',
         ],
         ignoreDefaultArgs: ['--enable-automation'],
         defaultViewport: null, // Use window size instead of viewport
+        env: {
+          ...process.env,
+          DISPLAY: process.env.DISPLAY || ':0',
+        },
       };
 
       // Use custom Chromium path if provided (e.g., system chromium on Raspberry Pi)
@@ -80,6 +84,14 @@ class DisplayController {
       logger.info('Browser launched successfully');
 
       this.page = await this.browser.newPage();
+      try {
+        await this.page.bringToFront();
+        await this.page.goto('about:blank');
+        await this.page.evaluate(() => {
+          // @ts-ignore
+          window.focus();
+        });
+      } catch {}
 
       // Set viewport to match window size (for screenshots and page rendering)
       await this.page.setViewport({
