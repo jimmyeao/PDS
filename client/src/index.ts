@@ -66,6 +66,16 @@ class KioskClient {
       screenshotManager.captureOnDemand();
     });
 
+    // Server-controlled stream start/stop
+    websocketClient.onStreamStart(async () => {
+      logger.info('Stream start requested by server');
+      await displayController.startScreencast();
+    });
+    websocketClient.onStreamStop(async () => {
+      logger.info('Stream stop requested by server');
+      await displayController.stopScreencast();
+    });
+
     // Config update handler
     websocketClient.onConfigUpdate((payload) => {
       logger.info('Configuration update received', payload);

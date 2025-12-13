@@ -9,6 +9,10 @@ class DisplayController {
   private page: Page | null = null;
   private currentUrl: string = '';
   private isInitialized = false;
+  private screencastClient: any | null = null;
+  private isScreencastActive = false;
+  private lastScreencastFrameAt: number = 0;
+  private screencastWatchdogId: NodeJS.Timeout | null = null;
 
   public async initialize(): Promise<void> {
     if (this.isInitialized) {
@@ -23,6 +27,21 @@ class DisplayController {
       const profileDir = process.platform === 'win32'
         ? `${process.env.LOCALAPPDATA || 'C:/Users/Public/AppData/Local'}/PDS/browser-profile`
         : '/tmp/kiosk-browser-profile';
+
+      // Ensure profile directory exists so Chromium can persist cookies/sessions
+      try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const dirPath = path.resolve(profileDir);
+        if (!fs.existsSync(dirPath)) {
+          fs.mkdirSync(dirPath, { recursive: true });
+          logger.info(`Created browser profile directory: ${dirPath}`);
+        } else {
+          logger.info(`Using existing browser profile directory: ${dirPath}`);
+        }
+      } catch (e: any) {
+        logger.warn(`Could not ensure profile directory: ${e?.message || e}`);
+      }
 
       const launchOptions: any = {
         headless: false,
@@ -166,7 +185,7 @@ class DisplayController {
       // Setup page error handlers
       this.setupErrorHandlers();
 
-      // Start live screencast streaming
+      // Start live screencast streaming by default
       await this.startScreencast();
 
       this.isInitialized = true;
@@ -181,9 +200,13 @@ class DisplayController {
     }
   }
 
-  private async startScreencast(): Promise<void> {
+  public async startScreencast(): Promise<void> {
     if (!this.page) {
       logger.warn('Cannot start screencast: page not initialized');
+      return;
+    }
+    if (this.isScreencastActive) {
+      logger.info('Screencast already active');
       return;
     }
 
@@ -192,6 +215,20 @@ class DisplayController {
 
       // Get CDP session
       const client = await this.page.target().createCDPSession();
+      this.screencastClient = client;
+
+      // Ensure Page domain is enabled and lifecycle events are available
+      try {
+        await client.send('Page.enable');
+        await client.send('Page.setLifecycleEventsEnabled', { enabled: true });
+      } catch (e: any) {
+        logger.warn(`Could not enable Page domain/lifecycle events: ${e?.message || e}`);
+      }
+
+      // Ensure a document is ready before starting (helps Windows/Pi single-URL cases)
+      try {
+        await this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 5000 });
+      } catch {}
 
       // Start screencast with optimized settings
       await client.send('Page.startScreencast', {
@@ -199,12 +236,20 @@ class DisplayController {
         quality: 80,
         maxWidth: config.displayWidth,
         maxHeight: config.displayHeight,
-        everyNthFrame: 1, // Capture every frame for smooth streaming
+        // Capture every 2nd frame to reduce backpressure and improve reliability
+        everyNthFrame: 2,
       });
+
+      let firstFrameReceived = false;
 
       // Listen for screencast frames
       client.on('Page.screencastFrame', async (frame: any) => {
         try {
+          if (!firstFrameReceived) {
+            firstFrameReceived = true;
+            logger.info('First screencast frame received');
+          }
+          this.lastScreencastFrameAt = Date.now();
           // Send frame to server via WebSocket
           websocketClient.sendScreencastFrame({
             data: frame.data,
@@ -225,10 +270,92 @@ class DisplayController {
         }
       });
 
+      // If no frame arrives within 5 seconds, restart screencast once
+      setTimeout(async () => {
+        if (!firstFrameReceived) {
+          logger.warn('No screencast frames after 5s, restarting Page.startScreencast');
+          try {
+            await client.send('Page.stopScreencast');
+          } catch {}
+          try {
+            await client.send('Page.startScreencast', {
+              format: 'jpeg',
+              quality: 80,
+              maxWidth: config.displayWidth,
+              maxHeight: config.displayHeight,
+              everyNthFrame: 2,
+            });
+          } catch (restartErr: any) {
+            logger.error('Failed to restart screencast:', restartErr.message);
+            websocketClient.sendErrorReport('Screencast restart failed', restartErr.stack);
+          }
+        }
+      }, 5000);
+
+      // Start a watchdog that restarts screencast if no frames for 10s
+      if (this.screencastWatchdogId) {
+        clearInterval(this.screencastWatchdogId);
+      }
+      this.screencastWatchdogId = setInterval(async () => {
+        const now = Date.now();
+        if (this.isScreencastActive && this.lastScreencastFrameAt && now - this.lastScreencastFrameAt > 10000) {
+          logger.warn('Screencast stalled (no frames >10s). Restarting...');
+          try { await client.send('Page.stopScreencast'); } catch {}
+          try {
+            await client.send('Page.startScreencast', {
+              format: 'jpeg',
+              quality: 80,
+              maxWidth: config.displayWidth,
+              maxHeight: config.displayHeight,
+              everyNthFrame: 2,
+            });
+            this.lastScreencastFrameAt = Date.now();
+          } catch (wdErr: any) {
+            logger.error('Watchdog restart failed:', wdErr.message);
+          }
+        }
+      }, 5000);
+
+      // Restart screencast on navigation events to recover sessions
+      this.page.on('framenavigated', async () => {
+        try {
+          logger.info('Frame navigated, restarting screencast');
+          await client.send('Page.stopScreencast');
+          await client.send('Page.startScreencast', {
+            format: 'jpeg',
+            quality: 80,
+            maxWidth: config.displayWidth,
+            maxHeight: config.displayHeight,
+            everyNthFrame: 2,
+          });
+        } catch (navErr: any) {
+          logger.warn(`Could not restart screencast after navigation: ${navErr?.message || navErr}`);
+        }
+      });
+
       logger.info('✅ Screencast streaming started');
+      this.isScreencastActive = true;
     } catch (error: any) {
       logger.error('Failed to start screencast:', error.message);
       websocketClient.sendErrorReport('Screencast start failed', error.stack);
+    }
+  }
+
+  public async stopScreencast(): Promise<void> {
+    try {
+      if (this.screencastClient) {
+        await this.screencastClient.send('Page.stopScreencast');
+        logger.info('Screencast stopped');
+      } else {
+        logger.warn('No screencast client to stop');
+      }
+      this.isScreencastActive = false;
+      if (this.screencastWatchdogId) {
+        clearInterval(this.screencastWatchdogId);
+        this.screencastWatchdogId = null;
+      }
+    } catch (e: any) {
+      logger.warn(`Failed to stop screencast: ${e?.message || e}`);
     }
   }
 
@@ -390,6 +517,12 @@ class DisplayController {
 
       this.currentUrl = url;
       logger.info(`✅ Navigation successful: ${url}`);
+
+      // On Raspberry Pi/Linux, ensure screencast is active after first successful navigation
+      if (!this.isScreencastActive && process.platform === 'linux') {
+        logger.info('Ensuring screencast active after navigation (Linux/Pi)');
+        await this.startScreencast();
+      }
 
       // If duration is specified, navigate back after timeout
       if (duration) {

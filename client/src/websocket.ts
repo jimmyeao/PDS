@@ -27,6 +27,8 @@ const ServerToClientEventValues = {
   REMOTE_TYPE: 'remote:type',
   REMOTE_KEY: 'remote:key',
   REMOTE_SCROLL: 'remote:scroll',
+  STREAM_START: 'stream:start',
+  STREAM_STOP: 'stream:stop',
 } as const;
 
 const ClientToServerEventValues = {
@@ -53,6 +55,8 @@ export type RemoteClickCallback = (payload: RemoteClickPayload) => void;
 export type RemoteTypeCallback = (payload: RemoteTypePayload) => void;
 export type RemoteKeyCallback = (payload: RemoteKeyPayload) => void;
 export type RemoteScrollCallback = (payload: RemoteScrollPayload) => void;
+export type StreamStartCallback = (payload: any) => void;
+export type StreamStopCallback = (payload: any) => void;
 
 class WebSocketClient {
   private socket: WebSocket | null = null;
@@ -71,6 +75,8 @@ class WebSocketClient {
   private remoteTypeCallback?: RemoteTypeCallback;
   private remoteKeyCallback?: RemoteKeyCallback;
   private remoteScrollCallback?: RemoteScrollCallback;
+  private streamStartCallback?: StreamStartCallback;
+  private streamStopCallback?: StreamStopCallback;
 
   constructor() {}
 
@@ -148,6 +154,12 @@ class WebSocketClient {
             break;
           case ServerToClientEventValues.REMOTE_SCROLL:
             this.remoteScrollCallback?.(payload as RemoteScrollPayload);
+            break;
+          case ServerToClientEventValues.STREAM_START:
+            this.streamStartCallback?.(payload);
+            break;
+          case ServerToClientEventValues.STREAM_STOP:
+            this.streamStopCallback?.(payload);
             break;
         }
       } catch (err: any) {
@@ -279,6 +291,14 @@ class WebSocketClient {
 
   public onRemoteScroll(callback: RemoteScrollCallback): void {
     this.remoteScrollCallback = callback;
+  }
+
+  public onStreamStart(callback: StreamStartCallback): void {
+    this.streamStartCallback = callback;
+  }
+
+  public onStreamStop(callback: StreamStopCallback): void {
+    this.streamStopCallback = callback;
   }
 }
 
