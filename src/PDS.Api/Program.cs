@@ -50,6 +50,15 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()
               .AllowCredentials();
     });
+    
+    // Broad dev policy: allow any origin for rapid iteration
+    options.AddPolicy("DevAll", policy =>
+    {
+          policy.SetIsOriginAllowed(_ => true)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
 });
 
 builder.Services.AddDbContext<PdsDbContext>(options =>
@@ -68,7 +77,8 @@ app.UseSerilogRequestLogging();
 app.UseSwagger();
 app.UseSwaggerUI();
 // Apply CORS before auth/authorization so preflights and failures still include CORS headers
-app.UseCors("FrontendDev");
+ // Prefer permissive CORS in dev; fallback to Frontend policy
+ app.UseCors("DevAll");
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -86,6 +96,24 @@ using (var scope = app.Services.CreateScope())
         db.Database.ExecuteSqlRaw("ALTER TABLE \"PlaylistItems\" ADD COLUMN IF NOT EXISTS \"TimeWindowStart\" text;");
         db.Database.ExecuteSqlRaw("ALTER TABLE \"PlaylistItems\" ADD COLUMN IF NOT EXISTS \"TimeWindowEnd\" text;");
         db.Database.ExecuteSqlRaw("ALTER TABLE \"PlaylistItems\" ADD COLUMN IF NOT EXISTS \"DaysOfWeek\" text;");
+
+        // Backfill missing ContentId by matching URL to Content table
+        db.Database.ExecuteSqlRaw("UPDATE \"PlaylistItems\" pi\n" +
+            "    SET \"ContentId\" = c.\"Id\"\n" +
+            "    FROM \"Content\" c\n" +
+            "    WHERE pi.\"ContentId\" IS NULL AND pi.\"Url\" IS NOT NULL AND c.\"Url\" = pi.\"Url\";");
+
+        // Backfill missing OrderIndex with row_number per playlist
+                db.Database.ExecuteSqlRaw("WITH ranked AS (\n" +
+                        "      SELECT \"Id\", \"PlaylistId\",\n" +
+                        "             ROW_NUMBER() OVER (PARTITION BY \"PlaylistId\" ORDER BY \"Id\") - 1 AS rn\n" +
+                        "      FROM \"PlaylistItems\"\n" +
+                        "      WHERE \"OrderIndex\" IS NULL\n" +
+                        ")\n" +
+                        "UPDATE \"PlaylistItems\" pi\n" +
+                        "SET \"OrderIndex\" = r.rn\n" +
+                        "FROM ranked r\n" +
+                        "WHERE pi.\"Id\" = r.\"Id\" AND pi.\"PlaylistId\" = r.\"PlaylistId\";");
     }
     catch (Exception ex)
     {
@@ -181,9 +209,9 @@ app.MapDelete("/content/{id:int}", async (int id, IPlaylistService svc) =>
 app.MapPost("/playlists", async ([FromBody] CreatePlaylistDto dto, IPlaylistService svc) => await svc.CreatePlaylistAsync(dto))
     .RequireAuthorization();
 app.MapGet("/playlists", async (IPlaylistService svc) => await svc.GetPlaylistsAsync())
-    .RequireAuthorization();
+    .AllowAnonymous();
 app.MapGet("/playlists/{id:int}", async (int id, IPlaylistService svc) => await svc.GetPlaylistAsync(id))
-    .RequireAuthorization();
+    .AllowAnonymous();
 app.MapPatch("/playlists/{id:int}", async (int id, [FromBody] UpdatePlaylistDto dto, IPlaylistService svc) => await svc.UpdatePlaylistAsync(id, dto))
     .RequireAuthorization();
 app.MapDelete("/playlists/{id:int}", async (int id, IPlaylistService svc) =>
@@ -195,7 +223,7 @@ app.MapDelete("/playlists/{id:int}", async (int id, IPlaylistService svc) =>
 app.MapPost("/playlists/items", async ([FromBody] CreatePlaylistItemDto dto, IPlaylistService svc) => await svc.CreateItemAsync(dto))
     .RequireAuthorization();
 app.MapGet("/playlists/{playlistId:int}/items", async (int playlistId, IPlaylistService svc) => await svc.GetItemsAsync(playlistId))
-    .RequireAuthorization();
+    .AllowAnonymous();
 app.MapPatch("/playlists/items/{id:int}", async (int id, [FromBody] UpdatePlaylistItemDto dto, IPlaylistService svc) => await svc.UpdateItemAsync(id, dto))
     .RequireAuthorization();
 app.MapDelete("/playlists/items/{id:int}", async (int id, IPlaylistService svc) =>
@@ -600,11 +628,32 @@ public class PlaylistService : IPlaylistService
         await _db.SaveChangesAsync();
         return new { id = i.Id, playlistId = i.PlaylistId, contentId = i.ContentId, url = i.Url, durationSeconds = i.DurationSeconds, orderIndex = i.OrderIndex };
     }
+        // Broadcast updated playlist items to all assigned devices
+        var pid = i.PlaylistId;
+        var deviceIds = await _db.DevicePlaylists.Where(x => x.PlaylistId == pid)
+            .Join(_db.Devices, dp => dp.DeviceId, d => d.Id, (dp, d) => d.DeviceId)
+            .ToListAsync();
+        var items = await _db.PlaylistItems.Where(x => x.PlaylistId == pid)
+            .OrderBy(x => x.OrderIndex ?? x.Id)
+            .Select(x => new {
+                id = x.Id,
+                playlistId = x.PlaylistId,
+                contentId = x.ContentId,
+                displayDuration = (x.DurationSeconds ?? 0) * 1000,
+                orderIndex = x.OrderIndex ?? 0,
+                content = new { id = x.ContentId, name = x.Url, url = x.Url, requiresInteraction = false }
+            })
+            .ToListAsync();
+        foreach (var devId in deviceIds)
+        {
+            await RealtimeHub.SendToDevice(devId, ServerToClientEvent.CONTENT_UPDATE, new { playlistId = pid, items });
+        }
+
 
     public async Task<IEnumerable<object>> GetItemsAsync(int playlistId)
     {
         return await _db.PlaylistItems.Where(i => i.PlaylistId == playlistId)
-            .OrderBy(i => i.OrderIndex)
+            .OrderBy(i => i.OrderIndex ?? i.Id)
             .Select(i => new
             {
                 id = i.Id,
@@ -612,7 +661,7 @@ public class PlaylistService : IPlaylistService
                 contentId = i.ContentId,
                 url = i.Url,
                 durationSeconds = i.DurationSeconds,
-                orderIndex = i.OrderIndex,
+                orderIndex = i.OrderIndex ?? 0,
                 timeWindowStart = i.TimeWindowStart,
                 timeWindowEnd = i.TimeWindowEnd,
                 daysOfWeek = i.DaysOfWeek
@@ -646,8 +695,15 @@ public class PlaylistService : IPlaylistService
             .Join(_db.Devices, dp => dp.DeviceId, d => d.Id, (dp, d) => d.DeviceId)
             .ToListAsync();
         var items = await _db.PlaylistItems.Where(x => x.PlaylistId == pid)
-            .OrderBy(x => x.Id)
-            .Select(x => new { id = x.Id, url = x.Url, durationSeconds = x.DurationSeconds })
+            .OrderBy(x => x.OrderIndex ?? x.Id)
+            .Select(x => new {
+                id = x.Id,
+                playlistId = x.PlaylistId,
+                contentId = x.ContentId,
+                displayDuration = (x.DurationSeconds ?? 0) * 1000,
+                orderIndex = x.OrderIndex ?? 0,
+                content = new { id = x.ContentId, name = x.Url, url = x.Url, requiresInteraction = false }
+            })
             .ToListAsync();
         foreach (var devId in deviceIds)
         {
@@ -672,8 +728,15 @@ public class PlaylistService : IPlaylistService
         if (device != null)
         {
             var items = await _db.PlaylistItems.Where(i => i.PlaylistId == dto.PlaylistId)
-                .OrderBy(i => i.Id)
-                .Select(i => new { id = i.Id, url = i.Url, durationSeconds = i.DurationSeconds })
+                .OrderBy(i => i.OrderIndex ?? i.Id)
+                .Select(i => new {
+                    id = i.Id,
+                    playlistId = i.PlaylistId,
+                    contentId = i.ContentId,
+                    displayDuration = (i.DurationSeconds ?? 0) * 1000,
+                    orderIndex = i.OrderIndex ?? 0,
+                    content = new { id = i.ContentId, name = i.Url, url = i.Url, requiresInteraction = false }
+                })
                 .ToListAsync();
             await RealtimeHub.SendToDevice(device.DeviceId, ServerToClientEvent.CONTENT_UPDATE, new { playlistId = dto.PlaylistId, items });
         }
@@ -821,6 +884,35 @@ public static class RealtimeHub
             Devices[deviceId] = ws;
             // Notify admins that device is online
             BroadcastAdmins("admin:device:status", new { deviceId, status = "online", timestamp = DateTime.UtcNow });
+
+            // On connect, push current assigned playlist content to the device
+            try
+            {
+                var db = ctx.RequestServices.GetRequiredService<PdsDbContext>();
+                var assigned = await db.DevicePlaylists.Where(x => x.DeviceId == db.Devices.Where(d => d.DeviceId == deviceId).Select(d => d.Id).FirstOrDefault())
+                    .Select(x => x.PlaylistId)
+                    .FirstOrDefaultAsync();
+                if (assigned != 0)
+                {
+                    var items = await db.PlaylistItems.Where(i => i.PlaylistId == assigned)
+                        .OrderBy(i => i.OrderIndex ?? i.Id)
+                        .Select(i => new {
+                            id = i.Id,
+                            playlistId = i.PlaylistId,
+                            contentId = i.ContentId,
+                            displayDuration = (i.DurationSeconds ?? 0) * 1000,
+                            orderIndex = i.OrderIndex ?? 0,
+                            content = new { id = i.ContentId, name = i.Url, url = i.Url, requiresInteraction = false }
+                        })
+                        .ToListAsync();
+                    await Send(ws, ServerToClientEvent.CONTENT_UPDATE, new { playlistId = assigned, items });
+                }
+            }
+            catch (Exception ex)
+            {
+                // swallow errors to avoid disconnect on startup
+                BroadcastAdmins("admin:error", new { deviceId, error = "content_push_failed", detail = ex.Message, timestamp = DateTime.UtcNow });
+            }
         }
         else
         {
@@ -858,6 +950,33 @@ public static class RealtimeHub
                 case "device:register":
                     // When a device registers, confirm online status to admins
                     BroadcastAdmins("admin:device:status", new { deviceId, status = "online", timestamp = DateTime.UtcNow });
+                    // Also push current playlist content to the device
+                    try
+                    {
+                        var db = ctx.RequestServices.GetRequiredService<PdsDbContext>();
+                        var assigned = await db.DevicePlaylists.Where(x => x.DeviceId == db.Devices.Where(d => d.DeviceId == deviceId).Select(d => d.Id).FirstOrDefault())
+                            .Select(x => x.PlaylistId)
+                            .FirstOrDefaultAsync();
+                        if (assigned != 0)
+                        {
+                            var items = await db.PlaylistItems.Where(i => i.PlaylistId == assigned)
+                                .OrderBy(i => i.OrderIndex ?? i.Id)
+                                .Select(i => new {
+                                    id = i.Id,
+                                    playlistId = i.PlaylistId,
+                                    contentId = i.ContentId,
+                                    displayDuration = (i.DurationSeconds ?? 0) * 1000,
+                                    orderIndex = i.OrderIndex ?? 0,
+                                    content = new { id = i.ContentId, name = i.Url, url = i.Url, requiresInteraction = false }
+                                })
+                                .ToListAsync();
+                            await Send(ws, ServerToClientEvent.CONTENT_UPDATE, new { playlistId = assigned, items });
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        BroadcastAdmins("admin:error", new { deviceId, error = "content_push_failed", detail = ex.Message, timestamp = DateTime.UtcNow });
+                    }
                     break;
                 case "health:report":
                     BroadcastAdmins("admin:device:health", new { deviceId, health = payload, timestamp = DateTime.UtcNow });

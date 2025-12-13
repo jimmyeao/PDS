@@ -38,7 +38,7 @@ class WebSocketService {
       return;
     }
 
-    const baseUrl = (import.meta as any).env?.VITE_API_URL || 'http://127.0.0.1:5001';
+    const baseUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5001';
     const wsUrl = baseUrl.replace(/^http/, 'ws') + '/ws?role=admin';
 
     this.socket = new WebSocket(wsUrl);
