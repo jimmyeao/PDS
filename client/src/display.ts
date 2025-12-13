@@ -340,20 +340,18 @@ class DisplayController {
       }
 
       // Setup navigation handler (only once)
+      // Just log navigation - don't restart screencast, let it continue through navigation
       if (!this.frameNavigatedHandler) {
         this.frameNavigatedHandler = async () => {
           try {
-            logger.info('Frame navigated, waiting 3s for page to settle before restarting screencast...');
-            this.isScreencastActive = false;
-            this.isRestartingScreencast = false;
+            const now = Date.now();
+            const timeSinceLastFrame = this.lastScreencastFrameAt ? now - this.lastScreencastFrameAt : Infinity;
+            logger.info(`Frame navigated - screencast active: ${this.isScreencastActive}, last frame: ${timeSinceLastFrame}ms ago`);
 
-            // Wait 3 seconds for page to settle (handles redirects, heavy JS loads, etc.)
-            await new Promise(resolve => setTimeout(resolve, 3000));
-
-            logger.info('Page settled, restarting screencast');
-            await this.startScreencast();
+            // Don't restart! Let screencast continue through navigation.
+            // The watchdog will restart if it actually stalls for >15s
           } catch (navErr: any) {
-            logger.warn(`Could not restart screencast after navigation: ${navErr?.message || navErr}`);
+            logger.warn(`Navigation error: ${navErr?.message || navErr}`);
           }
         };
         this.page.on('framenavigated', this.frameNavigatedHandler);
