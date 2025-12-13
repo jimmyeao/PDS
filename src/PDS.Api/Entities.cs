@@ -53,8 +53,13 @@ public class PlaylistItem
     public int Id { get; set; }
     public int PlaylistId { get; set; }
     public Playlist? Playlist { get; set; }
+    public int ContentId { get; set; }
     public string Url { get; set; } = string.Empty;
     public int? DurationSeconds { get; set; }
+    public int OrderIndex { get; set; }
+    public string? TimeWindowStart { get; set; }
+    public string? TimeWindowEnd { get; set; }
+    public string? DaysOfWeek { get; set; }
 }
 
 public class DevicePlaylist

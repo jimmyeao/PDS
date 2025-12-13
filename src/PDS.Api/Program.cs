@@ -80,6 +80,12 @@ using (var scope = app.Services.CreateScope())
         var db = scope.ServiceProvider.GetRequiredService<PdsDbContext>();
         db.Database.ExecuteSqlRaw("ALTER TABLE \"Devices\" ADD COLUMN IF NOT EXISTS \"Token\" text;");
         db.Database.ExecuteSqlRaw("CREATE UNIQUE INDEX IF NOT EXISTS \"IX_Devices_DeviceId_unique\" ON \"Devices\"(\"DeviceId\");");
+        // Ensure new PlaylistItem columns exist
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"PlaylistItems\" ADD COLUMN IF NOT EXISTS \"ContentId\" int;");
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"PlaylistItems\" ADD COLUMN IF NOT EXISTS \"OrderIndex\" int;");
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"PlaylistItems\" ADD COLUMN IF NOT EXISTS \"TimeWindowStart\" text;");
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"PlaylistItems\" ADD COLUMN IF NOT EXISTS \"TimeWindowEnd\" text;");
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"PlaylistItems\" ADD COLUMN IF NOT EXISTS \"DaysOfWeek\" text;");
     }
     catch (Exception ex)
     {
@@ -538,7 +544,22 @@ public class PlaylistService : IPlaylistService
     public async Task<object?> GetPlaylistAsync(int id)
     {
         var p = await _db.Playlists.Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id);
-        return p == null ? null : new { id = p.Id, name = p.Name, isActive = p.IsActive, items = p.Items.Select(i => new { id = i.Id, url = i.Url, durationSeconds = i.DurationSeconds }) };
+        if (p == null) return null;
+        var items = p.Items
+            .OrderBy(i => i.Id)
+            .Select(i => new
+            {
+                id = i.Id,
+                playlistId = p.Id,
+                contentId = i.Id, // placeholder until schema expanded
+                displayDuration = (i.DurationSeconds ?? 0) * 1000,
+                orderIndex = i.Id,
+                timeWindowStart = (string?)null,
+                timeWindowEnd = (string?)null,
+                daysOfWeek = (string?)null,
+                content = new { id = i.Id, name = i.Url, url = i.Url, requiresInteraction = false }
+            });
+        return new { id = p.Id, name = p.Name, isActive = p.IsActive, items };
     }
 
     public async Task<object> UpdatePlaylistAsync(int id, UpdatePlaylistDto dto)
@@ -561,17 +582,41 @@ public class PlaylistService : IPlaylistService
 
     public async Task<object> CreateItemAsync(CreatePlaylistItemDto dto)
     {
-        var i = new PlaylistItem { PlaylistId = dto.PlaylistId, Url = "", DurationSeconds = (dto.DisplayDuration <= 0 ? 0 : dto.DisplayDuration / 1000) };
+        // Resolve content URL by ContentId, fall back to empty string
+        var content = await _db.Content.FindAsync(dto.ContentId);
+        var url = content?.Url ?? "";
+        var i = new PlaylistItem
+        {
+            PlaylistId = dto.PlaylistId,
+            ContentId = dto.ContentId,
+            Url = url,
+            DurationSeconds = (dto.DisplayDuration <= 0 ? 0 : dto.DisplayDuration / 1000),
+            OrderIndex = dto.OrderIndex,
+            TimeWindowStart = dto.TimeWindowStart,
+            TimeWindowEnd = dto.TimeWindowEnd,
+            DaysOfWeek = dto.DaysOfWeek != null ? System.Text.Json.JsonSerializer.Serialize(dto.DaysOfWeek) : null
+        };
         _db.PlaylistItems.Add(i);
         await _db.SaveChangesAsync();
-        return new { id = i.Id, playlistId = i.PlaylistId, url = i.Url, durationSeconds = i.DurationSeconds };
+        return new { id = i.Id, playlistId = i.PlaylistId, contentId = i.ContentId, url = i.Url, durationSeconds = i.DurationSeconds, orderIndex = i.OrderIndex };
     }
 
     public async Task<IEnumerable<object>> GetItemsAsync(int playlistId)
     {
         return await _db.PlaylistItems.Where(i => i.PlaylistId == playlistId)
-            .OrderBy(i => i.Id)
-            .Select(i => new { id = i.Id, url = i.Url, durationSeconds = i.DurationSeconds })
+            .OrderBy(i => i.OrderIndex)
+            .Select(i => new
+            {
+                id = i.Id,
+                playlistId = i.PlaylistId,
+                contentId = i.ContentId,
+                url = i.Url,
+                durationSeconds = i.DurationSeconds,
+                orderIndex = i.OrderIndex,
+                timeWindowStart = i.TimeWindowStart,
+                timeWindowEnd = i.TimeWindowEnd,
+                daysOfWeek = i.DaysOfWeek
+            })
             .ToListAsync();
     }
 
@@ -580,8 +625,12 @@ public class PlaylistService : IPlaylistService
         var i = await _db.PlaylistItems.FindAsync(id);
         if (i == null) return new { error = "not_found" };
         if (dto.DisplayDuration != null) i.DurationSeconds = (dto.DisplayDuration.Value <= 0 ? 0 : dto.DisplayDuration.Value / 1000);
+        if (dto.OrderIndex != null) i.OrderIndex = dto.OrderIndex.Value;
+        if (dto.TimeWindowStart != null) i.TimeWindowStart = dto.TimeWindowStart;
+        if (dto.TimeWindowEnd != null) i.TimeWindowEnd = dto.TimeWindowEnd;
+        if (dto.DaysOfWeek != null) i.DaysOfWeek = System.Text.Json.JsonSerializer.Serialize(dto.DaysOfWeek);
         await _db.SaveChangesAsync();
-        return new { id = i.Id, playlistId = i.PlaylistId, url = i.Url, durationSeconds = i.DurationSeconds };
+        return new { id = i.Id, playlistId = i.PlaylistId, contentId = i.ContentId, url = i.Url, durationSeconds = i.DurationSeconds, orderIndex = i.OrderIndex };
     }
 
     public async Task<int> RemoveItemAsync(int id)
