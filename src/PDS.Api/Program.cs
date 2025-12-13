@@ -1033,20 +1033,29 @@ public static class RealtimeHub
         var buffer = new byte[64 * 1024];
         while (ws.State == System.Net.WebSockets.WebSocketState.Open)
         {
-            var result = await ws.ReceiveAsync(buffer: new ArraySegment<byte>(buffer), cancellationToken: CancellationToken.None);
-            if (result.MessageType == System.Net.WebSockets.WebSocketMessageType.Close)
-            {
-                await ws.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, "closed", CancellationToken.None);
-                // Notify admins that device is offline
-                if (role == "device" && !string.IsNullOrEmpty(deviceId))
-                {
-                    BroadcastAdmins("admin:device:status", new { deviceId, status = "offline", timestamp = DateTime.UtcNow });
-                    Devices.TryRemove(deviceId, out _);
-                }
-                break;
-            }
+            using var ms = new System.IO.MemoryStream();
+            System.Net.WebSockets.WebSocketReceiveResult result;
 
-            var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+            // Read all frames of the message
+            do
+            {
+                result = await ws.ReceiveAsync(buffer: new ArraySegment<byte>(buffer), cancellationToken: CancellationToken.None);
+                if (result.MessageType == System.Net.WebSockets.WebSocketMessageType.Close)
+                {
+                    await ws.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, "closed", CancellationToken.None);
+                    // Notify admins that device is offline
+                    if (role == "device" && !string.IsNullOrEmpty(deviceId))
+                    {
+                        BroadcastAdmins("admin:device:status", new { deviceId, status = "offline", timestamp = DateTime.UtcNow });
+                        Devices.TryRemove(deviceId, out _);
+                    }
+                    return;
+                }
+                ms.Write(buffer, 0, result.Count);
+            } while (!result.EndOfMessage);
+
+            ms.Seek(0, System.IO.SeekOrigin.Begin);
+            var json = Encoding.UTF8.GetString(ms.ToArray());
             using var doc = System.Text.Json.JsonDocument.Parse(json);
             var evt = doc.RootElement.GetProperty("event").GetString();
             var payload = doc.RootElement.GetProperty("payload");

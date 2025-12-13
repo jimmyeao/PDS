@@ -13,7 +13,7 @@ export interface PlaylistItem {
   id: number;
   playlistId: number;
   contentId: number;
-  displayDuration: number; // seconds
+  displayDuration: number; // milliseconds (frontend uses ms; backend field is seconds)
   orderIndex: number;
   timeWindowStart?: string; // HH:MM format
   timeWindowEnd?: string; // HH:MM format

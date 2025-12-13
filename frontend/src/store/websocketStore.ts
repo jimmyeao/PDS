@@ -19,6 +19,9 @@ interface WebSocketState {
   isConnected: boolean;
   connectedDevices: Set<string>;
   notifications: Notification[];
+  deviceStatus: Map<string, string>;
+  deviceErrors: Map<string, string>;
+  navigationErrorNotified: Map<string, boolean>;
 
   connect: (token: string) => void;
   disconnect: () => void;
@@ -31,6 +34,9 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
   isConnected: false,
   connectedDevices: new Set(),
   notifications: [],
+  deviceStatus: new Map(),
+  deviceErrors: new Map(),
+  navigationErrorNotified: new Map(),
 
   connect: (token: string) => {
     websocketService.connect(token);
@@ -51,13 +57,9 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
       set((state) => {
         const newDevices = new Set(state.connectedDevices);
         newDevices.add(payload.deviceId);
-        return { connectedDevices: newDevices };
-      });
-
-      get().addNotification({
-        type: 'success',
-        title: 'Device Connected',
-        message: `Device ${payload.deviceId} is now online`,
+        const newStatus = new Map(state.deviceStatus);
+        newStatus.set(payload.deviceId, 'online');
+        return { connectedDevices: newDevices, deviceStatus: newStatus };
       });
     });
 
@@ -68,13 +70,9 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
       set((state) => {
         const newDevices = new Set(state.connectedDevices);
         newDevices.delete(payload.deviceId);
-        return { connectedDevices: newDevices };
-      });
-
-      get().addNotification({
-        type: 'warning',
-        title: 'Device Disconnected',
-        message: `Device ${payload.deviceId} went offline`,
+        const newStatus = new Map(state.deviceStatus);
+        newStatus.set(payload.deviceId, 'offline');
+        return { connectedDevices: newDevices, deviceStatus: newStatus };
       });
     });
 
@@ -82,10 +80,10 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
     websocketService.onDeviceStatusChanged((payload: AdminDeviceStatusPayload) => {
       console.log('Device status changed:', payload.deviceId, payload.status);
 
-      get().addNotification({
-        type: 'info',
-        title: 'Device Status Update',
-        message: `Device ${payload.deviceId} is now ${payload.status}`,
+      set((state) => {
+        const newStatus = new Map(state.deviceStatus);
+        newStatus.set(payload.deviceId, payload.status);
+        return { deviceStatus: newStatus };
       });
     });
 
@@ -93,11 +91,49 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
     websocketService.onError((payload: AdminErrorPayload) => {
       console.error('Device error:', payload.deviceId, payload.error);
 
-      get().addNotification({
-        type: 'error',
-        title: `Error on ${payload.deviceId}`,
-        message: payload.error,
-      });
+      // Filter out screenshot and remote type errors (noise - we have live streaming now)
+      const isNoiseError =
+        payload.error?.toLowerCase().includes('screenshot') ||
+        payload.error?.toLowerCase().includes('remote type failed') ||
+        payload.error?.toLowerCase().includes('no text input focused');
+
+      const isNavigationError = payload.error?.toLowerCase().includes('navigate');
+
+      if (!isNoiseError) {
+        // Track latest error per device
+        set((state) => {
+          const newErrors = new Map(state.deviceErrors);
+          newErrors.set(payload.deviceId, payload.error || 'Unknown error');
+          return { deviceErrors: newErrors };
+        });
+
+        // Only toast navigation failed once per device per session
+        if (isNavigationError) {
+          const notified = get().navigationErrorNotified.get(payload.deviceId);
+          if (!notified) {
+            get().addNotification({
+              type: 'error',
+              title: `Navigation failed (${payload.deviceId})`,
+              message: payload.error,
+            });
+            set((state) => {
+              const map = new Map(state.navigationErrorNotified);
+              map.set(payload.deviceId, true);
+              return { navigationErrorNotified: map };
+            });
+          }
+        } else {
+          // Non-navigation errors: still toast, but avoid spam by deduping identical consecutive messages
+          const lastError = get().deviceErrors.get(payload.deviceId);
+          if (lastError !== payload.error) {
+            get().addNotification({
+              type: 'error',
+              title: `Error on ${payload.deviceId}`,
+              message: payload.error,
+            });
+          }
+        }
+      }
     });
 
     set({ isConnected: true });
@@ -109,6 +145,9 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
     set({
       isConnected: false,
       connectedDevices: new Set(),
+      deviceStatus: new Map(),
+      deviceErrors: new Map(),
+      navigationErrorNotified: new Map(),
     });
   },
 

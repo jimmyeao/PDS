@@ -7,6 +7,7 @@ class PlaylistExecutor {
   private currentIndex = 0;
   private timeoutId: NodeJS.Timeout | null = null;
   private isRunning = false;
+  private defaultRotationMs = 15000; // Fallback when duration is 0 but rotation is needed
 
   public loadPlaylist(items: PlaylistItem[]): void {
     logger.info(`Loading playlist with ${items.length} items`);
@@ -75,22 +76,26 @@ class PlaylistExecutor {
     // Navigate to content
     this.displayContent(item);
 
-    // Schedule next item (if duration > 0 and more than one item)
-    // Duration of 0 means permanent display
-    if (item.displayDuration === 0) {
-      logger.info('Item has permanent display duration (0), staying on this item');
-      return;
+    // Determine next rotation timing
+    let nextDelay = item.displayDuration;
+
+    // If duration is 0 but we have multiple items, use a sensible default to avoid getting stuck
+    if (nextDelay === 0 && this.playlistItems.length > 1) {
+      nextDelay = this.defaultRotationMs;
+      logger.warn(
+        `Item duration is 0 but playlist has ${this.playlistItems.length} items; using default rotation ${this.defaultRotationMs}ms`
+      );
     }
 
     // If only one item, display it permanently without rotation
-    if (this.playlistItems.length === 1) {
-      logger.info('Only one item in playlist, displaying permanently without rotation');
+    if (this.playlistItems.length === 1 || nextDelay === 0) {
+      logger.info('Displaying permanently without rotation');
       return;
     }
 
     this.timeoutId = setTimeout(() => {
       this.executeNextItem();
-    }, item.displayDuration);
+    }, nextDelay);
   }
 
   private getNextValidItem(): PlaylistItem | null {

@@ -27,10 +27,24 @@ class DisplayController {
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--no-zygote',
-          '--disable-gpu',
+          // Enable GPU/WebGL for proper rendering of certain pages/cards
+          '--ignore-gpu-blocklist',
+          '--enable-webgl',
+          '--enable-accelerated-2d-canvas',
+          ...(process.platform === 'win32' ? ['--use-angle=d3d11'] : []),
+          ...(process.platform === 'linux'
+            ? [
+                // Raspberry Pi / Linux: prefer EGL + hardware acceleration
+                '--use-gl=egl',
+                '--enable-gpu-rasterization',
+                '--enable-zero-copy',
+                '--canvas-msaa-tablet',
+                '--ozone-platform=wayland',
+                '--in-process-gpu',
+              ]
+            : []),
           '--disable-blink-features=AutomationControlled',
           '--disable-infobars',
           '--disable-background-timer-throttling',
@@ -467,6 +481,33 @@ class DisplayController {
         await this.page.focus(selector);
         await this.page.keyboard.type(text);
       } else {
+        // Check if there's an active element, if not try to find the first input/textarea
+        const hasActiveInput = await this.page.evaluate(() => {
+          // @ts-ignore - Code runs in browser context
+          const active = document.activeElement;
+          return active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.hasAttribute('contenteditable'));
+        });
+
+        if (!hasActiveInput) {
+          // Try to focus the first available input/textarea
+          const focused = await this.page.evaluate(() => {
+            // @ts-ignore - Code runs in browser context
+            const input = document.querySelector('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea, [contenteditable="true"]');
+            if (input) {
+              // @ts-ignore
+              (input as HTMLElement).focus();
+              return true;
+            }
+            return false;
+          });
+
+          if (!focused) {
+            logger.warn('No text input found or focused. Click on a text box first.');
+            websocketClient.sendErrorReport('Remote type failed', 'No text input focused. User should click on a text box first.');
+            return;
+          }
+        }
+
         // Type at current focus
         await this.page.keyboard.type(text);
       }

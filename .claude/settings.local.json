@@ -68,7 +68,18 @@
       "Bash(then rm -rf \"C:\\tmp\\kiosk-browser-profile\")",
       "Bash(else echo \"No browser profile found\")",
       "Bash(powershell -Command \"Get-Process chrome | Where-Object {$_CommandLine -like ''*kiosk-browser-profile*''} | Stop-Process -Force\")",
-      "Bash(cmd //c \"taskkill /F /PID 143720\")"
+      "Bash(cmd //c \"taskkill /F /PID 143720\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File restart-client.ps1)",
+      "Bash(dotnet run)",
+      "Bash(timeout 5 bash -c 'while ! netstat -ano | findstr :5001 > /dev/null 2>&1; do sleep 0.5; done; echo \"\"Backend is running on port 5001\"\"')",
+      "Bash(cmd //c \"taskkill /F /PID 62748\")",
+      "Bash(cmd //c \"taskkill /F /PID 126720\")",
+      "Bash(timeout 10 bash:*)",
+      "Bash(dotnet ef dbcontext scaffold:*)",
+      "Bash(psql:*)",
+      "Bash(node fix-playlist.js:*)",
+      "Bash(node fix-playlist2.js:*)",
+      "Bash(node fix-duration-final.js:*)"
     ]
   }
 }

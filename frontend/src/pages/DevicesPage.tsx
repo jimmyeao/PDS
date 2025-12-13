@@ -10,7 +10,7 @@ import type { Playlist } from '@kiosk/shared';
 export const DevicesPage = () => {
   const { devices, fetchDevices, createDevice, updateDevice, deleteDevice, isLoading } = useDeviceStore();
   const { getDeviceToken, rotateDeviceToken } = useDeviceStore();
-  const { connectedDevices } = useWebSocketStore();
+  const { connectedDevices, deviceStatus, deviceErrors } = useWebSocketStore();
   const { playlists, fetchPlaylists, assignPlaylistToDevice, unassignPlaylistFromDevice } = usePlaylistStore();
   const [showModal, setShowModal] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
@@ -226,6 +226,20 @@ export const DevicesPage = () => {
                     {isDeviceOnline(device.deviceId) ? 'online' : 'offline'}
                   </span>
                 </div>
+              </div>
+
+              {/* Live status & last error */}
+              <div className="mt-2 flex items-center gap-2">
+                {deviceStatus.get(device.deviceId) && (
+                  <span className="text-xs px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                    status: {deviceStatus.get(device.deviceId)}
+                  </span>
+                )}
+                {deviceErrors.get(device.deviceId) && (
+                  <span className="text-xs px-2 py-1 rounded bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800" title={deviceErrors.get(device.deviceId) || ''}>
+                    last error: {(deviceErrors.get(device.deviceId) || '').slice(0, 60)}{(deviceErrors.get(device.deviceId) || '').length > 60 ? '…' : ''}
+                  </span>
+                )}
               </div>
 
               {device.description && (
