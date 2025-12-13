@@ -13,6 +13,7 @@ class DisplayController {
   private isScreencastActive = false;
   private lastScreencastFrameAt: number = 0;
   private screencastWatchdogId: NodeJS.Timeout | null = null;
+  private frameNavigatedHandler: (() => Promise<void>) | null = null;
 
   public async initialize(): Promise<void> {
     if (this.isInitialized) {
@@ -213,9 +214,19 @@ class DisplayController {
     try {
       logger.info('Starting CDP screencast for live streaming...');
 
-      // Get CDP session
+      // Stop any existing screencast first
+      await this.stopScreencast();
+
+      // Get NEW CDP session (recreating fixes disconnection issues)
       const client = await this.page.target().createCDPSession();
       this.screencastClient = client;
+
+      // Add disconnect handler to detect CDP session failures
+      client.on('sessiondetached', () => {
+        logger.warn('CDP session detached! Will restart on next watchdog check.');
+        this.isScreencastActive = false;
+        this.screencastClient = null;
+      });
 
       // Ensure Page domain is enabled and lifecycle events are available
       try {
@@ -224,11 +235,6 @@ class DisplayController {
       } catch (e: any) {
         logger.warn(`Could not enable Page domain/lifecycle events: ${e?.message || e}`);
       }
-
-      // Ensure a document is ready before starting (helps Windows/Pi single-URL cases)
-      try {
-        await this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 5000 });
-      } catch {}
 
       // Start screencast with optimized settings
       await client.send('Page.startScreencast', {
@@ -270,92 +276,96 @@ class DisplayController {
         }
       });
 
-      // If no frame arrives within 5 seconds, restart screencast once
+      // If no frame arrives within 5 seconds, do full restart (recreate session)
       setTimeout(async () => {
         if (!firstFrameReceived) {
-          logger.warn('No screencast frames after 5s, restarting Page.startScreencast');
-          try {
-            await client.send('Page.stopScreencast');
-          } catch {}
-          try {
-            await client.send('Page.startScreencast', {
-              format: 'jpeg',
-              quality: 80,
-              maxWidth: config.displayWidth,
-              maxHeight: config.displayHeight,
-              everyNthFrame: 2,
-            });
-          } catch (restartErr: any) {
-            logger.error('Failed to restart screencast:', restartErr.message);
-            websocketClient.sendErrorReport('Screencast restart failed', restartErr.stack);
-          }
+          logger.warn('No screencast frames after 5s, doing FULL restart (recreate CDP session)');
+          this.isScreencastActive = false;
+          await this.startScreencast();
         }
       }, 5000);
 
-      // Start a watchdog that restarts screencast if no frames for 10s
+      // Start a watchdog that fully restarts screencast if no frames for 10s
       if (this.screencastWatchdogId) {
         clearInterval(this.screencastWatchdogId);
       }
       this.screencastWatchdogId = setInterval(async () => {
         const now = Date.now();
         if (this.isScreencastActive && this.lastScreencastFrameAt && now - this.lastScreencastFrameAt > 10000) {
-          logger.warn('Screencast stalled (no frames >10s). Restarting...');
-          try { await client.send('Page.stopScreencast'); } catch {}
-          try {
-            await client.send('Page.startScreencast', {
-              format: 'jpeg',
-              quality: 80,
-              maxWidth: config.displayWidth,
-              maxHeight: config.displayHeight,
-              everyNthFrame: 2,
-            });
-            this.lastScreencastFrameAt = Date.now();
-          } catch (wdErr: any) {
-            logger.error('Watchdog restart failed:', wdErr.message);
-          }
+          logger.warn('Screencast stalled (no frames >10s). Doing FULL restart (recreate CDP session)...');
+          this.isScreencastActive = false; // Mark as inactive so startScreencast can run
+          await this.startScreencast(); // This will recreate the CDP session
+        } else if (!this.isScreencastActive && this.page) {
+          // CDP session was detached, restart it
+          logger.warn('CDP session not active, restarting...');
+          await this.startScreencast();
         }
       }, 5000);
 
-      // Restart screencast on navigation events to recover sessions
-      this.page.on('framenavigated', async () => {
+      // Remove old framenavigated handler if exists
+      if (this.frameNavigatedHandler && this.page) {
+        this.page.off('framenavigated', this.frameNavigatedHandler);
+      }
+
+      // Create new handler and store reference
+      this.frameNavigatedHandler = async () => {
         try {
-          logger.info('Frame navigated, restarting screencast');
-          await client.send('Page.stopScreencast');
-          await client.send('Page.startScreencast', {
-            format: 'jpeg',
-            quality: 80,
-            maxWidth: config.displayWidth,
-            maxHeight: config.displayHeight,
-            everyNthFrame: 2,
-          });
+          logger.info('Frame navigated, doing FULL screencast restart');
+          this.isScreencastActive = false;
+          await this.startScreencast();
         } catch (navErr: any) {
           logger.warn(`Could not restart screencast after navigation: ${navErr?.message || navErr}`);
         }
-      });
+      };
+
+      // Restart screencast on navigation events to recover sessions
+      this.page.on('framenavigated', this.frameNavigatedHandler);
 
       logger.info('✅ Screencast streaming started');
       this.isScreencastActive = true;
     } catch (error: any) {
       logger.error('Failed to start screencast:', error.message);
       websocketClient.sendErrorReport('Screencast start failed', error.stack);
+      this.isScreencastActive = false;
     }
   }
 
   public async stopScreencast(): Promise<void> {
     try {
       if (this.screencastClient) {
-        await this.screencastClient.send('Page.stopScreencast');
-        logger.info('Screencast stopped');
-      } else {
-        logger.warn('No screencast client to stop');
+        try {
+          await this.screencastClient.send('Page.stopScreencast');
+        } catch (e: any) {
+          logger.warn(`Failed to send Page.stopScreencast: ${e?.message || e}`);
+        }
+
+        // Detach CDP session to fully clean up
+        try {
+          await this.screencastClient.detach();
+        } catch (e: any) {
+          logger.warn(`Failed to detach CDP session: ${e?.message || e}`);
+        }
+
+        this.screencastClient = null;
+        logger.info('Screencast stopped and CDP session detached');
       }
+
       this.isScreencastActive = false;
+
       if (this.screencastWatchdogId) {
         clearInterval(this.screencastWatchdogId);
         this.screencastWatchdogId = null;
       }
+
+      // Remove framenavigated handler
+      if (this.frameNavigatedHandler && this.page) {
+        this.page.off('framenavigated', this.frameNavigatedHandler);
+        this.frameNavigatedHandler = null;
+      }
     } catch (e: any) {
       logger.warn(`Failed to stop screencast: ${e?.message || e}`);
+      this.isScreencastActive = false;
+      this.screencastClient = null;
     }
   }
 
