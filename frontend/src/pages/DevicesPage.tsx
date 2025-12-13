@@ -140,7 +140,15 @@ export const DevicesPage = () => {
               <div className="relative" style={{ transformStyle: 'preserve-3d', transition: 'transform 600ms', transform: showControls[device.deviceId] ? 'rotateY(180deg)' : 'rotateY(0deg)', height: cardHeights[device.deviceId] ? `${cardHeights[device.deviceId]}px` : 'auto' }}>
                 <div id={`card-front-${device.id}`} className="absolute inset-0 p-4" style={{ backfaceVisibility: 'hidden' }}>
                   <div className="flex items-start justify-between mb-3">
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">{device.name}</h3>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                      <button
+                        onClick={() => handleEdit(device)}
+                        className="hover:underline cursor-pointer text-left"
+                        title="Edit device"
+                      >
+                        {device.name}
+                      </button>
+                    </h3>
                     <div className="flex items-center gap-2">
                       {isDeviceOnline(device.deviceId) && (<span className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span></span>)}
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${isDeviceOnline(device.deviceId) ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'}`}>{isDeviceOnline(device.deviceId) ? 'online' : 'offline'}</span>
@@ -243,21 +251,7 @@ export const DevicesPage = () => {
         </div>
       )}
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-md w-full shadow-xl">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">{editingDevice ? 'Edit Device' : 'Add New Device'}</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Device ID</label><input type="text" value={formData.deviceId} onChange={(e) => setFormData({ ...formData, deviceId: e.target.value })} className="input" placeholder="e.g., rpi-001" required disabled={!!editingDevice} /></div>
-              <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Device Name</label><input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="input" placeholder="e.g., Lobby Display" required /></div>
-              <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label><textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="input" rows={3} placeholder="Optional description" /></div>
-              <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Location</label><input type="text" value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} className="input" placeholder="e.g., Building A - Floor 1" /></div>
-              <div className="flex gap-3 pt-4"><button type="button" onClick={() => { setShowModal(false); setEditingDevice(null); setFormData({ deviceId: '', name: '', description: '', location: '' }); }} className="btn-secondary flex-1">Cancel</button><button type="submit" className="btn-primary flex-1">{editingDevice ? 'Update Device' : 'Add Device'}</button></div>
-            </form>
-          </div>
-        </div>
-      )}
-      )
+      
 
       {/* Add/Edit Device Modal */}
       {showModal && (
