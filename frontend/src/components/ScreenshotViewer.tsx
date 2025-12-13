@@ -54,7 +54,7 @@ export const ScreenshotViewer: React.FC<ScreenshotViewerProps> = ({ deviceId, on
             {screenshot && (
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                 Captured: {new Date(screenshot.capturedAt).toLocaleString()}
-                {screenshot.url && ` • URL: ${screenshot.url}`}
+                {screenshot.url ? ` • URL: ${screenshot.url}` : ''}
               </p>
             )}
           </div>
@@ -99,11 +99,17 @@ export const ScreenshotViewer: React.FC<ScreenshotViewerProps> = ({ deviceId, on
 
           {!loading && screenshot && (
             <div className="bg-gray-100 dark:bg-gray-900 rounded-lg p-2">
-              <img
-                src={screenshot.imageData.startsWith('data:') ? screenshot.imageData : `data:image/jpeg;base64,${screenshot.imageData}`}
-                alt={`Screenshot from ${deviceId}`}
-                className="w-full h-auto rounded shadow-lg"
-              />
+              {screenshot.imageData ? (
+                <img
+                  src={screenshot.imageData.startsWith('data:') ? screenshot.imageData : `data:image/jpeg;base64,${screenshot.imageData}`}
+                  alt={`Screenshot from ${deviceId}`}
+                  className="w-full h-auto rounded shadow-lg"
+                />
+              ) : (
+                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                  Screenshot data is unavailable. Waiting for next capture...
+                </div>
+              )}
             </div>
           )}
         </div>

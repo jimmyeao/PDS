@@ -42,7 +42,8 @@ class ConfigManager {
       kioskMode: process.env.KIOSK_MODE === 'true',
       puppeteerExecutablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       healthCheckInterval: parseInt(process.env.HEALTH_CHECK_INTERVAL || '60000', 10),
-      screenshotInterval: parseInt(process.env.SCREENSHOT_INTERVAL || '300000', 10),
+      // Default to 30s to match UI expectations and backend sampling
+      screenshotInterval: parseInt(process.env.SCREENSHOT_INTERVAL || '30000', 10),
       logLevel: (process.env.LOG_LEVEL || 'info') as 'debug' | 'info' | 'warn' | 'error',
     };
   }

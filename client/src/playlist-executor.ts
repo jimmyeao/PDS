@@ -1,5 +1,6 @@
 import { logger } from './logger';
 import { displayController } from './display';
+import { screenshotManager } from './screenshot';
 import type { PlaylistItem } from '@kiosk/shared';
 
 class PlaylistExecutor {
@@ -43,6 +44,16 @@ class PlaylistExecutor {
     logger.info('Starting playlist executor');
     this.isRunning = true;
     this.currentIndex = 0;
+
+    // Screenshot policy:
+    // - If single static screen (only one item or duration 0), keep periodic screenshots every 30s
+    // - If rotating playlist, disable periodic and capture on each rotation
+    if (this.playlistItems.length === 1 || this.playlistItems.some(i => i.displayDuration === 0)) {
+      screenshotManager.start();
+    } else {
+      screenshotManager.stop();
+    }
+
     this.executeNextItem();
   }
 
@@ -154,6 +165,14 @@ class PlaylistExecutor {
       const url = item.content.url;
 
       await displayController.navigateTo(url, item.displayDuration);
+
+      // Capture a screenshot on first display and each rotation step for rotating playlists
+      if (this.playlistItems.length > 1 && item.displayDuration !== 0) {
+        await screenshotManager.captureAndSendScreenshot();
+      } else if (this.playlistItems.length === 1 || item.displayDuration === 0) {
+        // Ensure periodic screenshots are running for static screens
+        screenshotManager.start();
+      }
 
       if (item.displayDuration === 0) {
         logger.info(`✅ Displaying content ${item.contentId} (${item.content.name}) permanently (duration: 0)`);
