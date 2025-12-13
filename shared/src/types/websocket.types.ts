@@ -9,6 +9,10 @@ export enum ServerToClientEvent {
   CONFIG_UPDATE = 'config:update',
   DEVICE_RESTART = 'device:restart',
   DISPLAY_REFRESH = 'display:refresh',
+  REMOTE_CLICK = 'remote:click',
+  REMOTE_TYPE = 'remote:type',
+  REMOTE_KEY = 'remote:key',
+  REMOTE_SCROLL = 'remote:scroll',
 }
 
 // WebSocket Events - Backend to Admin UI
@@ -57,6 +61,29 @@ export interface DeviceRestartPayload {
 
 export interface DisplayRefreshPayload {
   force?: boolean;
+}
+
+export interface RemoteClickPayload {
+  x: number;
+  y: number;
+  button?: 'left' | 'right' | 'middle';
+}
+
+export interface RemoteTypePayload {
+  text: string;
+  selector?: string; // Optional CSS selector to focus before typing
+}
+
+export interface RemoteKeyPayload {
+  key: string; // e.g., 'Enter', 'Tab', 'Escape', 'ArrowDown'
+  modifiers?: ('Shift' | 'Control' | 'Alt' | 'Meta')[];
+}
+
+export interface RemoteScrollPayload {
+  x?: number;
+  y?: number;
+  deltaX?: number; // For relative scrolling
+  deltaY?: number;
 }
 
 // Payload types for Client → Backend

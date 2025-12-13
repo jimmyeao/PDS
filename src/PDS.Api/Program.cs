@@ -114,6 +114,14 @@ using (var scope = app.Services.CreateScope())
                         "SET \"OrderIndex\" = r.rn\n" +
                         "FROM ranked r\n" +
                         "WHERE pi.\"Id\" = r.\"Id\" AND pi.\"PlaylistId\" = r.\"PlaylistId\";");
+
+        // Add auto-authentication columns to Content table
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Content\" ADD COLUMN IF NOT EXISTS \"UsernameSelector\" text;");
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Content\" ADD COLUMN IF NOT EXISTS \"PasswordSelector\" text;");
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Content\" ADD COLUMN IF NOT EXISTS \"SubmitSelector\" text;");
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Content\" ADD COLUMN IF NOT EXISTS \"Username\" text;");
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Content\" ADD COLUMN IF NOT EXISTS \"Password\" text;");
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Content\" ADD COLUMN IF NOT EXISTS \"AutoLogin\" boolean DEFAULT false;");
     }
     catch (Exception ex)
     {
@@ -188,6 +196,31 @@ app.MapDelete("/devices/{id:int}", async (int id, IDeviceService svc) =>
 {
     await svc.RemoveAsync(id);
     return Results.Ok(new { message = "Device deleted successfully" });
+}).RequireAuthorization();
+
+// Remote control endpoints
+app.MapPost("/devices/{deviceId}/remote/click", async (string deviceId, [FromBody] RemoteClickRequest req) =>
+{
+    await RealtimeHub.SendToDevice(deviceId, "remote:click", new { x = req.X, y = req.Y, button = req.Button ?? "left" });
+    return Results.Ok(new { message = "Click command sent", deviceId, x = req.X, y = req.Y });
+}).RequireAuthorization();
+
+app.MapPost("/devices/{deviceId}/remote/type", async (string deviceId, [FromBody] RemoteTypeRequest req) =>
+{
+    await RealtimeHub.SendToDevice(deviceId, "remote:type", new { text = req.Text, selector = req.Selector });
+    return Results.Ok(new { message = "Type command sent", deviceId, textLength = req.Text.Length });
+}).RequireAuthorization();
+
+app.MapPost("/devices/{deviceId}/remote/key", async (string deviceId, [FromBody] RemoteKeyRequest req) =>
+{
+    await RealtimeHub.SendToDevice(deviceId, "remote:key", new { key = req.Key, modifiers = req.Modifiers });
+    return Results.Ok(new { message = "Key command sent", deviceId, key = req.Key });
+}).RequireAuthorization();
+
+app.MapPost("/devices/{deviceId}/remote/scroll", async (string deviceId, [FromBody] RemoteScrollRequest req) =>
+{
+    await RealtimeHub.SendToDevice(deviceId, "remote:scroll", new { x = req.X, y = req.Y, deltaX = req.DeltaX, deltaY = req.DeltaY });
+    return Results.Ok(new { message = "Scroll command sent", deviceId });
 }).RequireAuthorization();
 
 // Content endpoints
@@ -315,14 +348,43 @@ public record CreateDeviceDto(string DeviceId, string Name, string? Description,
 public record UpdateDeviceDto(string? Name, string? Description, string? Location);
 public record DeviceLogDto(int Id, string Message, DateTime Timestamp);
 
-public record CreateContentDto(string Name, string Url, string? Description, bool? RequiresInteraction, string? ThumbnailUrl);
-public record UpdateContentDto(string? Name, string? Url, string? Description, bool? RequiresInteraction, string? ThumbnailUrl);
+public record CreateContentDto(
+    string Name,
+    string Url,
+    string? Description,
+    bool? RequiresInteraction,
+    string? ThumbnailUrl,
+    string? UsernameSelector,
+    string? PasswordSelector,
+    string? SubmitSelector,
+    string? Username,
+    string? Password,
+    bool? AutoLogin
+);
+public record UpdateContentDto(
+    string? Name,
+    string? Url,
+    string? Description,
+    bool? RequiresInteraction,
+    string? ThumbnailUrl,
+    string? UsernameSelector,
+    string? PasswordSelector,
+    string? SubmitSelector,
+    string? Username,
+    string? Password,
+    bool? AutoLogin
+);
 
 public record CreatePlaylistDto(string Name, string? Description, bool? IsActive);
 public record UpdatePlaylistDto(string? Name, string? Description, bool? IsActive);
 public record CreatePlaylistItemDto(int PlaylistId, int ContentId, int DisplayDuration, int OrderIndex, string? TimeWindowStart, string? TimeWindowEnd, int[]? DaysOfWeek);
 public record UpdatePlaylistItemDto(int? DisplayDuration, int? OrderIndex, string? TimeWindowStart, string? TimeWindowEnd, int[]? DaysOfWeek);
 public record AssignPlaylistDto(int DeviceId, int PlaylistId);
+
+public record RemoteClickRequest(int X, int Y, string? Button);
+public record RemoteTypeRequest(string Text, string? Selector);
+public record RemoteKeyRequest(string Key, string[]? Modifiers);
+public record RemoteScrollRequest(int? X, int? Y, int? DeltaX, int? DeltaY);
 
 public interface IAuthService
 {
@@ -626,8 +688,7 @@ public class PlaylistService : IPlaylistService
         };
         _db.PlaylistItems.Add(i);
         await _db.SaveChangesAsync();
-        return new { id = i.Id, playlistId = i.PlaylistId, contentId = i.ContentId, url = i.Url, durationSeconds = i.DurationSeconds, orderIndex = i.OrderIndex };
-    }
+
         // Broadcast updated playlist items to all assigned devices
         var pid = i.PlaylistId;
         var deviceIds = await _db.DevicePlaylists.Where(x => x.PlaylistId == pid)
@@ -649,6 +710,8 @@ public class PlaylistService : IPlaylistService
             await RealtimeHub.SendToDevice(devId, ServerToClientEvent.CONTENT_UPDATE, new { playlistId = pid, items });
         }
 
+        return new { id = i.Id, playlistId = i.PlaylistId, contentId = i.ContentId, url = i.Url, durationSeconds = i.DurationSeconds, orderIndex = i.OrderIndex };
+    }
 
     public async Task<IEnumerable<object>> GetItemsAsync(int playlistId)
     {
@@ -799,23 +862,66 @@ public class PlaylistService : IPlaylistService
     // Content
     public async Task<object> CreateContentAsync(CreateContentDto dto)
     {
-        var c = new ContentItem { Name = dto.Name, Url = dto.Url };
+        var c = new ContentItem
+        {
+            Name = dto.Name,
+            Url = dto.Url,
+            UsernameSelector = dto.UsernameSelector,
+            PasswordSelector = dto.PasswordSelector,
+            SubmitSelector = dto.SubmitSelector,
+            Username = dto.Username,
+            Password = dto.Password,
+            AutoLogin = dto.AutoLogin ?? false
+        };
         _db.Content.Add(c);
         await _db.SaveChangesAsync();
-        return new { id = c.Id, name = c.Name, url = c.Url };
+        return new
+        {
+            id = c.Id,
+            name = c.Name,
+            url = c.Url,
+            usernameSelector = c.UsernameSelector,
+            passwordSelector = c.PasswordSelector,
+            submitSelector = c.SubmitSelector,
+            username = c.Username,
+            password = c.Password,
+            autoLogin = c.AutoLogin
+        };
     }
 
     public async Task<IEnumerable<object>> GetAllContentAsync()
     {
         return await _db.Content.OrderBy(c => c.Id)
-            .Select(c => new { id = c.Id, name = c.Name, url = c.Url })
+            .Select(c => new
+            {
+                id = c.Id,
+                name = c.Name,
+                url = c.Url,
+                usernameSelector = c.UsernameSelector,
+                passwordSelector = c.PasswordSelector,
+                submitSelector = c.SubmitSelector,
+                username = c.Username,
+                password = c.Password,
+                autoLogin = c.AutoLogin
+            })
             .ToListAsync();
     }
 
     public async Task<object?> GetContentAsync(int id)
     {
         var c = await _db.Content.FindAsync(id);
-        return c == null ? null : new { id = c.Id, name = c.Name, url = c.Url };
+        return c == null ? null : new
+        {
+            id = c.Id,
+            name = c.Name,
+            url = c.Url,
+            usernameSelector = c.UsernameSelector,
+            passwordSelector = c.PasswordSelector,
+            submitSelector = c.SubmitSelector,
+            username = c.Username,
+            password = c.Password,
+            autoLogin = c.AutoLogin
+        };
     }
 
     public async Task<object> UpdateContentAsync(int id, UpdateContentDto dto)
@@ -988,7 +1094,41 @@ public static class RealtimeHub
                     BroadcastAdmins("admin:error", new { deviceId, error = payload.GetProperty("error").GetString(), timestamp = DateTime.UtcNow });
                     break;
                 case "screenshot:upload":
-                    BroadcastAdmins("admin:screenshot:received", new { deviceId, screenshotId = 0, timestamp = DateTime.UtcNow });
+                    {
+                        try
+                        {
+                            var imageData = payload.GetProperty("image").GetString() ?? "";
+                            var currentUrl = payload.TryGetProperty("currentUrl", out var urlProp) ? urlProp.GetString() : null;
+
+                            var db = ctx.RequestServices.GetRequiredService<PdsDbContext>();
+
+                            var screenshot = new Screenshot
+                            {
+                                DeviceStringId = deviceId,
+                                ImageBase64 = imageData,
+                                CurrentUrl = currentUrl,
+                                CreatedAt = DateTime.UtcNow
+                            };
+
+                            db.Screenshots.Add(screenshot);
+                            await db.SaveChangesAsync();
+
+                            BroadcastAdmins("admin:screenshot:received", new { deviceId, screenshotId = screenshot.Id, timestamp = DateTime.UtcNow });
+                        }
+                        catch (Exception ex)
+                        {
+                            BroadcastAdmins("admin:error", new { deviceId, error = "screenshot_save_failed", detail = ex.Message, timestamp = DateTime.UtcNow });
+                        }
+                    }
+                    break;
+                case "screencast:frame":
+                    // Forward live screencast frames to admin clients in real-time
+                    BroadcastAdmins("admin:screencast:frame", new
+                    {
+                        deviceId,
+                        data = payload.GetProperty("data").GetString(),
+                        metadata = payload.GetProperty("metadata")
+                    });
                     break;
             }
         }

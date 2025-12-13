@@ -95,6 +95,27 @@ class KioskClient {
       logger.info('Display refresh requested', payload);
       displayController.refresh(payload.force);
     });
+
+    // Remote control handlers
+    websocketClient.onRemoteClick((payload) => {
+      logger.info(`Remote click at (${payload.x}, ${payload.y})`);
+      displayController.remoteClick(payload.x, payload.y, payload.button);
+    });
+
+    websocketClient.onRemoteType((payload) => {
+      logger.info(`Remote type: ${payload.text.substring(0, 20)}...`);
+      displayController.remoteType(payload.text, payload.selector);
+    });
+
+    websocketClient.onRemoteKey((payload) => {
+      logger.info(`Remote key: ${payload.key}`);
+      displayController.remoteKey(payload.key, payload.modifiers);
+    });
+
+    websocketClient.onRemoteScroll((payload) => {
+      logger.info('Remote scroll requested');
+      displayController.remoteScroll(payload.x, payload.y, payload.deltaX, payload.deltaY);
+    });
   }
 
   private setupSignalHandlers(): void {

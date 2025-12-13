@@ -111,6 +111,12 @@ A web-based digital signage solution with central management of Raspberry Pi dis
 - Name (string)
 - Url (string, nullable)
 - CreatedAt (DateTime)
+- UsernameSelector (string, nullable) - CSS selector for username field
+- PasswordSelector (string, nullable) - CSS selector for password field
+- SubmitSelector (string, nullable) - CSS selector for submit button
+- Username (string, nullable) - Username for auto-login
+- Password (string, nullable) - Password for auto-login (should be encrypted in production)
+- AutoLogin (bool) - Enable auto-login for this content
 
 **Playlists**
 - Id (int, PK)
@@ -157,6 +163,12 @@ A web-based digital signage solution with central management of Raspberry Pi dis
 - `PATCH /devices/{id}` - Update device
 - `DELETE /devices/{id}` - Delete device
 
+#### Remote Control
+- `POST /devices/{deviceId}/remote/click` - Send click command to device
+- `POST /devices/{deviceId}/remote/type` - Send type command to device
+- `POST /devices/{deviceId}/remote/key` - Send keyboard key press to device
+- `POST /devices/{deviceId}/remote/scroll` - Send scroll command to device
+
 #### Content
 - `POST /content` - Create content item
 - `GET /content` - List all content
@@ -201,6 +213,10 @@ A web-based digital signage solution with central management of Raspberry Pi dis
 - `config:update` - Update device configuration
 - `device:restart` - Restart device
 - `display:refresh` - Refresh device display
+- `remote:click` - Remote click at coordinates
+- `remote:type` - Remote type text into field
+- `remote:key` - Remote keyboard key press
+- `remote:scroll` - Remote scroll page
 - `admin:devices:sync` - Sync connected devices list to admin
 - `admin:device:status` - Device status update (online/offline)
 - `admin:device:health` - Device health metrics
@@ -229,7 +245,7 @@ PDS/
 ├── frontend/
 │   ├── src/
 │   │   ├── pages/                    ✅ Complete (Login, Dashboard, Devices, Content, Playlists)
-│   │   ├── components/               ✅ Complete (ProtectedRoute, DashboardLayout, Notifications)
+│   │   ├── components/               ✅ Complete (ProtectedRoute, DashboardLayout, Notifications, RemoteControl, ScreenshotViewer)
 │   │   ├── services/                 ✅ Complete (auth, device, content, playlist, websocket)
 │   │   └── store/                    ✅ Complete (auth, device, content, playlist, websocket, theme)
 │   ├── package.json
@@ -275,6 +291,7 @@ PDS/
 - [x] Screenshot capture and retrieval
 - [x] Raspberry Pi client with Puppeteer display
 - [x] Playlist execution with content rotation
+- [x] Remote browser control (click, type, keyboard, scroll)
 
 ### 🔧 Known Minor Issues (Cosmetic)
 - Some UI styling inconsistencies (cosmetic only)

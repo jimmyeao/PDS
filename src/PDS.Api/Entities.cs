@@ -38,6 +38,14 @@ public class ContentItem
     public string Name { get; set; } = string.Empty;
     public string? Url { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Auto-authentication fields
+    public string? UsernameSelector { get; set; }  // CSS selector for username field
+    public string? PasswordSelector { get; set; }  // CSS selector for password field
+    public string? SubmitSelector { get; set; }    // CSS selector for submit button
+    public string? Username { get; set; }          // Username to fill
+    public string? Password { get; set; }          // Password to fill (encrypted in production!)
+    public bool AutoLogin { get; set; } = false;   // Enable auto-login for this content
 }
 
 public class Playlist

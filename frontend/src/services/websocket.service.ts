@@ -31,6 +31,7 @@ class WebSocketService {
   private deviceHealthCallbacks: Array<(payload: AdminDeviceHealthPayload) => void> = [];
   private screenshotReceivedCallbacks: Array<(payload: AdminScreenshotReceivedPayload) => void> = [];
   private errorCallbacks: Array<(payload: AdminErrorPayload) => void> = [];
+  private screencastFrameCallbacks: Array<(payload: any) => void> = [];
 
   connect(_token: string) {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
@@ -93,6 +94,9 @@ class WebSocketService {
             break;
           case ServerToAdminEventValues.ERROR_OCCURRED:
             this.errorCallbacks.forEach((cb) => cb(payload));
+            break;
+          case 'admin:screencast:frame':
+            this.screencastFrameCallbacks.forEach((cb) => cb(payload));
             break;
         }
       } catch (e) {
@@ -171,6 +175,14 @@ class WebSocketService {
     this.errorCallbacks = this.errorCallbacks.filter((cb) => cb !== callback);
   }
 
+  onScreencastFrame(callback: (payload: any) => void) {
+    this.screencastFrameCallbacks.push(callback);
+  }
+
+  offScreencastFrame(callback: (payload: any) => void) {
+    this.screencastFrameCallbacks = this.screencastFrameCallbacks.filter((cb) => cb !== callback);
+  }
+
   // Remove all listeners
   removeAllListeners() {
     this.devicesSyncCallbacks = [];
@@ -180,6 +192,7 @@ class WebSocketService {
     this.deviceHealthCallbacks = [];
     this.screenshotReceivedCallbacks = [];
     this.errorCallbacks = [];
+    this.screencastFrameCallbacks = [];
   }
 }
 

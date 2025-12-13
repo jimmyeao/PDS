@@ -9,6 +9,10 @@ import type {
   DeviceRestartPayload,
   DisplayRefreshPayload,
   DeviceStatus,
+  RemoteClickPayload,
+  RemoteTypePayload,
+  RemoteKeyPayload,
+  RemoteScrollPayload,
 } from '@kiosk/shared';
 
 // Event and enum values (since we can't import enums from CommonJS shared package)
@@ -19,6 +23,10 @@ const ServerToClientEventValues = {
   CONFIG_UPDATE: 'config:update',
   DEVICE_RESTART: 'device:restart',
   DISPLAY_REFRESH: 'display:refresh',
+  REMOTE_CLICK: 'remote:click',
+  REMOTE_TYPE: 'remote:type',
+  REMOTE_KEY: 'remote:key',
+  REMOTE_SCROLL: 'remote:scroll',
 } as const;
 
 const ClientToServerEventValues = {
@@ -41,6 +49,10 @@ export type ScreenshotRequestCallback = (payload: ScreenshotRequestPayload) => v
 export type ConfigUpdateCallback = (payload: ConfigUpdatePayload) => void;
 export type DeviceRestartCallback = (payload: DeviceRestartPayload) => void;
 export type DisplayRefreshCallback = (payload: DisplayRefreshPayload) => void;
+export type RemoteClickCallback = (payload: RemoteClickPayload) => void;
+export type RemoteTypeCallback = (payload: RemoteTypePayload) => void;
+export type RemoteKeyCallback = (payload: RemoteKeyPayload) => void;
+export type RemoteScrollCallback = (payload: RemoteScrollPayload) => void;
 
 class WebSocketClient {
   private socket: WebSocket | null = null;
@@ -55,6 +67,10 @@ class WebSocketClient {
   private configUpdateCallback?: ConfigUpdateCallback;
   private deviceRestartCallback?: DeviceRestartCallback;
   private displayRefreshCallback?: DisplayRefreshCallback;
+  private remoteClickCallback?: RemoteClickCallback;
+  private remoteTypeCallback?: RemoteTypeCallback;
+  private remoteKeyCallback?: RemoteKeyCallback;
+  private remoteScrollCallback?: RemoteScrollCallback;
 
   constructor() {}
 
@@ -120,6 +136,18 @@ class WebSocketClient {
             break;
           case ServerToClientEventValues.DISPLAY_REFRESH:
             this.displayRefreshCallback?.(payload as DisplayRefreshPayload);
+            break;
+          case ServerToClientEventValues.REMOTE_CLICK:
+            this.remoteClickCallback?.(payload as RemoteClickPayload);
+            break;
+          case ServerToClientEventValues.REMOTE_TYPE:
+            this.remoteTypeCallback?.(payload as RemoteTypePayload);
+            break;
+          case ServerToClientEventValues.REMOTE_KEY:
+            this.remoteKeyCallback?.(payload as RemoteKeyPayload);
+            break;
+          case ServerToClientEventValues.REMOTE_SCROLL:
+            this.remoteScrollCallback?.(payload as RemoteScrollPayload);
             break;
         }
       } catch (err: any) {
@@ -196,6 +224,13 @@ class WebSocketClient {
     logger.debug('Screenshot sent');
   }
 
+  public sendScreencastFrame(frameData: { data: string; metadata: any }): void {
+    if (!this.isConnected) {
+      return; // Silently skip if not connected (too verbose to log every frame)
+    }
+    this.send('screencast:frame', frameData);
+  }
+
   private send(event: string, payload: any): void {
     if (!this.isConnected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
       logger.warn(`Cannot send ${event}: not connected`);
@@ -228,6 +263,22 @@ class WebSocketClient {
 
   public onDisplayRefresh(callback: DisplayRefreshCallback): void {
     this.displayRefreshCallback = callback;
+  }
+
+  public onRemoteClick(callback: RemoteClickCallback): void {
+    this.remoteClickCallback = callback;
+  }
+
+  public onRemoteType(callback: RemoteTypeCallback): void {
+    this.remoteTypeCallback = callback;
+  }
+
+  public onRemoteKey(callback: RemoteKeyCallback): void {
+    this.remoteKeyCallback = callback;
+  }
+
+  public onRemoteScroll(callback: RemoteScrollCallback): void {
+    this.remoteScrollCallback = callback;
   }
 }
 

@@ -4,6 +4,7 @@ import { useWebSocketStore } from '../store/websocketStore';
 import { usePlaylistStore } from '../store/playlistStore';
 import { playlistService } from '../services/playlist.service';
 import { ScreenshotViewer } from '../components/ScreenshotViewer';
+import { LiveRemoteControl } from '../components/LiveRemoteControl';
 import type { Playlist } from '@kiosk/shared';
 
 export const DevicesPage = () => {
@@ -20,6 +21,7 @@ export const DevicesPage = () => {
   const [deviceToken, setDeviceToken] = useState('');
   const [copiedToken, setCopiedToken] = useState(false);
   const [screenshotDeviceId, setScreenshotDeviceId] = useState<string | null>(null);
+  const [remoteControlDeviceId, setRemoteControlDeviceId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     deviceId: '',
     name: '',
@@ -291,6 +293,13 @@ export const DevicesPage = () => {
                     Screenshot
                   </button>
                   <button
+                    onClick={() => setRemoteControlDeviceId(device.deviceId)}
+                    className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm flex-1"
+                    title="Remote Control"
+                  >
+                    Remote
+                  </button>
+                  <button
                     onClick={() => handleShowToken(device.id)}
                     className="btn-secondary text-sm flex-1"
                   >
@@ -475,6 +484,15 @@ export const DevicesPage = () => {
         <ScreenshotViewer
           deviceId={screenshotDeviceId}
           onClose={() => setScreenshotDeviceId(null)}
+        />
+      )}
+
+      {/* Live Remote Control Modal */}
+      {remoteControlDeviceId && (
+        <LiveRemoteControl
+          deviceId={remoteControlDeviceId}
+          deviceName={devices.find(d => d.deviceId === remoteControlDeviceId)?.name || remoteControlDeviceId}
+          onClose={() => setRemoteControlDeviceId(null)}
         />
       )}
 

@@ -136,6 +136,9 @@ class DisplayController {
       // Setup page error handlers
       this.setupErrorHandlers();
 
+      // Start live screencast streaming
+      await this.startScreencast();
+
       this.isInitialized = true;
       logger.info('✅ Display controller initialized');
     } catch (error: any) {
@@ -145,6 +148,57 @@ class DisplayController {
         error.stack
       );
       throw error;
+    }
+  }
+
+  private async startScreencast(): Promise<void> {
+    if (!this.page) {
+      logger.warn('Cannot start screencast: page not initialized');
+      return;
+    }
+
+    try {
+      logger.info('Starting CDP screencast for live streaming...');
+
+      // Get CDP session
+      const client = await this.page.target().createCDPSession();
+
+      // Start screencast with optimized settings
+      await client.send('Page.startScreencast', {
+        format: 'jpeg',
+        quality: 80,
+        maxWidth: config.displayWidth,
+        maxHeight: config.displayHeight,
+        everyNthFrame: 1, // Capture every frame for smooth streaming
+      });
+
+      // Listen for screencast frames
+      client.on('Page.screencastFrame', async (frame: any) => {
+        try {
+          // Send frame to server via WebSocket
+          websocketClient.sendScreencastFrame({
+            data: frame.data,
+            metadata: {
+              sessionId: frame.sessionId,
+              timestamp: Date.now(),
+              width: frame.metadata.deviceWidth || config.displayWidth,
+              height: frame.metadata.deviceHeight || config.displayHeight,
+            },
+          });
+
+          // Acknowledge frame to continue receiving
+          await client.send('Page.screencastFrameAck', {
+            sessionId: frame.sessionId,
+          });
+        } catch (error: any) {
+          logger.error('Error handling screencast frame:', error.message);
+        }
+      });
+
+      logger.info('✅ Screencast streaming started');
+    } catch (error: any) {
+      logger.error('Failed to start screencast:', error.message);
+      websocketClient.sendErrorReport('Screencast start failed', error.stack);
     }
   }
 
@@ -376,6 +430,108 @@ class DisplayController {
       }
     } catch (error: any) {
       logger.error('Error during shutdown:', error.message);
+    }
+  }
+
+  // Remote control methods
+  public async remoteClick(x: number, y: number, button: 'left' | 'right' | 'middle' = 'left'): Promise<void> {
+    if (!this.page) {
+      logger.warn('Cannot perform remote click: page not initialized');
+      return;
+    }
+
+    try {
+      logger.info(`Remote click at (${x}, ${y}) with ${button} button`);
+
+      await this.page.mouse.click(x, y, { button });
+
+      logger.info('Remote click executed successfully');
+    } catch (error: any) {
+      logger.error('Error performing remote click:', error.message);
+      websocketClient.sendErrorReport('Remote click error', error.stack);
+    }
+  }
+
+  public async remoteType(text: string, selector?: string): Promise<void> {
+    if (!this.page) {
+      logger.warn('Cannot perform remote type: page not initialized');
+      return;
+    }
+
+    try {
+      logger.info(`Remote type: "${text.substring(0, 20)}${text.length > 20 ? '...' : ''}"${selector ? ` in selector: ${selector}` : ''}`);
+
+      if (selector) {
+        // Focus on the element first
+        await this.page.waitForSelector(selector, { timeout: 5000 });
+        await this.page.focus(selector);
+        await this.page.keyboard.type(text);
+      } else {
+        // Type at current focus
+        await this.page.keyboard.type(text);
+      }
+
+      logger.info('Remote type executed successfully');
+    } catch (error: any) {
+      logger.error('Error performing remote type:', error.message);
+      websocketClient.sendErrorReport('Remote type error', error.stack);
+    }
+  }
+
+  public async remoteKey(key: string, modifiers?: ('Shift' | 'Control' | 'Alt' | 'Meta')[]): Promise<void> {
+    if (!this.page) {
+      logger.warn('Cannot perform remote key: page not initialized');
+      return;
+    }
+
+    try {
+      logger.info(`Remote key: ${key}${modifiers ? ` with modifiers: ${modifiers.join('+')}` : ''}`);
+
+      // Press modifiers
+      if (modifiers) {
+        for (const mod of modifiers) {
+          await this.page.keyboard.down(mod);
+        }
+      }
+
+      // Press the main key as any to bypass type checking
+      await this.page.keyboard.press(key as any);
+
+      // Release modifiers
+      if (modifiers) {
+        for (const mod of modifiers.reverse()) {
+          await this.page.keyboard.up(mod);
+        }
+      }
+
+      logger.info('Remote key executed successfully');
+    } catch (error: any) {
+      logger.error('Error performing remote key:', error.message);
+      websocketClient.sendErrorReport('Remote key error', error.stack);
+    }
+  }
+
+  public async remoteScroll(x?: number, y?: number, deltaX?: number, deltaY?: number): Promise<void> {
+    if (!this.page) {
+      logger.warn('Cannot perform remote scroll: page not initialized');
+      return;
+    }
+
+    try {
+      logger.info(`Remote scroll: x=${x}, y=${y}, deltaX=${deltaX}, deltaY=${deltaY}`);
+
+      if (x !== undefined || y !== undefined) {
+        // Absolute scroll
+        await this.page.evaluate(`window.scrollTo(${x ?? 'window.scrollX'}, ${y ?? 'window.scrollY'})`);
+      } else if (deltaX !== undefined || deltaY !== undefined) {
+        // Relative scroll
+        await this.page.evaluate(`window.scrollBy(${deltaX ?? 0}, ${deltaY ?? 0})`);
+      }
+
+      logger.info('Remote scroll executed successfully');
+    } catch (error: any) {
+      logger.error('Error performing remote scroll:', error.message);
+      websocketClient.sendErrorReport('Remote scroll error', error.stack);
     }
   }
 }

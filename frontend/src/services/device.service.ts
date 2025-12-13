@@ -42,4 +42,21 @@ export const deviceService = {
     const response = await api.post(`/devices/${id}/token/rotate`);
     return response.data;
   },
+
+  // Remote control methods
+  async remoteClick(deviceId: string, x: number, y: number, button?: string): Promise<void> {
+    await api.post(`/devices/${deviceId}/remote/click`, { x, y, button });
+  },
+
+  async remoteType(deviceId: string, text: string, selector?: string): Promise<void> {
+    await api.post(`/devices/${deviceId}/remote/type`, { text, selector });
+  },
+
+  async remoteKey(deviceId: string, key: string, modifiers?: string[]): Promise<void> {
+    await api.post(`/devices/${deviceId}/remote/key`, { key, modifiers });
+  },
+
+  async remoteScroll(deviceId: string, x?: number, y?: number, deltaX?: number, deltaY?: number): Promise<void> {
+    await api.post(`/devices/${deviceId}/remote/scroll`, { x, y, deltaX, deltaY });
+  },
 };
