@@ -174,6 +174,26 @@ export const DevicesPage = () => {
                     {deviceStatus.get(device.deviceId) && (<span className="text-xs px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">status: {deviceStatus.get(device.deviceId)}</span>)}
                     {deviceErrors.get(device.deviceId) && (<span className="text-xs px-2 py-1 rounded bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800" title={deviceErrors.get(device.deviceId) || ''}>last error: {(deviceErrors.get(device.deviceId) || '').slice(0, 60)}{(deviceErrors.get(device.deviceId) || '').length > 60 ? '…' : ''}</span>)}
                   </div>
+                  {/* Active playlist summary moved to front */}
+                  {devicePlaylists.get(device.id)?.find(p => p.isActive) && (() => {
+                    const active = devicePlaylists.get(device.id)!.find(p => p.isActive)!;
+                    return (
+                      <div className="mt-2 bg-gray-50 dark:bg-gray-700 rounded px-3 py-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Active Playlist</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{active.name}</p>
+                          </div>
+                          <button
+                            onClick={() => handleUnassignPlaylist(device.id, active.id)}
+                            className="text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {device.description && (<p className="text-gray-600 dark:text-gray-400 text-sm mb-2">{device.description}</p>)}
                   {device.location && (<p className="text-gray-600 dark:text-gray-400 text-sm"><span className="font-medium">Location:</span> {device.location}</p>)}
                 </div>
@@ -181,29 +201,29 @@ export const DevicesPage = () => {
                   <div className="flex items-start justify-between mb-2"><div className="sr-only">Controls</div><button className="text-sm text-gray-600 dark:text-gray-300 hover:underline" onClick={() => toggleControls(device.deviceId)}>Back</button></div>
                   <div className="flex flex-col gap-3 mt-2">
                     <button onClick={() => handleOpenPlaylistModal(device.id)} className="btn-secondary text-sm">Assign Playlist</button>
-                    <div className="flex flex-wrap gap-2">
-                      <button onClick={() => handleEdit(device)} className="btn-secondary text-sm flex-1 min-w-[140px]">Edit</button>
+                    <div className="flex flex-col gap-3 mt-2">
+                      {/* Playlists header (assign button removed to reduce duplication) */}
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Playlists</p>
                       <button onClick={() => setScreenshotDeviceId(device.deviceId)} className="btn-primary text-sm flex-1 min-w-[140px]">Screenshot</button>
                       <button onClick={() => setRemoteControlDeviceId(device.deviceId)} className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm flex-1 min-w-[140px]" title="Remote Control">Remote</button>
                       <button onClick={() => handleShowToken(device.id)} className="btn-secondary text-sm flex-1 min-w-[140px]">Get Token</button>
                       <button onClick={() => handleDelete(device.id)} className="btn-danger text-sm flex-1 min-w-[140px]">Delete</button>
                     </div>
-                    <div className="flex flex-wrap gap-2"><button onClick={() => handleRotateToken(device.id)} className="btn-warning text-sm flex-1 min-w-[180px]">Rotate Token</button></div>
-                    <div className="mt-3">
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Playlists:</p>
+                    <div className="mt-2">
                       {devicePlaylists.get(device.id)?.length ? (
                         <div className="space-y-2">
-                          {devicePlaylists.get(device.id)!.map((playlist) => (
+                          {devicePlaylists.get(device.id)!.filter(p => !p.isActive).map((playlist) => (
                             <div key={playlist.id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 rounded px-3 py-2">
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{playlist.name}</p>
-                                {playlist.isActive && (<span className="inline-block px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 rounded mt-1">Active</span>)}
                               </div>
                               <button onClick={() => handleUnassignPlaylist(device.id, playlist.id)} className="ml-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm">Remove</button>
                             </div>
                           ))}
                         </div>
-                      ) : (<p className="text-sm text-gray-500 dark:text-gray-400">No playlists assigned</p>)}
+                      ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">No playlists assigned</p>
+                      )}
                     </div>
                   </div>
                 </div>
