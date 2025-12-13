@@ -146,7 +146,7 @@ export const DevicesPage = () => {
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${isDeviceOnline(device.deviceId) ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'}`}>{isDeviceOnline(device.deviceId) ? 'online' : 'offline'}</span>
                     </div>
                   </div>
-                  {latestThumbs[device.deviceId] && (
+                  {latestThumbs[device.deviceId] ? (
                     <div>
                       <img
                         src={latestThumbs[device.deviceId]}
@@ -168,6 +168,18 @@ export const DevicesPage = () => {
                         }}
                       />
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Click to flip and reveal controls</p>
+                    </div>
+                  ) : (
+                    <div
+                      className="w-full h-40 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center cursor-pointer"
+                      onClick={() => toggleControls(device.deviceId)}
+                    >
+                      <div className="text-center">
+                        <svg className="w-8 h-8 text-gray-400 dark:text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7a2 2 0 012-2h3l2-2h4l2 2h3a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                        </svg>
+                        <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">No screenshot yet — click to open controls</p>
+                      </div>
                     </div>
                   )}
                   <div className="mt-2 flex items-center gap-2">
@@ -202,8 +214,6 @@ export const DevicesPage = () => {
                   <div className="flex flex-col gap-3 mt-2">
                     <button onClick={() => handleOpenPlaylistModal(device.id)} className="btn-secondary text-sm">Assign Playlist</button>
                     <div className="flex flex-col gap-3 mt-2">
-                      {/* Playlists header (assign button removed to reduce duplication) */}
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Playlists</p>
                       <button onClick={() => setScreenshotDeviceId(device.deviceId)} className="btn-primary text-sm flex-1 min-w-[140px]">Screenshot</button>
                       <button onClick={() => setRemoteControlDeviceId(device.deviceId)} className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm flex-1 min-w-[140px]" title="Remote Control">Remote</button>
                       <button onClick={() => handleShowToken(device.id)} className="btn-secondary text-sm flex-1 min-w-[140px]">Get Token</button>

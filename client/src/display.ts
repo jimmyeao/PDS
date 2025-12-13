@@ -20,9 +20,13 @@ class DisplayController {
       logger.info('Initializing display controller...');
       logger.info(`Display configuration: ${config.displayWidth}x${config.displayHeight}, Kiosk: ${config.kioskMode}`);
 
+      const profileDir = process.platform === 'win32'
+        ? `${process.env.LOCALAPPDATA || 'C:/Users/Public/AppData/Local'}/PDS/browser-profile`
+        : '/tmp/kiosk-browser-profile';
+
       const launchOptions: any = {
         headless: false,
-        userDataDir: '/tmp/kiosk-browser-profile', // Persist cookies and session data
+        userDataDir: profileDir, // Persist cookies and session data across runs
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
