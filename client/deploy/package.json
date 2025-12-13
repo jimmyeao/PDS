@@ -10,6 +10,7 @@
     "watch": "npx tsc --watch",
     "deploy": "bash deploy.sh",
     "deploy:win": "powershell -ExecutionPolicy Bypass -File deploy-windows.ps1",
+    "deploy:linux": "powershell -ExecutionPolicy Bypass -File deploy-linux.ps1",
     "gen:types": "openapi-typescript http://localhost:5000/swagger/v1/swagger.json -o src/services/api-types.ts"
   },
   "keywords": ["kiosk", "digital-signage", "raspberry-pi", "windows", "intel-nuc", "chromium"],

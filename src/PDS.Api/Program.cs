@@ -13,6 +13,9 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Bind to all interfaces on port 5001 by default
+builder.WebHost.UseUrls("http://0.0.0.0:5001");
+
 builder.Host.UseSerilog((ctx, lc) => lc.ReadFrom.Configuration(ctx.Configuration)
     .WriteTo.Console());
 
@@ -764,7 +767,16 @@ public static class RealtimeHub
             ? ctx.Items["__resolvedDeviceId"]?.ToString()
             : ctx.Request.Query["deviceId"].ToString();
 
-        if (role == "device" && !string.IsNullOrEmpty(deviceId)) Devices[deviceId] = ws; else Admins[Guid.NewGuid().ToString()] = ws;
+        if (role == "device" && !string.IsNullOrEmpty(deviceId))
+        {
+            Devices[deviceId] = ws;
+            // Notify admins that device is online
+            BroadcastAdmins("admin:device:status", new { deviceId, status = "online", timestamp = DateTime.UtcNow });
+        }
+        else
+        {
+            Admins[Guid.NewGuid().ToString()] = ws;
+        }
 
         if (role == "admin")
         {
@@ -778,6 +790,12 @@ public static class RealtimeHub
             if (result.MessageType == System.Net.WebSockets.WebSocketMessageType.Close)
             {
                 await ws.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, "closed", CancellationToken.None);
+                // Notify admins that device is offline
+                if (role == "device" && !string.IsNullOrEmpty(deviceId))
+                {
+                    BroadcastAdmins("admin:device:status", new { deviceId, status = "offline", timestamp = DateTime.UtcNow });
+                    Devices.TryRemove(deviceId, out _);
+                }
                 break;
             }
 
@@ -789,6 +807,8 @@ public static class RealtimeHub
             switch (evt)
             {
                 case "device:register":
+                    // When a device registers, confirm online status to admins
+                    BroadcastAdmins("admin:device:status", new { deviceId, status = "online", timestamp = DateTime.UtcNow });
                     break;
                 case "health:report":
                     BroadcastAdmins("admin:device:health", new { deviceId, health = payload, timestamp = DateTime.UtcNow });
