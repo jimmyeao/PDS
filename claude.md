@@ -1,201 +1,379 @@
 # Kiosk Digital Signage - Development Progress
 
-**Last Updated:** 2025-12-11
+**Last Updated:** 2025-12-13
 
 ## Project Overview
-A web-based digital signage solution with central management of Raspberry Pi displays, featuring remote viewing capability, content scheduling, and interactive page support.
+A web-based digital signage solution with central management of Raspberry Pi displays, featuring remote viewing capability, playlist management, and real-time device monitoring.
 
 ## Architecture
-- **Backend:** NestJS (Node.js + TypeScript) with SQLite database
+- **Backend:** ASP.NET Core 8.0 (C#) with PostgreSQL database
 - **Frontend:** React + Vite with TypeScript
-- **Client:** Node.js + Puppeteer + Chromium (planned)
-- **Real-time:** Socket.IO for WebSocket communication
+- **Client:** Node.js + Puppeteer + Chromium (for Raspberry Pi)
+- **Real-time:** Native WebSockets (ASP.NET Core)
 - **Authentication:** JWT tokens
+- **Shared Types:** TypeScript package (`@kiosk/shared`) for type safety across client/frontend
 
 ---
 
-## Development Phases
+## Technology Stack
 
-### ✅ Phase 1: Backend Foundation (COMPLETED)
-- [x] NestJS project setup
-- [x] SQLite database with TypeORM
-- [x] Authentication module (JWT + local strategy)
-- [x] Devices CRUD module
-- [x] Content CRUD module
-- [x] API endpoints tested
+### Backend (.NET)
+- **Framework:** ASP.NET Core 8.0 (Minimal APIs)
+- **Database:** PostgreSQL with Entity Framework Core
+- **Authentication:** JWT Bearer tokens
+- **Logging:** Serilog with console sink
+- **WebSockets:** Native ASP.NET Core WebSockets
+- **API Documentation:** Swagger/OpenAPI
 
-### ✅ Phase 2: Frontend Foundation (COMPLETED)
-- [x] React + Vite setup
-- [x] Login page with authentication
-- [x] Dashboard layout with navigation
-- [x] Devices management page
-- [x] Content management page
-- [x] Zustand stores for state management
-- [x] API service layer
+### Frontend (React)
+- **Framework:** React 19 with TypeScript
+- **Build Tool:** Vite 7
+- **Routing:** React Router v6
+- **State Management:** Zustand
+- **Styling:** Tailwind CSS
+- **HTTP Client:** Axios
+- **Icons:** Heroicons
+- **WebSockets:** Native WebSocket API
 
-### ✅ Phase 3: Schedules & Content Rotation (COMPLETED)
-
-#### Backend - Schedules Module
-- [x] Schedule entities created (Schedule, ScheduleItem, DeviceSchedule)
-- [x] Shared TypeScript types defined
-- [x] Schedules DTOs (create, update for schedules and items, assign)
-- [x] Schedules service with CRUD operations
-- [x] Schedules controller with REST endpoints
-- [x] Schedules module integration into app.module
-
-#### Backend - Screenshots Module
-- [x] Screenshot entity created
-- [x] Screenshots DTOs
-- [x] Screenshots service with retrieval and cleanup methods
-- [x] Screenshots controller with REST endpoints
-- [x] Screenshots module integration into app.module
-
-#### Frontend - Schedules
-- [x] Schedule service (API calls)
-- [x] Schedule store (state management with Zustand)
-- [x] SchedulesPage component with full UI
-- [x] Navigation route integration
-- [x] DashboardLayout updated with Schedules link
-
-### ✅ Phase 4: WebSocket & Real-time Updates (COMPLETED)
-
-#### Backend - WebSocket Implementation
-- [x] Socket.IO dependencies verified
-- [x] WebSocket event types expanded in shared package
-- [x] WebSocket gateway created with authentication
-- [x] Device and admin connection handling
-- [x] Real-time event system implemented
-- [x] Integrated with devices service for status updates
-- [x] Backend builds successfully
-
-#### Frontend - Real-time UI
-- [x] Socket.IO client installed (@heroicons/react also added)
-- [x] WebSocket service for frontend created
-- [x] WebSocket store with connection management
-- [x] Integrated WebSocket with auth store lifecycle
-- [x] Notifications component with toast-style UI
-- [x] Real-time device status indicators with pulsing dots
-- [x] Dark mode support throughout
-- [x] Frontend builds successfully
-
-### ✅ Phase 5: Raspberry Pi Client (COMPLETED)
-- [x] Client package structure with TypeScript
-- [x] Configuration management (.env with validation)
-- [x] Logger utility with log levels
-- [x] WebSocket client connection with auto-reconnect
-- [x] Display controller with Puppeteer and kiosk mode
-- [x] Schedule execution engine with time/day filtering
-- [x] Health monitoring (CPU, memory, disk, uptime)
-- [x] Screenshot capture and upload (periodic and on-demand)
-- [x] Remote control commands (restart, refresh, navigate)
-- [x] Error reporting and handling
-- [x] Graceful shutdown and signal handling
-- [x] README with setup instructions
-- [x] Client builds successfully
+### Client (Raspberry Pi)
+- **Runtime:** Node.js with TypeScript
+- **Browser Engine:** Puppeteer with Chromium
+- **WebSockets:** ws library (native WebSocket protocol)
+- **System Monitoring:** systeminformation package
+- **Configuration:** dotenv
 
 ---
 
-## Current Session Progress
+## Development History
 
-**Session started:** 2025-12-11 (Phase 3 continuation)
-**Session completed:** 2025-12-11
-**Current Phase:** Phase 5 - Raspberry Pi Client ✅ COMPLETED
+### ✅ Phase 1-5: Initial Node.js Implementation (COMPLETED & DEPRECATED)
+**Previous Architecture:** NestJS backend with Socket.IO and SQLite
+- All phases 1-5 completed with NestJS/TypeORM/Socket.IO stack
+- Successfully deployed and tested
+- **Status:** Deprecated and removed in favor of .NET implementation
 
-### Phase 3 Tasks Completed:
-1. ✅ Created claude.md tracking document
-2. ✅ Created Schedules backend (DTOs, service, controller, module)
-3. ✅ Created Screenshots backend (DTOs, service, controller, module)
-4. ✅ Integrated both modules into app.module.ts
-5. ✅ Created frontend schedule service
-6. ✅ Created frontend schedule store
-7. ✅ Created SchedulesPage component with full CRUD UI
-8. ✅ Added Schedules route to App.tsx
-9. ✅ Updated DashboardLayout navigation
-10. ✅ Fixed TypeScript build errors in both backend and frontend
-11. ✅ Updated shared types with deviceSchedules property
-12. ✅ Verified successful builds for backend, frontend, and shared packages
+### ✅ Phase 6: .NET Migration & Refactor (COMPLETED)
 
-### Phase 4 Tasks Completed:
-1. ✅ Installed Socket.IO client and @heroicons/react in frontend
-2. ✅ Created WebSocket service wrapper (websocket.service.ts)
-3. ✅ Created WebSocket Zustand store (websocketStore.ts)
-4. ✅ Integrated WebSocket lifecycle with auth store (connect on login/init, disconnect on logout)
-5. ✅ Created Notifications component with toast-style UI and animations
-6. ✅ Added Notifications to App.tsx for global availability
-7. ✅ Updated DevicesPage with real-time status indicators (pulsing dots for online devices)
-8. ✅ Enhanced dark mode support across all new components
-9. ✅ Fixed enum import issues with shared package (used constant values workaround)
-10. ✅ Verified successful builds for backend, frontend, and shared packages
+#### Backend - ASP.NET Core Migration
+- [x] Migrated from NestJS to ASP.NET Core 8.0 Minimal APIs
+- [x] Switched from SQLite/TypeORM to PostgreSQL/Entity Framework Core
+- [x] Implemented JWT authentication with Bearer tokens
+- [x] Created Entity models (Device, DeviceLog, ContentItem, Playlist, PlaylistItem, DevicePlaylist, Screenshot)
+- [x] Built RESTful API endpoints for all resources
+- [x] Implemented native WebSocket support (replaced Socket.IO)
+- [x] Added real-time device status broadcasting to admin clients
+- [x] Implemented content push on device connection and playlist assignment
+- [x] Added health check endpoints (/health, /healthz)
+- [x] Integrated Serilog for structured logging
+- [x] Added Swagger/OpenAPI documentation
+- [x] Implemented CORS policies for frontend development
+- [x] Database migration system with EF Core
+- [x] Automatic schema updates on startup (Token column, unique indexes, etc.)
 
-### Phase 5 Tasks Completed:
-1. ✅ Created client package structure with package.json and tsconfig.json
-2. ✅ Implemented configuration management (config.ts, .env.example)
-3. ✅ Created logger utility with configurable log levels
-4. ✅ Implemented WebSocket client with event handlers and auto-reconnect
-5. ✅ Built display controller using Puppeteer with kiosk mode support
-6. ✅ Implemented schedule execution engine with time window and day filtering
-7. ✅ Created health monitoring system using systeminformation package
-8. ✅ Implemented screenshot capture and upload functionality
-9. ✅ Built main entry point (index.ts) orchestrating all modules
-10. ✅ Added signal handlers for graceful shutdown (SIGINT, SIGTERM)
-11. ✅ Implemented error handling and reporting to backend
-12. ✅ Created comprehensive README with setup instructions
-13. ✅ Fixed TypeScript type mismatches (DeviceInfo, DeviceHealthMetrics, DeviceStatus)
-14. ✅ Installed dependencies and verified successful build
+#### Frontend - WebSocket Migration
+- [x] Migrated from Socket.IO client to native WebSocket API
+- [x] Updated WebSocket event handling for new backend protocol
+- [x] Maintained real-time device status indicators
+- [x] Kept existing UI components and state management
+- [x] Updated API service layer for new endpoint structure
 
-### System Status:
-- ✅ **Backend**: Running, builds successfully
-- ✅ **Frontend**: Builds successfully
-- ✅ **Shared**: Builds successfully
-- ✅ **Client**: Builds successfully, ready for deployment
-- 🎉 **All 5 Phases Complete!**
-
-### Next Steps:
-- Deploy client to Raspberry Pi
-- Test end-to-end integration
-- Create device credentials in admin UI
-- Configure .env on Pi and start client
+#### Client - WebSocket & API Migration
+- [x] Migrated from Socket.IO to native WebSocket (ws library)
+- [x] Updated event protocol to match .NET backend expectations
+- [x] Implemented playlist executor (replaced schedule executor)
+- [x] Added content rotation with display duration support
+- [x] Maintained health monitoring and screenshot functionality
+- [x] Updated configuration for new API endpoints
+- [x] WebSocket authentication via token query parameter
+- [x] Automatic content updates when playlists are assigned/modified
 
 ---
 
-## Known Issues
-- **Shared Package Enum Import**: The shared package outputs CommonJS, but Vite/Rollup expects ES modules. Workaround implemented using constant values in frontend websocket.service.ts instead of direct enum imports. Consider migrating shared package to dual-format output (CommonJS + ES modules) in future.
+## Current Implementation Details
 
-## Notes
-- Backend uses better-sqlite3 for database
-- Frontend uses Zustand for state management
-- All entities auto-discovered by TypeORM pattern matching
+### Backend Entities & Database Schema
+
+**Devices**
+- Id (int, PK)
+- DeviceId (string, unique)
+- Name (string)
+- Token (string, nullable) - Persistent authentication token
+- CreatedAt (DateTime)
+
+**DeviceLogs**
+- Id (int, PK)
+- DeviceId (int, FK)
+- Message (string)
+- Timestamp (DateTime)
+
+**Content**
+- Id (int, PK)
+- Name (string)
+- Url (string, nullable)
+- CreatedAt (DateTime)
+
+**Playlists**
+- Id (int, PK)
+- Name (string)
+- IsActive (bool)
+- Items (collection)
+
+**PlaylistItems**
+- Id (int, PK)
+- PlaylistId (int, FK)
+- ContentId (int, FK, nullable)
+- Url (string, nullable)
+- DurationSeconds (int, nullable)
+- OrderIndex (int, nullable)
+- TimeWindowStart (string, nullable)
+- TimeWindowEnd (string, nullable)
+- DaysOfWeek (JSON string, nullable)
+
+**DevicePlaylists** (junction table)
+- DeviceId (int, FK)
+- PlaylistId (int, FK)
+
+**Screenshots**
+- Id (int, PK)
+- DeviceStringId (string)
+- CurrentUrl (string, nullable)
+- CreatedAt (DateTime)
+
+### API Endpoints
+
+#### Authentication
+- `POST /auth/register` - Register new admin user
+- `POST /auth/login` - Login and receive JWT token
+- `POST /auth/refresh` - Refresh access token
+- `GET /auth/me` - Get current user info
+
+#### Devices
+- `POST /devices` - Create/register new device
+- `GET /devices` - List all devices
+- `GET /devices/{id}` - Get device by ID
+- `GET /devices/{id}/token` - Get device token
+- `POST /devices/{id}/token/rotate` - Rotate device token
+- `GET /devices/{id}/logs` - Get device logs
+- `PATCH /devices/{id}` - Update device
+- `DELETE /devices/{id}` - Delete device
+
+#### Content
+- `POST /content` - Create content item
+- `GET /content` - List all content
+- `GET /content/{id}` - Get content by ID
+- `PATCH /content/{id}` - Update content
+- `DELETE /content/{id}` - Delete content
+
+#### Playlists
+- `POST /playlists` - Create playlist
+- `GET /playlists` - List all playlists
+- `GET /playlists/{id}` - Get playlist with items
+- `PATCH /playlists/{id}` - Update playlist
+- `DELETE /playlists/{id}` - Delete playlist
+
+#### Playlist Items
+- `POST /playlists/items` - Add item to playlist
+- `GET /playlists/{playlistId}/items` - Get playlist items
+- `PATCH /playlists/items/{id}` - Update playlist item
+- `DELETE /playlists/items/{id}` - Remove playlist item
+
+#### Playlist Assignment
+- `POST /playlists/assign` - Assign playlist to device
+- `GET /playlists/device/{deviceId}` - Get device's playlists
+- `GET /playlists/{playlistId}/devices` - Get playlist's devices
+- `DELETE /playlists/assign/device/{deviceId}/playlist/{playlistId}` - Unassign playlist
+
+#### Screenshots
+- `GET /screenshots/device/{deviceId}/latest` - Get latest screenshot
+- `GET /screenshots/device/{deviceId}` - Get all device screenshots
+- `GET /screenshots/{id}` - Get screenshot by ID
+
+#### WebSocket
+- `WS /ws?role=device&token={token}` - Device connection
+- `WS /ws?role=admin` - Admin connection
+
+### WebSocket Events
+
+#### Server to Client
+- `content:update` - Push playlist content to device
+- `display:navigate` - Navigate device to URL
+- `screenshot:request` - Request screenshot from device
+- `config:update` - Update device configuration
+- `device:restart` - Restart device
+- `display:refresh` - Refresh device display
+- `admin:devices:sync` - Sync connected devices list to admin
+- `admin:device:status` - Device status update (online/offline)
+- `admin:device:health` - Device health metrics
+- `admin:screenshot:received` - Screenshot upload confirmation
+- `admin:error` - Error report from device
+
+#### Client to Server
+- `device:register` - Device registration on connect
+- `health:report` - Periodic health metrics
+- `device:status` - Device status update
+- `error:report` - Error reporting
+- `screenshot:upload` - Screenshot upload
+
+---
 
 ## File Structure
 ```
-kiosk/
-├── backend/
-│   ├── src/
-│   │   ├── auth/          ✅ Complete
-│   │   ├── devices/       ✅ Complete (with WebSocket integration)
-│   │   ├── content/       ✅ Complete
-│   │   ├── schedules/     ✅ Complete (DTOs, service, controller, module)
-│   │   ├── screenshots/   ✅ Complete (DTOs, service, controller, module)
-│   │   ├── websocket/     ✅ Complete (gateway, module, JWT auth)
-│   │   └── database/      ✅ Complete
+PDS/
+├── src/
+│   └── PDS.Api/                      ✅ .NET Backend
+│       ├── Program.cs                   Main entry point, API endpoints, services
+│       ├── Entities.cs                  EF Core entities and DbContext
+│       ├── Contracts.cs                 DTOs and interfaces (if present)
+│       ├── Migrations/                  EF Core migrations
+│       └── PDS.Api.csproj              Project file
 ├── frontend/
 │   ├── src/
-│   │   ├── pages/         ✅ Complete (Login, Dashboard, Devices with real-time status, Content, Schedules)
-│   │   ├── components/    ✅ Complete (ProtectedRoute, DashboardLayout, Notifications)
-│   │   ├── services/      ✅ Complete (auth, device, content, schedule, websocket)
-│   │   └── store/         ✅ Complete (auth with WS integration, device, content, schedule, websocket, theme)
+│   │   ├── pages/                    ✅ Complete (Login, Dashboard, Devices, Content, Playlists)
+│   │   ├── components/               ✅ Complete (ProtectedRoute, DashboardLayout, Notifications)
+│   │   ├── services/                 ✅ Complete (auth, device, content, playlist, websocket)
+│   │   └── store/                    ✅ Complete (auth, device, content, playlist, websocket, theme)
+│   ├── package.json
+│   └── vite.config.ts
 ├── client/
 │   ├── src/
-│   │   ├── index.ts       ✅ Complete (main entry point, orchestration)
-│   │   ├── config.ts      ✅ Complete (configuration management)
-│   │   ├── logger.ts      ✅ Complete (logging utility)
-│   │   ├── websocket.ts   ✅ Complete (Socket.IO client)
-│   │   ├── display.ts     ✅ Complete (Puppeteer display controller)
-│   │   ├── scheduler.ts   ✅ Complete (schedule execution engine)
-│   │   ├── health.ts      ✅ Complete (health monitoring)
-│   │   └── screenshot.ts  ✅ Complete (screenshot capture/upload)
-│   ├── .env.example       ✅ Complete
-│   └── README.md          ✅ Complete
+│   │   ├── index.ts                  ✅ Main entry point, orchestration
+│   │   ├── config.ts                 ✅ Configuration management
+│   │   ├── logger.ts                 ✅ Logging utility
+│   │   ├── websocket.ts              ✅ Native WebSocket client (ws library)
+│   │   ├── display.ts                ✅ Puppeteer display controller
+│   │   ├── playlist-executor.ts      ✅ Playlist execution engine
+│   │   ├── health.ts                 ✅ Health monitoring
+│   │   ├── screenshot.ts             ✅ Screenshot capture/upload
+│   │   └── services/                 API client services
+│   ├── .env.example
+│   ├── package.json
+│   └── README.md
 └── shared/
-    └── src/types/         ✅ Complete (all types including schedules and WebSocket events)
+    ├── src/
+    │   ├── index.ts
+    │   └── types/                    ✅ Shared TypeScript types for WebSocket events, payloads
+    └── package.json
 ```
+
+---
+
+## Current Status
+
+### ✅ Completed & Working
+- [x] .NET backend running on port 5001
+- [x] Frontend builds and connects to backend
+- [x] PostgreSQL database with EF Core migrations
+- [x] JWT authentication
+- [x] Native WebSocket real-time communication
+- [x] Device registration and token-based auth
+- [x] Playlist management (CRUD operations)
+- [x] Content management
+- [x] Playlist assignment to devices
+- [x] Real-time content push to devices on assignment
+- [x] Device status monitoring (online/offline)
+- [x] Health metrics reporting
+- [x] Screenshot capture and retrieval
+- [x] Raspberry Pi client with Puppeteer display
+- [x] Playlist execution with content rotation
+
+### 🔧 Known Minor Issues (Cosmetic)
+- Some UI styling inconsistencies (cosmetic only)
+- Frontend console may show minor warnings
+
+---
+
+## Configuration
+
+### Backend (src/PDS.Api)
+**appsettings.json** (create if needed):
+```json
+{
+  "ConnectionStrings": {
+    "Default": "Host=localhost;Port=5432;Database=pds;Username=postgres;Password=postgres"
+  },
+  "Jwt": {
+    "Secret": "your-secret-key-here-minimum-32-characters",
+    "Issuer": "pds",
+    "Audience": "pds-clients"
+  }
+}
+```
+
+### Frontend
+**frontend/.env**:
+```
+VITE_API_URL=http://localhost:5001
+```
+
+### Client (Raspberry Pi)
+**client/.env**:
+```
+SERVER_URL=http://your-server:5001
+DEVICE_ID=your-device-id
+DEVICE_TOKEN=generated-device-token
+LOG_LEVEL=info
+SCREENSHOT_INTERVAL=300000
+HEALTH_REPORT_INTERVAL=60000
+```
+
+---
+
+## Deployment
+
+### Backend
+```bash
+cd src/PDS.Api
+dotnet restore
+dotnet ef database update  # Run migrations
+dotnet run                 # Development
+dotnet publish -c Release  # Production build
+```
+
+### Frontend
+```bash
+cd frontend
+npm install
+npm run dev        # Development
+npm run build      # Production build
+```
+
+### Client (Raspberry Pi)
+```bash
+cd client
+npm install
+npm run build
+npm start          # Or use PM2 for process management
+```
+
+---
+
+## Migration Notes
+
+### Changes from NestJS to .NET
+1. **Database:** SQLite → PostgreSQL (better concurrency, more features)
+2. **ORM:** TypeORM → Entity Framework Core (native C# integration)
+3. **WebSocket:** Socket.IO → Native WebSockets (simpler, less overhead)
+4. **API Style:** NestJS decorators → ASP.NET Minimal APIs (more concise)
+5. **Naming:** Schedules → Playlists (better terminology for content rotation)
+
+### Removed Components
+- Old `backend/` folder (NestJS implementation) - **REMOVED**
+- Socket.IO dependencies in client and frontend (replaced with native WebSocket)
+- Schedule-related terminology (replaced with Playlist)
+
+### Retained Components
+- `frontend/` - React/Vite frontend (updated API calls, WebSocket protocol)
+- `client/` - Raspberry Pi client (updated WebSocket, API integration)
+- `shared/` - TypeScript types package (still used by client and frontend)
+
+---
+
+## Next Steps
+- Fine-tune UI cosmetic issues
+- Add user management (currently using simple JWT without user database)
+- Implement screenshot viewing in admin UI
+- Add device grouping/tagging functionality
+- Enhance playlist scheduling (time windows, days of week filtering)
+- Add analytics and reporting
+- Implement automated deployment scripts
+- Add Docker support for easy deployment

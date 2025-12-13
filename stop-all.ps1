@@ -1,11 +1,11 @@
 # Stop all backend and frontend processes
 Write-Host "Stopping all development servers..." -ForegroundColor Yellow
 
-# Kill processes on port 3000 (backend)
-Write-Host "Stopping backend (port 3000)..." -ForegroundColor Yellow
-$processesOnPort3000 = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique
-if ($processesOnPort3000) {
-    foreach ($processId in $processesOnPort3000) {
+# Kill processes on port 5001 (.NET backend)
+Write-Host "Stopping .NET backend (port 5001)..." -ForegroundColor Yellow
+$processesOnPort5001 = Get-NetTCPConnection -LocalPort 5001 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique
+if ($processesOnPort5001) {
+    foreach ($processId in $processesOnPort5001) {
         Write-Host "  Killing process $processId" -ForegroundColor Gray
         Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
     }
