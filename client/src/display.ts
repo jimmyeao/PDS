@@ -282,7 +282,12 @@ class DisplayController {
         text.includes('blocked by CORS') ||
         text.includes('No \'Access-Control-Allow-Origin\'');
 
-      if (type === 'error' && !isResourceError) {
+      // Known benign app-specific console errors to ignore
+      const isBenignAppError =
+        text.includes('<rect> attribute width: A negative value is not valid') ||
+        text.toLowerCase().includes('missing queryfn');
+
+      if (type === 'error' && !isResourceError && !isBenignAppError) {
         logger.error(`Page console error: ${text}`);
       }
     });
@@ -390,8 +395,11 @@ class DisplayController {
       }
     } catch (error: any) {
       logger.error(`Navigation failed to ${url}:`, error.message);
-      // Only report critical navigation failures, not timeouts that we handled
-      if (!error.message.includes('Navigation timeout')) {
+      // Only report critical navigation failures; ignore benign aborts caused by redirects or SPA route changes
+      const msg = (error.message || '').toLowerCase();
+      const isTimeout = msg.includes('navigation timeout') || msg.includes('timeout');
+      const isErrAborted = msg.includes('net::err_aborted');
+      if (!isTimeout && !isErrAborted) {
         websocketClient.sendErrorReport(
           `Navigation failed to ${url}`,
           error.stack,
