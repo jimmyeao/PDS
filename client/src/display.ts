@@ -265,12 +265,13 @@ class DisplayController {
       }
 
       // Start screencast with optimized settings
+      // everyNthFrame: 3 reduces CPU load on Raspberry Pi (captures every 3rd frame instead of every 2nd)
       await client.send('Page.startScreencast', {
         format: 'jpeg',
         quality: 80,
         maxWidth: config.displayWidth,
         maxHeight: config.displayHeight,
-        everyNthFrame: 2,
+        everyNthFrame: 3, // Reduced from 2 to lower CPU pressure
       });
 
       let firstFrameReceived = false;
@@ -342,9 +343,14 @@ class DisplayController {
       if (!this.frameNavigatedHandler) {
         this.frameNavigatedHandler = async () => {
           try {
-            logger.info('Frame navigated, restarting screencast');
+            logger.info('Frame navigated, waiting 3s for page to settle before restarting screencast...');
             this.isScreencastActive = false;
             this.isRestartingScreencast = false;
+
+            // Wait 3 seconds for page to settle (handles redirects, heavy JS loads, etc.)
+            await new Promise(resolve => setTimeout(resolve, 3000));
+
+            logger.info('Page settled, restarting screencast');
             await this.startScreencast();
           } catch (navErr: any) {
             logger.warn(`Could not restart screencast after navigation: ${navErr?.message || navErr}`);
