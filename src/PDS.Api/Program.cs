@@ -1117,6 +1117,27 @@ public static class RealtimeHub
                                 .ToListAsync();
                             await Send(ws, ServerToClientEvent.CONTENT_UPDATE, new { playlistId = assigned, items });
                         }
+
+                        // Send device's display configuration if set
+                        var device = await db.Devices.FirstOrDefaultAsync(d => d.DeviceId == deviceId);
+                        if (device != null)
+                        {
+                            Serilog.Log.Information($"Device config from DB: Width={device.DisplayWidth}, Height={device.DisplayHeight}, Kiosk={device.KioskMode}");
+                            if (device.DisplayWidth.HasValue || device.DisplayHeight.HasValue || device.KioskMode.HasValue)
+                            {
+                                Serilog.Log.Information($"Sending config update to device {deviceId}");
+                                await Send(ws, ServerToClientEvent.CONFIG_UPDATE, new
+                                {
+                                    displayWidth = device.DisplayWidth,
+                                    displayHeight = device.DisplayHeight,
+                                    kioskMode = device.KioskMode
+                                });
+                            }
+                            else
+                            {
+                                Serilog.Log.Information($"Device {deviceId} has no custom display config set");
+                            }
+                        }
                     }
                     catch (Exception ex)
                     {

@@ -97,17 +97,19 @@ class KioskClient {
       }
 
       // Handle display configuration updates
-      if (payload.displayWidth !== undefined) {
+      const currentConfig = configManager.get();
+
+      if (payload.displayWidth !== undefined && payload.displayWidth !== currentConfig.displayWidth) {
         configManager.update({ displayWidth: payload.displayWidth });
         displayConfigChanged = true;
       }
 
-      if (payload.displayHeight !== undefined) {
+      if (payload.displayHeight !== undefined && payload.displayHeight !== currentConfig.displayHeight) {
         configManager.update({ displayHeight: payload.displayHeight });
         displayConfigChanged = true;
       }
 
-      if (payload.kioskMode !== undefined) {
+      if (payload.kioskMode !== undefined && payload.kioskMode !== currentConfig.kioskMode) {
         configManager.update({ kioskMode: payload.kioskMode });
         displayConfigChanged = true;
       }
