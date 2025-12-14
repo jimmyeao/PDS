@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("PDS.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2a4a3cbefe11ea5004e4705bbd6a2fe7460dc213")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+65f9b502e1b403898295a97b831a5cf5e5cca516")]
 [assembly: System.Reflection.AssemblyProductAttribute("PDS.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("PDS.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

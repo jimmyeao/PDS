@@ -146,7 +146,7 @@ export const DevicesPage = () => {
       ) : devices.length === 0 ? (
         <div className="card text-center py-12"><p className="text-gray-600 dark:text-gray-400 mb-4">No devices registered yet.</p><button onClick={() => setShowModal(true)} className="btn-primary">Add Your First Device</button></div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+        <div className="gap-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
           {devices.map((device) => (
             <div key={device.id} className="card overflow-hidden" style={{ perspective: '1000px' }}>
               <div className="relative" style={{ transformStyle: 'preserve-3d', transition: 'transform 600ms', transform: showControls[device.deviceId] ? 'rotateY(180deg)' : 'rotateY(0deg)', height: cardHeights[device.deviceId] ? `${cardHeights[device.deviceId]}px` : 'auto' }}>
@@ -242,13 +242,11 @@ export const DevicesPage = () => {
                   <div className="flex items-start justify-between mb-2"><div className="sr-only">Controls</div><button className="text-sm text-gray-600 dark:text-gray-300 hover:underline" onClick={() => toggleControls(device.deviceId)}>Back</button></div>
                   <div className="flex flex-col gap-3 mt-2">
                     <button onClick={() => handleOpenPlaylistModal(device.id)} className="btn-secondary text-sm">Assign Playlist</button>
-                    <div className="flex flex-col gap-3 mt-2">
-                      <button onClick={() => setScreenshotDeviceId(device.deviceId)} className="btn-primary text-sm flex-1 min-w-[140px]">Screenshot</button>
-                      <button onClick={() => setRemoteControlDeviceId(device.deviceId)} className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm flex-1 min-w-[140px]" title="Remote Control">Remote</button>
-                      <button onClick={() => handleOpenDisplayConfig(device)} className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm flex-1 min-w-[140px]" title="Configure Display">Configure Display</button>
-                      <button onClick={() => handleShowToken(device.id)} className="btn-secondary text-sm flex-1 min-w-[140px]">Get Token</button>
-                      <button onClick={() => handleDelete(device.id)} className="btn-danger text-sm flex-1 min-w-[140px]">Delete</button>
-                    </div>
+                    <button onClick={() => setScreenshotDeviceId(device.deviceId)} className="btn-primary text-sm flex-1 min-w-[140px]">Screenshot</button>
+                    <button onClick={() => setRemoteControlDeviceId(device.deviceId)} className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm flex-1 min-w-[140px]" title="Remote Control">Remote</button>
+                    <button onClick={() => handleOpenDisplayConfig(device)} className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm flex-1 min-w-[140px]" title="Configure Display">Configure Display</button>
+                    <button onClick={() => handleShowToken(device.id)} className="btn-secondary text-sm flex-1 min-w-[140px]">Get Token</button>
+                    <button onClick={() => handleDelete(device.id)} className="btn-danger text-sm flex-1 min-w-[140px]">Delete</button>
                     <div className="mt-2">
                       {devicePlaylists.get(device.id)?.length ? (
                         <div className="space-y-2">
