@@ -1,5 +1,5 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
-import { config } from './config';
+import { configManager } from './config';
 import { logger } from './logger';
 import { screenshotManager } from './screenshot';
 import { websocketClient } from './websocket';
@@ -25,6 +25,9 @@ class DisplayController {
 
     try {
       logger.info('Initializing display controller...');
+
+      // Get latest configuration (may have been updated remotely)
+      const config = configManager.get();
       logger.info(`Display configuration: ${config.displayWidth}x${config.displayHeight}, Kiosk: ${config.kioskMode}`);
 
       const profileDir = process.platform === 'win32'
@@ -226,6 +229,9 @@ class DisplayController {
     try {
       logger.info('Starting CDP screencast for live streaming...');
 
+      // Get latest configuration
+      const config = configManager.get();
+
       // Clear any pending first-frame timeout
       if (this.firstFrameTimeoutId) {
         clearTimeout(this.firstFrameTimeoutId);
@@ -266,13 +272,14 @@ class DisplayController {
       }
 
       // Start screencast with optimized settings
-      // everyNthFrame: 5 gives ~12fps, reducing network bandwidth pressure
+      // everyNthFrame: 1 captures every frame for smoother streaming
+      // On-demand mode prevents backpressure since we only stream when admin is watching
       await client.send('Page.startScreencast', {
         format: 'jpeg',
-        quality: 70, // Reduced from 80 to lower frame size
+        quality: 80,
         maxWidth: config.displayWidth,
         maxHeight: config.displayHeight,
-        everyNthFrame: 5, // Reduced from 3 to prevent WebSocket backpressure
+        everyNthFrame: 1, // Capture every frame since we only stream when needed
       });
 
       let firstFrameReceived = false;
