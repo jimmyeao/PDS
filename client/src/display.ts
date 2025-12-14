@@ -31,9 +31,11 @@ class DisplayController {
       const config = configManager.get();
       logger.info(`Display configuration: ${config.displayWidth}x${config.displayHeight}, Kiosk: ${config.kioskMode}`);
 
+      // Use a persistent directory in the user's home folder instead of /tmp (which is wiped on reboot)
+      const homeDir = process.env.HOME || process.env.USERPROFILE || '/root';
       const profileDir = process.platform === 'win32'
         ? `${process.env.LOCALAPPDATA || 'C:/Users/Public/AppData/Local'}/PDS/browser-profile`
-        : '/tmp/kiosk-browser-profile';
+        : `${homeDir}/.pds-browser-profile`;
 
       // Ensure profile directory exists so Chromium can persist cookies/sessions
       try {
@@ -260,25 +262,11 @@ class DisplayController {
             const pages = await this.browser.pages();
             const targets = this.browser.targets();
             
-            // Log detailed target info periodically (every 10s) to avoid spam
-            if (Date.now() % 10000 < 2000) {
-                logger.info(`Polling: ${pages.length} pages, ${targets.length} targets`);
-                for (const t of targets) {
-                    try {
-                        const p = await t.page();
-                        logger.info(`Target: type=${t.type()}, url=${t.url()}, attached=${p ? 'yes' : 'no'}`);
-                    } catch (e) {
-                        logger.info(`Target: type=${t.type()}, url=${t.url()}, attached=error`);
-                    }
-                }
-                
-                if (this.page) {
-                    const frames = this.page.frames();
-                    logger.info(`Current page frames: ${frames.length}`);
-                    frames.forEach(f => logger.info(`Frame: url=${f.url()}, name=${f.name()}`));
-                }
-            }
-
+      // Poll for page changes (fallback for missed events)
+      setInterval(async () => {
+        if (!this.browser) return;
+        try {
+            const pages = await this.browser.pages();
             // If we have multiple pages, assume the last one is the active popup
             if (pages.length > 1) {
                 const lastPage = pages[pages.length - 1];
