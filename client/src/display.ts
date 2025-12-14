@@ -191,6 +191,24 @@ class DisplayController {
             Promise.resolve({ state: (globalThis as any).Notification.permission }) :
             originalQuery(parameters)
         );
+
+        // AGGRESSIVELY disable WebAuthn to prevent OS-level security key popups
+        // This forces sites (like Microsoft/Google) to fall back to password/MFA forms
+        try {
+            // @ts-ignore
+            if (window.navigator.credentials) {
+                // @ts-ignore
+                window.navigator.credentials.create = function() {
+                    return Promise.reject(new DOMException("NotAllowedError", "WebAuthn is disabled"));
+                };
+                // @ts-ignore
+                window.navigator.credentials.get = function() {
+                    return Promise.reject(new DOMException("NotAllowedError", "WebAuthn is disabled"));
+                };
+            }
+            // @ts-ignore
+            delete window.PublicKeyCredential;
+        } catch (e) {}
       });
 
       logger.info('Page created with viewport set');
