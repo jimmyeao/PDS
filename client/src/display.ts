@@ -244,9 +244,14 @@ class DisplayController {
             // Log detailed target info periodically (every 10s) to avoid spam
             if (Date.now() % 10000 < 2000) {
                 logger.info(`Polling: ${pages.length} pages, ${targets.length} targets`);
-                targets.forEach(t => {
-                    logger.info(`Target: type=${t.type()}, url=${t.url()}, attached=${t.page() ? 'yes' : 'no'}`);
-                });
+                for (const t of targets) {
+                    try {
+                        const p = await t.page();
+                        logger.info(`Target: type=${t.type()}, url=${t.url()}, attached=${p ? 'yes' : 'no'}`);
+                    } catch (e) {
+                        logger.info(`Target: type=${t.type()}, url=${t.url()}, attached=error`);
+                    }
+                }
                 
                 if (this.page) {
                     const frames = this.page.frames();
