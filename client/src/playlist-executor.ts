@@ -25,6 +25,9 @@
     // Playlist tracking
     private currentPlaylistId: number | null = null;
 
+    // Periodic state emission to keep admin UI in sync
+    private stateEmissionIntervalId: NodeJS.Timeout | null = null;
+
     public loadPlaylist(items: PlaylistItem[], playlistId?: number): void {
       logger.info(`Loading playlist with ${items.length} items`);
 
@@ -75,6 +78,12 @@
         screenshotManager.stop();
       }
 
+      // Start periodic state emission (every 5 seconds) to keep admin UI in sync
+      // This ensures controls reappear after admin dashboard refresh
+      this.stateEmissionIntervalId = setInterval(() => {
+        this.emitStateUpdate();
+      }, 5000);
+
       this.emitStateUpdate();
       this.executeNextItem();
     }
@@ -83,6 +92,11 @@
       if (this.timeoutId) {
         clearTimeout(this.timeoutId);
         this.timeoutId = null;
+      }
+
+      if (this.stateEmissionIntervalId) {
+        clearInterval(this.stateEmissionIntervalId);
+        this.stateEmissionIntervalId = null;
       }
 
       this.isRunning = false;
