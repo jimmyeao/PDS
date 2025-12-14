@@ -115,6 +115,9 @@ class DisplayController {
         );
       }
 
+      // Enable popup debugging
+      launchOptions.args.push('--disable-popup-blocking');
+
       this.browser = await puppeteer.launch(launchOptions);
       logger.info('Browser launched successfully');
 
@@ -200,12 +203,16 @@ class DisplayController {
       // Listen for new pages (popups) to handle authentication windows
       this.browser.on('targetcreated', async (target) => {
         logger.info(`Target created: ${target.type()} - ${target.url()}`);
-        if (target.type() === 'page') {
+        
+        // Handle both 'page' and 'other' (sometimes popups start as 'other')
+        if (target.type() === 'page' || target.type() === 'other') {
           try {
             const newPage = await target.page();
             if (newPage && newPage !== this.page) {
-              logger.info('New page detected (popup), switching control...');
+              logger.info(`New page detected (type: ${target.type()}), switching control...`);
               await this.handlePageChange(newPage);
+            } else if (!newPage) {
+                logger.debug(`Target ${target.type()} created but no page object available yet.`);
             }
           } catch (e) {
             logger.warn('Failed to get page from target:', e);
