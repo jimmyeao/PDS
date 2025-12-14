@@ -51,7 +51,8 @@ class DisplayController {
 
       const launchOptions: any = {
         headless: false,
-        userDataDir: profileDir, // Persist cookies and session data across runs
+        // Use persistent profile unless NO_PROFILE env var is set (for troubleshooting)
+        ...(process.env.NO_PROFILE !== 'true' && { userDataDir: profileDir }),
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',

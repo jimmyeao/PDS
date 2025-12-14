@@ -8,7 +8,7 @@ import { ScreenshotViewer } from '../components/ScreenshotViewer';
 import { screenshotService } from '../services/screenshot.service';
 import { websocketService } from '../services/websocket.service';
 import { LiveRemoteControl } from '../components/LiveRemoteControl';
-import { PlaybackControls } from '../components/PlaybackControls';
+import { PlaybackControlsInline } from '../components/PlaybackControlsInline';
 import type { Playlist } from '@kiosk/shared';
 
 export const DevicesPage = () => {
@@ -152,15 +152,25 @@ export const DevicesPage = () => {
               <div className="relative" style={{ transformStyle: 'preserve-3d', transition: 'transform 600ms', transform: showControls[device.deviceId] ? 'rotateY(180deg)' : 'rotateY(0deg)', height: cardHeights[device.deviceId] ? `${cardHeights[device.deviceId]}px` : 'auto' }}>
                 <div id={`card-front-${device.id}`} className="absolute inset-0 p-4" style={{ backfaceVisibility: 'hidden' }}>
                   <div className="flex items-start justify-between mb-3">
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                      <button
-                        onClick={() => handleEdit(device)}
-                        className="hover:underline cursor-pointer text-left"
-                        title="Edit device"
-                      >
-                        {device.name}
-                      </button>
-                    </h3>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                        <button
+                          onClick={() => handleEdit(device)}
+                          className="hover:underline cursor-pointer text-left"
+                          title="Edit device"
+                        >
+                          {device.name}
+                        </button>
+                      </h3>
+                      <PlaybackControlsInline
+                        deviceId={device.deviceId}
+                        playbackState={devicePlaybackState.get(device.deviceId)}
+                        onPause={handlePlaylistPause}
+                        onResume={handlePlaylistResume}
+                        onNext={handlePlaylistNext}
+                        onPrevious={handlePlaylistPrevious}
+                      />
+                    </div>
                     <div className="flex items-center gap-2">
                       {isDeviceOnline(device.deviceId) && (<span className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span></span>)}
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${isDeviceOnline(device.deviceId) ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'}`}>{isDeviceOnline(device.deviceId) ? 'online' : 'offline'}</span>
@@ -226,17 +236,6 @@ export const DevicesPage = () => {
                       </div>
                     );
                   })()}
-                  {/* Playback Controls */}
-                  <div className="mt-2">
-                    <PlaybackControls
-                      deviceId={device.deviceId}
-                      playbackState={devicePlaybackState.get(device.deviceId)}
-                      onPause={handlePlaylistPause}
-                      onResume={handlePlaylistResume}
-                      onNext={handlePlaylistNext}
-                      onPrevious={handlePlaylistPrevious}
-                    />
-                  </div>
                   {device.description && (<p className="text-gray-600 dark:text-gray-400 text-sm mb-2">{device.description}</p>)}
                   {device.location && (<p className="text-gray-600 dark:text-gray-400 text-sm"><span className="font-medium">Location:</span> {device.location}</p>)}
                 </div>
