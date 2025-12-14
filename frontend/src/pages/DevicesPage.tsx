@@ -3,16 +3,18 @@ import { useDeviceStore } from '../store/deviceStore';
 import { useWebSocketStore } from '../store/websocketStore';
 import { usePlaylistStore } from '../store/playlistStore';
 import { playlistService } from '../services/playlist.service';
+import { deviceService } from '../services/device.service';
 import { ScreenshotViewer } from '../components/ScreenshotViewer';
 import { screenshotService } from '../services/screenshot.service';
 import { websocketService } from '../services/websocket.service';
 import { LiveRemoteControl } from '../components/LiveRemoteControl';
+import { PlaybackControls } from '../components/PlaybackControls';
 import type { Playlist } from '@kiosk/shared';
 
 export const DevicesPage = () => {
   const { devices, fetchDevices, createDevice, updateDevice, deleteDevice, isLoading } = useDeviceStore();
   const { getDeviceToken } = useDeviceStore();
-  const { connectedDevices, deviceStatus, deviceErrors } = useWebSocketStore();
+  const { connectedDevices, deviceStatus, deviceErrors, devicePlaybackState } = useWebSocketStore();
   const { playlists, fetchPlaylists, assignPlaylistToDevice, unassignPlaylistFromDevice } = usePlaylistStore();
   const [showModal, setShowModal] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
@@ -126,6 +128,12 @@ export const DevicesPage = () => {
   const handleOpenDisplayConfig = (device: any) => { setConfiguringDevice(device); setDisplayConfigData({ displayWidth: device.displayWidth || 1920, displayHeight: device.displayHeight || 1080, kioskMode: device.kioskMode !== undefined ? device.kioskMode : true }); setShowDisplayConfigModal(true); };
   const handleSaveDisplayConfig = async () => { if (!configuringDevice) return; try { await updateDevice(configuringDevice.id, displayConfigData); setShowDisplayConfigModal(false); setConfiguringDevice(null); fetchDevices(); } catch {} };
 
+  // Playlist control handlers
+  const handlePlaylistPause = async (deviceId: string) => { try { await deviceService.playlistPause(deviceId); } catch (err) { console.error('Failed to pause playlist:', err); } };
+  const handlePlaylistResume = async (deviceId: string) => { try { await deviceService.playlistResume(deviceId); } catch (err) { console.error('Failed to resume playlist:', err); } };
+  const handlePlaylistNext = async (deviceId: string) => { try { await deviceService.playlistNext(deviceId, true); } catch (err) { console.error('Failed to skip to next:', err); } };
+  const handlePlaylistPrevious = async (deviceId: string) => { try { await deviceService.playlistPrevious(deviceId, true); } catch (err) { console.error('Failed to go to previous:', err); } };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-8">
@@ -218,6 +226,17 @@ export const DevicesPage = () => {
                       </div>
                     );
                   })()}
+                  {/* Playback Controls */}
+                  <div className="mt-2">
+                    <PlaybackControls
+                      deviceId={device.deviceId}
+                      playbackState={devicePlaybackState.get(device.deviceId)}
+                      onPause={handlePlaylistPause}
+                      onResume={handlePlaylistResume}
+                      onNext={handlePlaylistNext}
+                      onPrevious={handlePlaylistPrevious}
+                    />
+                  </div>
                   {device.description && (<p className="text-gray-600 dark:text-gray-400 text-sm mb-2">{device.description}</p>)}
                   {device.location && (<p className="text-gray-600 dark:text-gray-400 text-sm"><span className="font-medium">Location:</span> {device.location}</p>)}
                 </div>

@@ -12,6 +12,7 @@ public partial class PdsDbContext : DbContext
     public DbSet<PlaylistItem> PlaylistItems => Set<PlaylistItem>();
     public DbSet<DevicePlaylist> DevicePlaylists => Set<DevicePlaylist>();
     public DbSet<Screenshot> Screenshots => Set<Screenshot>();
+    public DbSet<DeviceBroadcastState> DeviceBroadcastStates => Set<DeviceBroadcastState>();
 }
 
 public class Device
@@ -91,4 +92,15 @@ public class Screenshot
     public string ImageBase64 { get; set; } = string.Empty;
     public string? CurrentUrl { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class DeviceBroadcastState
+{
+    public int Id { get; set; }
+    public int DeviceId { get; set; }
+    public Device? Device { get; set; }
+    public int? OriginalPlaylistId { get; set; }
+    public Playlist? OriginalPlaylist { get; set; }
+    public string BroadcastUrl { get; set; } = string.Empty;
+    public DateTime StartedAt { get; set; } = DateTime.UtcNow;
 }

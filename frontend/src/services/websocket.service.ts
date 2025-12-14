@@ -5,6 +5,7 @@ import type {
   AdminDeviceHealthPayload,
   AdminScreenshotReceivedPayload,
   AdminErrorPayload,
+  PlaybackStateUpdatePayload,
 } from '@kiosk/shared';
 
 // Import enum values as constants
@@ -32,6 +33,7 @@ class WebSocketService {
   private screenshotReceivedCallbacks: Array<(payload: AdminScreenshotReceivedPayload) => void> = [];
   private errorCallbacks: Array<(payload: AdminErrorPayload) => void> = [];
   private screencastFrameCallbacks: Array<(payload: any) => void> = [];
+  private playbackStateCallbacks: Array<(payload: { deviceId: string; state: PlaybackStateUpdatePayload; timestamp: Date }) => void> = [];
 
   connect(_token: string) {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
@@ -97,6 +99,9 @@ class WebSocketService {
             break;
           case 'admin:screencast:frame':
             this.screencastFrameCallbacks.forEach((cb) => cb(payload));
+            break;
+          case 'admin:playback:state':
+            this.playbackStateCallbacks.forEach((cb) => cb(payload));
             break;
         }
       } catch (e) {
@@ -183,6 +188,14 @@ class WebSocketService {
     this.screencastFrameCallbacks = this.screencastFrameCallbacks.filter((cb) => cb !== callback);
   }
 
+  onPlaybackStateChanged(callback: (payload: { deviceId: string; state: PlaybackStateUpdatePayload; timestamp: Date }) => void) {
+    this.playbackStateCallbacks.push(callback);
+  }
+
+  offPlaybackStateChanged(callback: (payload: { deviceId: string; state: PlaybackStateUpdatePayload; timestamp: Date }) => void) {
+    this.playbackStateCallbacks = this.playbackStateCallbacks.filter((cb) => cb !== callback);
+  }
+
   // Remove all listeners
   removeAllListeners() {
     this.devicesSyncCallbacks = [];
@@ -193,6 +206,7 @@ class WebSocketService {
     this.screenshotReceivedCallbacks = [];
     this.errorCallbacks = [];
     this.screencastFrameCallbacks = [];
+    this.playbackStateCallbacks = [];
   }
 }
 

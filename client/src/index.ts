@@ -58,6 +58,37 @@ class KioskClient {
       playlistExecutor.start();
     });
 
+    // Playlist control handlers
+    websocketClient.onPlaylistPause(() => {
+      logger.info('Playlist pause requested');
+      playlistExecutor.pause();
+    });
+
+    websocketClient.onPlaylistResume(() => {
+      logger.info('Playlist resume requested');
+      playlistExecutor.resume();
+    });
+
+    websocketClient.onPlaylistNext((payload) => {
+      logger.info('Playlist next requested');
+      playlistExecutor.next(payload.respectConstraints !== false);
+    });
+
+    websocketClient.onPlaylistPrevious((payload) => {
+      logger.info('Playlist previous requested');
+      playlistExecutor.previous(payload.respectConstraints !== false);
+    });
+
+    websocketClient.onPlaylistBroadcastStart((payload) => {
+      logger.info(`Playlist broadcast start: ${payload.url} for ${payload.duration || 0}s`);
+      playlistExecutor.startBroadcast(payload.url, payload.duration || 0);
+    });
+
+    websocketClient.onPlaylistBroadcastEnd(() => {
+      logger.info('Playlist broadcast end requested');
+      playlistExecutor.endBroadcast();
+    });
+
     // Display navigate handler
     websocketClient.onDisplayNavigate((payload) => {
       logger.info(`Navigating to: ${payload.url}`);

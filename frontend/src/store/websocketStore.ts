@@ -5,6 +5,7 @@ import type {
   AdminDeviceDisconnectedPayload,
   AdminDeviceStatusPayload,
   AdminErrorPayload,
+  PlaybackStateUpdatePayload,
 } from '@kiosk/shared';
 
 interface Notification {
@@ -22,6 +23,7 @@ interface WebSocketState {
   deviceStatus: Map<string, string>;
   deviceErrors: Map<string, string>;
   navigationErrorNotified: Map<string, boolean>;
+  devicePlaybackState: Map<string, PlaybackStateUpdatePayload>;
 
   connect: (token: string) => void;
   disconnect: () => void;
@@ -37,6 +39,7 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
   deviceStatus: new Map(),
   deviceErrors: new Map(),
   navigationErrorNotified: new Map(),
+  devicePlaybackState: new Map(),
 
   connect: (token: string) => {
     websocketService.connect(token);
@@ -136,6 +139,17 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
       }
     });
 
+    // Playback state changed event
+    websocketService.onPlaybackStateChanged((payload) => {
+      console.log('Playback state changed:', payload.deviceId, payload.state);
+
+      set((state) => {
+        const newPlaybackState = new Map(state.devicePlaybackState);
+        newPlaybackState.set(payload.deviceId, payload.state);
+        return { devicePlaybackState: newPlaybackState };
+      });
+    });
+
     set({ isConnected: true });
   },
 
@@ -148,6 +162,7 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
       deviceStatus: new Map(),
       deviceErrors: new Map(),
       navigationErrorNotified: new Map(),
+      devicePlaybackState: new Map(),
     });
   },
 

@@ -68,4 +68,35 @@ export const deviceService = {
   async stopScreencast(deviceId: string): Promise<void> {
     await api.post(`/devices/${deviceId}/screencast/stop`);
   },
+
+  // Playlist control methods
+  async playlistPause(deviceId: string): Promise<void> {
+    await api.post(`/devices/${deviceId}/playlist/pause`);
+  },
+
+  async playlistResume(deviceId: string): Promise<void> {
+    await api.post(`/devices/${deviceId}/playlist/resume`);
+  },
+
+  async playlistNext(deviceId: string, respectConstraints: boolean = true): Promise<void> {
+    await api.post(`/devices/${deviceId}/playlist/next?respectConstraints=${respectConstraints}`);
+  },
+
+  async playlistPrevious(deviceId: string, respectConstraints: boolean = true): Promise<void> {
+    await api.post(`/devices/${deviceId}/playlist/previous?respectConstraints=${respectConstraints}`);
+  },
+
+  // Broadcast methods
+  async broadcastStart(deviceIds: string[], url: string, duration?: number): Promise<void> {
+    await api.post('/broadcast/start', { deviceIds, url, duration });
+  },
+
+  async broadcastEnd(): Promise<void> {
+    await api.post('/broadcast/end');
+  },
+
+  async getBroadcastStatus(): Promise<{ broadcasts: any[]; count: number }> {
+    const response = await api.get('/broadcast/status');
+    return response.data;
+  },
 };

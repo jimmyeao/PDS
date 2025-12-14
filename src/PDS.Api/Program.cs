@@ -127,6 +127,17 @@ using (var scope = app.Services.CreateScope())
         db.Database.ExecuteSqlRaw("ALTER TABLE \"Devices\" ADD COLUMN IF NOT EXISTS \"DisplayWidth\" int;");
         db.Database.ExecuteSqlRaw("ALTER TABLE \"Devices\" ADD COLUMN IF NOT EXISTS \"DisplayHeight\" int;");
         db.Database.ExecuteSqlRaw("ALTER TABLE \"Devices\" ADD COLUMN IF NOT EXISTS \"KioskMode\" boolean;");
+
+        // Create DeviceBroadcastStates table for broadcast tracking
+        db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS ""DeviceBroadcastStates"" (
+                ""Id"" SERIAL PRIMARY KEY,
+                ""DeviceId"" int NOT NULL,
+                ""OriginalPlaylistId"" int,
+                ""BroadcastUrl"" text NOT NULL,
+                ""StartedAt"" timestamp NOT NULL
+            );
+        ");
     }
     catch (Exception ex)
     {
@@ -239,6 +250,109 @@ app.MapPost("/devices/{deviceId}/screencast/stop", async (string deviceId) =>
 {
     await RealtimeHub.SendToDevice(deviceId, "screencast:stop", new { });
     return Results.Ok(new { message = "Screencast stop command sent", deviceId });
+}).RequireAuthorization();
+
+// Playlist control endpoints
+app.MapPost("/devices/{deviceId}/playlist/pause", async (string deviceId) =>
+{
+    await RealtimeHub.SendToDevice(deviceId, "playlist:pause", new { });
+    return Results.Ok(new { message = "Playlist pause command sent", deviceId });
+}).RequireAuthorization();
+
+app.MapPost("/devices/{deviceId}/playlist/resume", async (string deviceId) =>
+{
+    await RealtimeHub.SendToDevice(deviceId, "playlist:resume", new { });
+    return Results.Ok(new { message = "Playlist resume command sent", deviceId });
+}).RequireAuthorization();
+
+app.MapPost("/devices/{deviceId}/playlist/next", async (string deviceId, bool? respectConstraints) =>
+{
+    await RealtimeHub.SendToDevice(deviceId, "playlist:next", new { respectConstraints = respectConstraints ?? true });
+    return Results.Ok(new { message = "Playlist next command sent", deviceId });
+}).RequireAuthorization();
+
+app.MapPost("/devices/{deviceId}/playlist/previous", async (string deviceId, bool? respectConstraints) =>
+{
+    await RealtimeHub.SendToDevice(deviceId, "playlist:previous", new { respectConstraints = respectConstraints ?? true });
+    return Results.Ok(new { message = "Playlist previous command sent", deviceId });
+}).RequireAuthorization();
+
+// Broadcast endpoints
+app.MapPost("/broadcast/start", async ([FromBody] BroadcastStartRequest req, PdsDbContext db) =>
+{
+    var duration = req.Duration ?? 0;
+
+    // Save broadcast state for each device
+    foreach (var deviceId in req.DeviceIds)
+    {
+        var device = await db.Devices.FirstOrDefaultAsync(d => d.DeviceId == deviceId);
+        if (device == null) continue;
+
+        // Get current playlist assignment (if any)
+        var currentPlaylist = await db.DevicePlaylists
+            .Where(dp => dp.DeviceId == device.Id)
+            .OrderByDescending(dp => dp.Id)
+            .Select(dp => dp.PlaylistId)
+            .FirstOrDefaultAsync();
+
+        // Save broadcast state
+        var broadcastState = new DeviceBroadcastState
+        {
+            DeviceId = device.Id,
+            OriginalPlaylistId = currentPlaylist > 0 ? currentPlaylist : null,
+            BroadcastUrl = req.Url,
+            StartedAt = DateTime.UtcNow
+        };
+        db.DeviceBroadcastStates.Add(broadcastState);
+
+        // Send broadcast start command to device
+        await RealtimeHub.SendToDevice(deviceId, "playlist:broadcast:start", new { url = req.Url, duration });
+    }
+
+    await db.SaveChangesAsync();
+    return Results.Ok(new { message = "Broadcast started", deviceCount = req.DeviceIds.Length, url = req.Url, duration });
+}).RequireAuthorization();
+
+app.MapPost("/broadcast/end", async (PdsDbContext db) =>
+{
+    // Get all active broadcasts
+    var activeStates = await db.DeviceBroadcastStates.Include(bs => bs.Device).ToListAsync();
+
+    if (!activeStates.Any())
+    {
+        return Results.Ok(new { message = "No active broadcasts", deviceCount = 0 });
+    }
+
+    // Send end command to all broadcasting devices
+    foreach (var state in activeStates)
+    {
+        if (state.Device?.DeviceId != null)
+        {
+            await RealtimeHub.SendToDevice(state.Device.DeviceId, "playlist:broadcast:end", new { });
+        }
+    }
+
+    // Remove broadcast states
+    db.DeviceBroadcastStates.RemoveRange(activeStates);
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new { message = "Broadcast ended", deviceCount = activeStates.Count });
+}).RequireAuthorization();
+
+app.MapGet("/broadcast/status", async (PdsDbContext db) =>
+{
+    var activeStates = await db.DeviceBroadcastStates
+        .Include(bs => bs.Device)
+        .Select(bs => new
+        {
+            deviceId = bs.Device!.DeviceId,
+            deviceName = bs.Device.Name,
+            broadcastUrl = bs.BroadcastUrl,
+            startedAt = bs.StartedAt
+        })
+        .ToListAsync();
+
+    return Results.Ok(new { broadcasts = activeStates, count = activeStates.Count });
 }).RequireAuthorization();
 
 // Content endpoints
@@ -403,6 +517,8 @@ public record RemoteClickRequest(int X, int Y, string? Button);
 public record RemoteTypeRequest(string Text, string? Selector);
 public record RemoteKeyRequest(string Key, string[]? Modifiers);
 public record RemoteScrollRequest(int? X, int? Y, int? DeltaX, int? DeltaY);
+
+public record BroadcastStartRequest(string[] DeviceIds, string Url, int? Duration);
 
 public interface IAuthService
 {
@@ -1185,6 +1301,9 @@ public static class RealtimeHub
                             BroadcastAdmins("admin:error", new { deviceId, error = "screenshot_save_failed", detail = ex.Message, timestamp = DateTime.UtcNow });
                         }
                     }
+                    break;
+                case "playback:state:update":
+                    BroadcastAdmins("admin:playback:state", new { deviceId, state = payload, timestamp = DateTime.UtcNow });
                     break;
                 case "screencast:frame":
                     // Forward live screencast frames to admin clients in real-time
