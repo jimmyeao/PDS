@@ -518,6 +518,10 @@
     public hasPlaylist(): boolean {
       return this.playlistItems.length > 0;
     }
+    // Re-emit current playback state (useful after page refresh/navigation)
+    public refreshState(): void {
+      this.emitStateUpdate();
+    }
   }
 
   export const playlistExecutor = new PlaylistExecutor();

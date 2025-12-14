@@ -146,11 +146,11 @@ export const DevicesPage = () => {
       ) : devices.length === 0 ? (
         <div className="card text-center py-12"><p className="text-gray-600 dark:text-gray-400 mb-4">No devices registered yet.</p><button onClick={() => setShowModal(true)} className="btn-primary">Add Your First Device</button></div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
           {devices.map((device) => (
             <div key={device.id} className="card overflow-hidden" style={{ perspective: '1000px' }}>
               <div className="relative" style={{ transformStyle: 'preserve-3d', transition: 'transform 600ms', transform: showControls[device.deviceId] ? 'rotateY(180deg)' : 'rotateY(0deg)', height: cardHeights[device.deviceId] ? `${cardHeights[device.deviceId]}px` : 'auto' }}>
-                <div id={`card-front-${device.id}`} className="absolute inset-0 p-4" style={{ backfaceVisibility: 'hidden' }}>
+                <div id={`card-front-${device.id}`} className="absolute inset-0 p-2.5" style={{ backfaceVisibility: 'hidden' }}>
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
@@ -177,12 +177,11 @@ export const DevicesPage = () => {
                     </div>
                   </div>
                   {latestThumbs[device.deviceId] ? (
-                    <div>
+                    <div className="w-full bg-black rounded overflow-hidden cursor-pointer" style={{ aspectRatio: '16/9' }} onClick={() => toggleControls(device.deviceId)}>
                       <img
                         src={latestThumbs[device.deviceId]}
                         alt="Latest screenshot"
-                        className="w-full max-h-40 object-cover rounded cursor-pointer"
-                        onClick={() => toggleControls(device.deviceId)}
+                        className="w-full h-full object-contain"
                         onLoad={() => {
                           // Re-measure after image load to fix initial short height
                           setTimeout(() => {
@@ -197,18 +196,18 @@ export const DevicesPage = () => {
                           }, 0);
                         }}
                       />
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Click to flip and reveal controls</p>
                     </div>
                   ) : (
                     <div
-                      className="w-full h-40 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center cursor-pointer"
+                      className="w-full bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center cursor-pointer"
+                      style={{ aspectRatio: '16/9' }}
                       onClick={() => toggleControls(device.deviceId)}
                     >
-                      <div className="text-center">
-                        <svg className="w-8 h-8 text-gray-400 dark:text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="text-center p-3">
+                        <svg className="w-6 h-6 text-gray-400 dark:text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7a2 2 0 012-2h3l2-2h4l2 2h3a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
                         </svg>
-                        <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">No screenshot yet — click to open controls</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">No screenshot</p>
                       </div>
                     </div>
                   )}
@@ -239,7 +238,7 @@ export const DevicesPage = () => {
                   {device.description && (<p className="text-gray-600 dark:text-gray-400 text-sm mb-2">{device.description}</p>)}
                   {device.location && (<p className="text-gray-600 dark:text-gray-400 text-sm"><span className="font-medium">Location:</span> {device.location}</p>)}
                 </div>
-                <div id={`card-back-${device.id}`} className="absolute inset-0 p-4" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
+                <div id={`card-back-${device.id}`} className="absolute inset-0 p-2.5" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
                   <div className="flex items-start justify-between mb-2"><div className="sr-only">Controls</div><button className="text-sm text-gray-600 dark:text-gray-300 hover:underline" onClick={() => toggleControls(device.deviceId)}>Back</button></div>
                   <div className="flex flex-col gap-3 mt-2">
                     <button onClick={() => handleOpenPlaylistModal(device.id)} className="btn-secondary text-sm">Assign Playlist</button>

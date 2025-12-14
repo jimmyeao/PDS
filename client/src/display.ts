@@ -3,6 +3,7 @@ import { configManager } from './config';
 import { logger } from './logger';
 import { screenshotManager } from './screenshot';
 import { websocketClient } from './websocket';
+import { playlistExecutor } from './playlist-executor';
 
 class DisplayController {
   private browser: Browser | null = null;
@@ -380,6 +381,9 @@ class DisplayController {
 
             // Don't restart! Let screencast continue through navigation.
             // The watchdog will restart if it actually stalls for >15s
+
+            // Re-emit playback state so admin UI stays in sync after page refresh
+            playlistExecutor.refreshState();
           } catch (navErr: any) {
             logger.warn(`Navigation error: ${navErr?.message || navErr}`);
           }
