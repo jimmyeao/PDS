@@ -21,6 +21,21 @@ export const LiveRemoteControl = ({ deviceId, deviceName, onClose }: LiveRemoteC
   const lastFrameAtRef = useRef<number>(0);
   const lastResizeRef = useRef<{w:number;h:number}>({ w: 1280, h: 720 });
 
+  // Start/stop screencast when component mounts/unmounts
+  useEffect(() => {
+    // Start screencast when admin opens live remote
+    deviceService.startScreencast(deviceId).catch(err => {
+      console.error('Failed to start screencast:', err);
+    });
+
+    return () => {
+      // Stop screencast when admin closes live remote
+      deviceService.stopScreencast(deviceId).catch(err => {
+        console.error('Failed to stop screencast:', err);
+      });
+    };
+  }, [deviceId]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -152,22 +167,6 @@ export const LiveRemoteControl = ({ deviceId, deviceName, onClose }: LiveRemoteC
       await deviceService.remoteClick(deviceId, x, y);
     } catch (error) {
       console.error('Error: Failed to send click', error);
-    }
-  };
-
-  const handleKeyPress = async (key: string, modifiers?: string[]) => {
-    try {
-      await deviceService.remoteKey(deviceId, key, modifiers);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleScroll = async (deltaY: number) => {
-    try {
-      await deviceService.remoteScroll(deviceId, undefined, undefined, undefined, deltaY);
-    } catch (error) {
-      console.error(error);
     }
   };
 

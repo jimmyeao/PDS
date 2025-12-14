@@ -126,6 +126,17 @@ class KioskClient {
       logger.info('Remote scroll requested');
       displayController.remoteScroll(payload.x, payload.y, payload.deltaX, payload.deltaY);
     });
+
+    // Screencast control handlers
+    websocketClient.onScreencastStart(() => {
+      logger.info('Admin requested screencast start');
+      displayController.startScreencast();
+    });
+
+    websocketClient.onScreencastStop(() => {
+      logger.info('Admin requested screencast stop');
+      displayController.stopScreencast();
+    });
   }
 
   private setupSignalHandlers(): void {

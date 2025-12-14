@@ -59,4 +59,13 @@ export const deviceService = {
   async remoteScroll(deviceId: string, x?: number, y?: number, deltaX?: number, deltaY?: number): Promise<void> {
     await api.post(`/devices/${deviceId}/remote/scroll`, { x, y, deltaX, deltaY });
   },
+
+  // Screencast control methods
+  async startScreencast(deviceId: string): Promise<void> {
+    await api.post(`/devices/${deviceId}/screencast/start`);
+  },
+
+  async stopScreencast(deviceId: string): Promise<void> {
+    await api.post(`/devices/${deviceId}/screencast/stop`);
+  },
 };

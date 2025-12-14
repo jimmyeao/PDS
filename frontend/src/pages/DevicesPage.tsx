@@ -11,7 +11,7 @@ import type { Playlist } from '@kiosk/shared';
 
 export const DevicesPage = () => {
   const { devices, fetchDevices, createDevice, updateDevice, deleteDevice, isLoading } = useDeviceStore();
-  const { getDeviceToken, rotateDeviceToken } = useDeviceStore();
+  const { getDeviceToken } = useDeviceStore();
   const { connectedDevices, deviceStatus, deviceErrors } = useWebSocketStore();
   const { playlists, fetchPlaylists, assignPlaylistToDevice, unassignPlaylistFromDevice } = usePlaylistStore();
   const [showModal, setShowModal] = useState(false);
@@ -117,7 +117,6 @@ export const DevicesPage = () => {
   const handleCopyToken = async () => { try { await navigator.clipboard.writeText(deviceToken); setCopiedToken(true); setTimeout(() => setCopiedToken(false), 2000); } catch {} };
   const handleDelete = async (id: number) => { if (confirm('Are you sure you want to delete this device?')) await deleteDevice(id); };
   const handleShowToken = async (id: number) => { try { const token = await getDeviceToken(id); setDeviceToken(token); setCopiedToken(false); setShowTokenModal(true); } catch {} };
-  const handleRotateToken = async (id: number) => { if (!confirm('Rotate this device token? The old token will stop working.')) return; try { const token = await rotateDeviceToken(id); setDeviceToken(token); setCopiedToken(false); setShowTokenModal(true); } catch {} };
   const handleOpenPlaylistModal = (deviceId: number) => { setSelectedDeviceForPlaylist(deviceId); setShowPlaylistModal(true); };
   const handleAssignPlaylist = async (playlistId: number) => { if (!selectedDeviceForPlaylist) return; try { await assignPlaylistToDevice(selectedDeviceForPlaylist, playlistId); const pls = await playlistService.getDevicePlaylists(selectedDeviceForPlaylist); setDevicePlaylists(prev => new Map(prev).set(selectedDeviceForPlaylist, pls)); setShowPlaylistModal(false); } catch {} };
   const handleUnassignPlaylist = async (deviceId: number, playlistId: number) => { if (confirm('Are you sure you want to unassign this playlist?')) { try { await unassignPlaylistFromDevice(deviceId, playlistId); const pls = await playlistService.getDevicePlaylists(deviceId); setDevicePlaylists(prev => new Map(prev).set(deviceId, pls)); } catch {} } };

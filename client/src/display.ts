@@ -188,8 +188,9 @@ class DisplayController {
       // Setup page error handlers
       this.setupErrorHandlers();
 
-      // Start live screencast streaming by default
-      await this.startScreencast();
+      // Don't start screencast automatically - wait for admin to request it
+      // This prevents sending frames when no one is watching (causes backpressure and stalls)
+      logger.info('Display ready - screencast will start when admin connects');
 
       this.isInitialized = true;
       logger.info('✅ Display controller initialized');
@@ -265,20 +266,25 @@ class DisplayController {
       }
 
       // Start screencast with optimized settings
-      // everyNthFrame: 3 reduces CPU load on Raspberry Pi (captures every 3rd frame instead of every 2nd)
+      // everyNthFrame: 5 gives ~12fps, reducing network bandwidth pressure
       await client.send('Page.startScreencast', {
         format: 'jpeg',
-        quality: 80,
+        quality: 70, // Reduced from 80 to lower frame size
         maxWidth: config.displayWidth,
         maxHeight: config.displayHeight,
-        everyNthFrame: 3, // Reduced from 2 to lower CPU pressure
+        everyNthFrame: 5, // Reduced from 3 to prevent WebSocket backpressure
       });
 
       let firstFrameReceived = false;
 
+      // Track frame count for debugging
+      let frameCount = 0;
+
       // Listen for screencast frames
       client.on('Page.screencastFrame', async (frame: any) => {
         try {
+          frameCount++;
+
           if (!firstFrameReceived) {
             firstFrameReceived = true;
             logger.info('✅ First screencast frame received - streaming active');
@@ -288,6 +294,12 @@ class DisplayController {
               this.firstFrameTimeoutId = null;
             }
           }
+
+          // Log every 50th frame to track activity
+          if (frameCount % 50 === 0) {
+            logger.info(`Screencast streaming: ${frameCount} frames sent`);
+          }
+
           this.lastScreencastFrameAt = Date.now();
 
           // Send frame to server via WebSocket
@@ -302,11 +314,17 @@ class DisplayController {
           });
 
           // Acknowledge frame to continue receiving
-          await client.send('Page.screencastFrameAck', {
-            sessionId: frame.sessionId,
-          });
+          try {
+            await client.send('Page.screencastFrameAck', {
+              sessionId: frame.sessionId,
+            });
+          } catch (ackError: any) {
+            logger.error('Frame acknowledgment failed:', ackError.message);
+            // Don't throw - try to continue
+          }
         } catch (error: any) {
-          logger.error('Error handling screencast frame:', error.message);
+          logger.error('Error handling screencast frame:', error.message, error.stack);
+          // Don't re-throw to prevent breaking the event listener
         }
       });
 

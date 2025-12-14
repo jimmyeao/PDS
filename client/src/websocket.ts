@@ -57,6 +57,8 @@ export type RemoteKeyCallback = (payload: RemoteKeyPayload) => void;
 export type RemoteScrollCallback = (payload: RemoteScrollPayload) => void;
 export type StreamStartCallback = (payload: any) => void;
 export type StreamStopCallback = (payload: any) => void;
+export type ScreencastStartCallback = () => void;
+export type ScreencastStopCallback = () => void;
 
 class WebSocketClient {
   private socket: WebSocket | null = null;
@@ -77,6 +79,8 @@ class WebSocketClient {
   private remoteScrollCallback?: RemoteScrollCallback;
   private streamStartCallback?: StreamStartCallback;
   private streamStopCallback?: StreamStopCallback;
+  private screencastStartCallback?: ScreencastStartCallback;
+  private screencastStopCallback?: ScreencastStopCallback;
 
   constructor() {}
 
@@ -160,6 +164,12 @@ class WebSocketClient {
             break;
           case ServerToClientEventValues.STREAM_STOP:
             this.streamStopCallback?.(payload);
+            break;
+          case 'screencast:start':
+            this.screencastStartCallback?.();
+            break;
+          case 'screencast:stop':
+            this.screencastStopCallback?.();
             break;
         }
       } catch (err: any) {
@@ -299,6 +309,14 @@ class WebSocketClient {
 
   public onStreamStop(callback: StreamStopCallback): void {
     this.streamStopCallback = callback;
+  }
+
+  public onScreencastStart(callback: ScreencastStartCallback): void {
+    this.screencastStartCallback = callback;
+  }
+
+  public onScreencastStop(callback: ScreencastStopCallback): void {
+    this.screencastStopCallback = callback;
   }
 }
 

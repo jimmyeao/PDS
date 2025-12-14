@@ -223,6 +223,19 @@ app.MapPost("/devices/{deviceId}/remote/scroll", async (string deviceId, [FromBo
     return Results.Ok(new { message = "Scroll command sent", deviceId });
 }).RequireAuthorization();
 
+// Screencast control endpoints
+app.MapPost("/devices/{deviceId}/screencast/start", async (string deviceId) =>
+{
+    await RealtimeHub.SendToDevice(deviceId, "screencast:start", new { });
+    return Results.Ok(new { message = "Screencast start command sent", deviceId });
+}).RequireAuthorization();
+
+app.MapPost("/devices/{deviceId}/screencast/stop", async (string deviceId) =>
+{
+    await RealtimeHub.SendToDevice(deviceId, "screencast:stop", new { });
+    return Results.Ok(new { message = "Screencast stop command sent", deviceId });
+}).RequireAuthorization();
+
 // Content endpoints
 app.MapPost("/content", async ([FromBody] CreateContentDto dto, IPlaylistService svc) => await svc.CreateContentAsync(dto))
     .RequireAuthorization();
