@@ -10,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using OtpNet;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -150,6 +151,10 @@ using (var scope = app.Services.CreateScope())
                 VALUES ('admin', '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918');");
         }
 
+        // Add MFA columns to Users table
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"MfaSecret\" text;");
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"IsMfaEnabled\" boolean DEFAULT false;");
+
         // Create DeviceBroadcastStates table for broadcast tracking
         db.Database.ExecuteSqlRaw(@"
             CREATE TABLE IF NOT EXISTS ""DeviceBroadcastStates"" (
@@ -230,7 +235,58 @@ app.MapPost("/auth/change-password", async ([FromBody] ChangePasswordDto dto, IA
     }
 }).RequireAuthorization();
 
-app.MapGet("/auth/me", (ClaimsPrincipal user) => new UserDto(1, user.Identity?.Name ?? "user"))
+app.MapPost("/auth/mfa/setup", async (IAuthService auth, ClaimsPrincipal user, ILogger<Program> log) =>
+{
+    try
+    {
+        var username = user.Identity?.Name;
+        if (string.IsNullOrEmpty(username)) return Results.Unauthorized();
+
+        var res = await auth.SetupMfaAsync(username);
+        return Results.Ok(res);
+    }
+    catch (Exception ex)
+    {
+        log.LogError(ex, "MFA setup failed");
+        return Results.Problem(title: "MFA setup failed", detail: ex.Message, statusCode: 500);
+    }
+}).RequireAuthorization();
+
+app.MapPost("/auth/mfa/enable", async ([FromBody] string code, IAuthService auth, ClaimsPrincipal user, ILogger<Program> log) =>
+{
+    try
+    {
+        var username = user.Identity?.Name;
+        if (string.IsNullOrEmpty(username)) return Results.Unauthorized();
+
+        await auth.EnableMfaAsync(username, code);
+        return Results.Ok();
+    }
+    catch (Exception ex)
+    {
+        log.LogError(ex, "MFA enable failed");
+        return Results.Problem(title: "MFA enable failed", detail: ex.Message, statusCode: 500);
+    }
+}).RequireAuthorization();
+
+app.MapPost("/auth/mfa/disable", async (IAuthService auth, ClaimsPrincipal user, ILogger<Program> log) =>
+{
+    try
+    {
+        var username = user.Identity?.Name;
+        if (string.IsNullOrEmpty(username)) return Results.Unauthorized();
+
+        await auth.DisableMfaAsync(username);
+        return Results.Ok();
+    }
+    catch (Exception ex)
+    {
+        log.LogError(ex, "MFA disable failed");
+        return Results.Problem(title: "MFA disable failed", detail: ex.Message, statusCode: 500);
+    }
+}).RequireAuthorization();
+
+app.MapGet("/auth/me", async (ClaimsPrincipal user, IAuthService auth) => await auth.MeAsync(user))
     .RequireAuthorization();
 
 // Devices endpoints
@@ -512,10 +568,11 @@ app.Run();
 // --- Minimal stub types & services ---
 public record AuthResponse(string AccessToken, string RefreshToken);
 public record RegisterDto(string Username, string Password);
-public record LoginDto(string Username, string Password);
+public record LoginDto(string Username, string Password, string? MfaCode);
 public record RefreshDto(string RefreshToken);
 public record ChangePasswordDto(string CurrentPassword, string NewPassword);
-public record UserDto(int Id, string Username);
+public record MfaSetupResponse(string Secret, string QrCodeUri);
+public record UserDto(int Id, string Username, bool IsMfaEnabled);
 
 public record CreateDeviceDto(string DeviceId, string Name, string? Description, string? Location);
 public record UpdateDeviceDto(string? Name, string? Description, string? Location, int? DisplayWidth, int? DisplayHeight, bool? KioskMode);
@@ -567,7 +624,10 @@ public interface IAuthService
     Task<AuthResponse> LoginAsync(LoginDto dto);
     Task<AuthResponse> RefreshAsync(RefreshDto dto);
     Task ChangePasswordAsync(string username, string currentPassword, string newPassword);
-    UserDto Me(ClaimsPrincipal user);
+    Task<MfaSetupResponse> SetupMfaAsync(string username);
+    Task EnableMfaAsync(string username, string code);
+    Task DisableMfaAsync(string username);
+    Task<UserDto> MeAsync(ClaimsPrincipal user);
 }
 
 public interface IDeviceService
@@ -632,25 +692,26 @@ public class AuthService : IAuthService
     public async Task<AuthResponse> LoginAsync(LoginDto dto)
     {
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == dto.Username);
-        if (user == null) 
-        {
-            Console.WriteLine($"[Auth] User '{dto.Username}' not found in database.");
-            throw new Exception("Invalid credentials");
-        }
+        if (user == null) throw new Exception("Invalid credentials");
 
         using var sha256 = System.Security.Cryptography.SHA256.Create();
         var bytes = System.Text.Encoding.UTF8.GetBytes(dto.Password);
         var hash = BitConverter.ToString(sha256.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
 
-        Console.WriteLine($"[Auth] Login attempt for '{dto.Username}'");
-        Console.WriteLine($"[Auth] Input Password: '{dto.Password}'");
-        Console.WriteLine($"[Auth] Computed Hash:  '{hash}'");
-        Console.WriteLine($"[Auth] Stored Hash:    '{user.PasswordHash}'");
+        if (user.PasswordHash != hash) throw new Exception("Invalid credentials");
 
-        if (user.PasswordHash != hash) 
+        if (user.IsMfaEnabled)
         {
-            Console.WriteLine($"[Auth] Hash mismatch!");
-            throw new Exception("Invalid credentials");
+            if (string.IsNullOrEmpty(dto.MfaCode))
+            {
+                throw new Exception("MFA_REQUIRED");
+            }
+
+            var totp = new Totp(Base32Encoding.ToBytes(user.MfaSecret));
+            if (!totp.VerifyTotp(dto.MfaCode, out _, VerificationWindow.RfcSpecifiedNetworkDelay))
+            {
+                throw new Exception("Invalid MFA code");
+            }
         }
 
         return GenerateTokens(user.Username);
@@ -678,6 +739,56 @@ public class AuthService : IAuthService
 
         user.PasswordHash = newHash;
         await _db.SaveChangesAsync();
+    }
+
+    public async Task<MfaSetupResponse> SetupMfaAsync(string username)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == username);
+        if (user == null) throw new Exception("User not found");
+
+        var key = KeyGeneration.GenerateRandomKey(20);
+        var secret = Base32Encoding.ToString(key);
+        
+        user.MfaSecret = secret;
+        await _db.SaveChangesAsync();
+
+        var qrCodeUri = $"otpauth://totp/PDS:{username}?secret={secret}&issuer=PDS";
+        return new MfaSetupResponse(secret, qrCodeUri);
+    }
+
+    public async Task EnableMfaAsync(string username, string code)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == username);
+        if (user == null) throw new Exception("User not found");
+        if (string.IsNullOrEmpty(user.MfaSecret)) throw new Exception("MFA setup not initiated");
+
+        var totp = new Totp(Base32Encoding.ToBytes(user.MfaSecret));
+        if (!totp.VerifyTotp(code, out _, VerificationWindow.RfcSpecifiedNetworkDelay))
+        {
+            throw new Exception("Invalid MFA code");
+        }
+
+        user.IsMfaEnabled = true;
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task DisableMfaAsync(string username)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == username);
+        if (user == null) throw new Exception("User not found");
+
+        user.IsMfaEnabled = false;
+        user.MfaSecret = null;
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task<UserDto> MeAsync(ClaimsPrincipal principal)
+    {
+        var username = principal.Identity?.Name;
+        if (username == null) return new UserDto(0, "guest", false);
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == username);
+        if (user == null) return new UserDto(0, "guest", false);
+        return new UserDto(user.Id, user.Username, user.IsMfaEnabled);
     }
 
     public UserDto Me(ClaimsPrincipal user)

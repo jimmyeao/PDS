@@ -1,5 +1,5 @@
 import api from './api';
-import type { AuthResponse, LoginDto, RegisterDto, User, ChangePasswordDto } from '@kiosk/shared';
+import type { AuthResponse, LoginDto, RegisterDto, User, ChangePasswordDto, MfaSetupResponse } from '@kiosk/shared';
 
 export const authService = {
   async login(credentials: LoginDto): Promise<AuthResponse> {
@@ -9,6 +9,21 @@ export const authService = {
 
   async changePassword(data: ChangePasswordDto): Promise<void> {
     await api.post('/auth/change-password', data);
+  },
+
+  async setupMfa(): Promise<MfaSetupResponse> {
+    const response = await api.post<MfaSetupResponse>('/auth/mfa/setup');
+    return response.data;
+  },
+
+  async enableMfa(code: string): Promise<void> {
+    await api.post('/auth/mfa/enable', JSON.stringify(code), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  },
+
+  async disableMfa(): Promise<void> {
+    await api.post('/auth/mfa/disable');
   },
 
   async register(data: RegisterDto): Promise<AuthResponse> {

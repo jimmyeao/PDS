@@ -2,6 +2,7 @@ export interface User {
   id: number;
   username: string;
   email?: string;
+  isMfaEnabled: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -9,6 +10,7 @@ export interface User {
 export interface LoginDto {
   username: string;
   password: string;
+  mfaCode?: string;
 }
 
 export interface RegisterDto {
@@ -20,6 +22,11 @@ export interface RegisterDto {
 export interface ChangePasswordDto {
   currentPassword: string;
   newPassword: string;
+}
+
+export interface MfaSetupResponse {
+  secret: string;
+  qrCodeUri: string;
 }
 
 export interface AuthResponse {
