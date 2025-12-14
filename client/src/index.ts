@@ -77,8 +77,11 @@ class KioskClient {
     });
 
     // Config update handler
-    websocketClient.onConfigUpdate((payload) => {
+    websocketClient.onConfigUpdate(async (payload) => {
       logger.info('Configuration update received', payload);
+
+      // Track if display config changed (requires restart)
+      let displayConfigChanged = false;
 
       // Update config with new values
       if (payload.screenshotInterval) {
@@ -91,6 +94,29 @@ class KioskClient {
         configManager.update({ healthCheckInterval: payload.healthCheckInterval });
         healthMonitor.stop();
         healthMonitor.start();
+      }
+
+      // Handle display configuration updates
+      if (payload.displayWidth !== undefined) {
+        configManager.update({ displayWidth: payload.displayWidth });
+        displayConfigChanged = true;
+      }
+
+      if (payload.displayHeight !== undefined) {
+        configManager.update({ displayHeight: payload.displayHeight });
+        displayConfigChanged = true;
+      }
+
+      if (payload.kioskMode !== undefined) {
+        configManager.update({ kioskMode: payload.kioskMode });
+        displayConfigChanged = true;
+      }
+
+      // Restart display if display config changed
+      if (displayConfigChanged) {
+        logger.info('Display configuration changed, restarting display...');
+        await displayController.restart();
+        logger.info('Display restarted with new configuration');
       }
     });
 

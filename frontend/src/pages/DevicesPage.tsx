@@ -17,8 +17,10 @@ export const DevicesPage = () => {
   const [showModal, setShowModal] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
+  const [showDisplayConfigModal, setShowDisplayConfigModal] = useState(false);
   const [editingDevice, setEditingDevice] = useState<number | null>(null);
   const [selectedDeviceForPlaylist, setSelectedDeviceForPlaylist] = useState<number | null>(null);
+  const [configuringDevice, setConfiguringDevice] = useState<any | null>(null);
   const [devicePlaylists, setDevicePlaylists] = useState<Map<number, Playlist[]>>(new Map());
   const [deviceToken, setDeviceToken] = useState('');
   const [copiedToken, setCopiedToken] = useState(false);
@@ -28,6 +30,7 @@ export const DevicesPage = () => {
   const [showControls, setShowControls] = useState<Record<string, boolean>>({});
   const [cardHeights, setCardHeights] = useState<Record<string, number>>({});
   const [formData, setFormData] = useState({ deviceId: '', name: '', description: '', location: '' });
+  const [displayConfigData, setDisplayConfigData] = useState({ displayWidth: 1920, displayHeight: 1080, kioskMode: true });
 
   const isDeviceOnline = (deviceId: string) => connectedDevices.has(deviceId);
 
@@ -120,6 +123,8 @@ export const DevicesPage = () => {
   const handleOpenPlaylistModal = (deviceId: number) => { setSelectedDeviceForPlaylist(deviceId); setShowPlaylistModal(true); };
   const handleAssignPlaylist = async (playlistId: number) => { if (!selectedDeviceForPlaylist) return; try { await assignPlaylistToDevice(selectedDeviceForPlaylist, playlistId); const pls = await playlistService.getDevicePlaylists(selectedDeviceForPlaylist); setDevicePlaylists(prev => new Map(prev).set(selectedDeviceForPlaylist, pls)); setShowPlaylistModal(false); } catch {} };
   const handleUnassignPlaylist = async (deviceId: number, playlistId: number) => { if (confirm('Are you sure you want to unassign this playlist?')) { try { await unassignPlaylistFromDevice(deviceId, playlistId); const pls = await playlistService.getDevicePlaylists(deviceId); setDevicePlaylists(prev => new Map(prev).set(deviceId, pls)); } catch {} } };
+  const handleOpenDisplayConfig = (device: any) => { setConfiguringDevice(device); setDisplayConfigData({ displayWidth: device.displayWidth || 1920, displayHeight: device.displayHeight || 1080, kioskMode: device.kioskMode !== undefined ? device.kioskMode : true }); setShowDisplayConfigModal(true); };
+  const handleSaveDisplayConfig = async () => { if (!configuringDevice) return; try { await updateDevice(configuringDevice.id, displayConfigData); setShowDisplayConfigModal(false); setConfiguringDevice(null); fetchDevices(); } catch {} };
 
   return (
     <div>
@@ -223,6 +228,7 @@ export const DevicesPage = () => {
                     <div className="flex flex-col gap-3 mt-2">
                       <button onClick={() => setScreenshotDeviceId(device.deviceId)} className="btn-primary text-sm flex-1 min-w-[140px]">Screenshot</button>
                       <button onClick={() => setRemoteControlDeviceId(device.deviceId)} className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm flex-1 min-w-[140px]" title="Remote Control">Remote</button>
+                      <button onClick={() => handleOpenDisplayConfig(device)} className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm flex-1 min-w-[140px]" title="Configure Display">Configure Display</button>
                       <button onClick={() => handleShowToken(device.id)} className="btn-secondary text-sm flex-1 min-w-[140px]">Get Token</button>
                       <button onClick={() => handleDelete(device.id)} className="btn-danger text-sm flex-1 min-w-[140px]">Delete</button>
                     </div>
@@ -420,6 +426,82 @@ export const DevicesPage = () => {
           deviceName={devices.find(d => d.deviceId === remoteControlDeviceId)?.name || remoteControlDeviceId}
           onClose={() => setRemoteControlDeviceId(null)}
         />
+      )}
+
+      {/* Display Configuration Modal */}
+      {showDisplayConfigModal && configuringDevice && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-md w-full shadow-xl">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+              Configure Display: {configuringDevice.name}
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Display Width (px)
+                </label>
+                <input
+                  type="number"
+                  value={displayConfigData.displayWidth}
+                  onChange={(e) => setDisplayConfigData({ ...displayConfigData, displayWidth: parseInt(e.target.value) || 1920 })}
+                  className="input w-full"
+                  placeholder="1920"
+                  min="640"
+                  max="7680"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Display Height (px)
+                </label>
+                <input
+                  type="number"
+                  value={displayConfigData.displayHeight}
+                  onChange={(e) => setDisplayConfigData({ ...displayConfigData, displayHeight: parseInt(e.target.value) || 1080 })}
+                  className="input w-full"
+                  placeholder="1080"
+                  min="480"
+                  max="4320"
+                />
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="kioskMode"
+                  checked={displayConfigData.kioskMode}
+                  onChange={(e) => setDisplayConfigData({ ...displayConfigData, kioskMode: e.target.checked })}
+                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                />
+                <label htmlFor="kioskMode" className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Kiosk Mode (fullscreen, no browser UI)
+                </label>
+              </div>
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mt-4">
+                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                  <strong>Note:</strong> Changing display settings will restart the browser on the client device.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDisplayConfigModal(false);
+                  setConfiguringDevice(null);
+                }}
+                className="btn-secondary flex-1"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveDisplayConfig}
+                className="btn-primary flex-1"
+              >
+                Save Configuration
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Playlist Assignment Modal */}

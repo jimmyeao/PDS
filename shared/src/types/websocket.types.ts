@@ -52,6 +52,9 @@ export interface ScreenshotRequestPayload {
 export interface ConfigUpdatePayload {
   screenshotInterval?: number;
   healthCheckInterval?: number;
+  displayWidth?: number;
+  displayHeight?: number;
+  kioskMode?: boolean;
   [key: string]: any;
 }
 

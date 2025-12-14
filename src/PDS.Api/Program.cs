@@ -358,7 +358,7 @@ public record RefreshDto(string RefreshToken);
 public record UserDto(int Id, string Username);
 
 public record CreateDeviceDto(string DeviceId, string Name, string? Description, string? Location);
-public record UpdateDeviceDto(string? Name, string? Description, string? Location);
+public record UpdateDeviceDto(string? Name, string? Description, string? Location, int? DisplayWidth, int? DisplayHeight, bool? KioskMode);
 public record DeviceLogDto(int Id, string Message, DateTime Timestamp);
 
 public record CreateContentDto(
@@ -558,14 +558,14 @@ public class DeviceService : IDeviceService
     public async Task<IEnumerable<object>> FindAllAsync()
     {
         return await _db.Devices.OrderBy(d => d.Id)
-            .Select(d => new { id = d.Id, deviceId = d.DeviceId, name = d.Name, createdAt = d.CreatedAt })
+            .Select(d => new { id = d.Id, deviceId = d.DeviceId, name = d.Name, createdAt = d.CreatedAt, displayWidth = d.DisplayWidth, displayHeight = d.DisplayHeight, kioskMode = d.KioskMode })
             .ToListAsync();
     }
 
     public async Task<object?> FindOneAsync(int id)
     {
         var d = await _db.Devices.FindAsync(id);
-        return d == null ? null : new { id = d.Id, deviceId = d.DeviceId, name = d.Name, createdAt = d.CreatedAt };
+        return d == null ? null : new { id = d.Id, deviceId = d.DeviceId, name = d.Name, createdAt = d.CreatedAt, displayWidth = d.DisplayWidth, displayHeight = d.DisplayHeight, kioskMode = d.KioskMode };
     }
 
     public async Task<IEnumerable<DeviceLogDto>> GetLogsAsync(int id, int limit)
@@ -611,8 +611,20 @@ public class DeviceService : IDeviceService
         var d = await _db.Devices.FindAsync(id);
         if (d == null) return new { error = "not_found" };
         if (!string.IsNullOrWhiteSpace(dto.Name)) d.Name = dto.Name!;
+        if (dto.DisplayWidth.HasValue) d.DisplayWidth = dto.DisplayWidth;
+        if (dto.DisplayHeight.HasValue) d.DisplayHeight = dto.DisplayHeight;
+        if (dto.KioskMode.HasValue) d.KioskMode = dto.KioskMode;
         await _db.SaveChangesAsync();
-        return new { id = d.Id, deviceId = d.DeviceId, name = d.Name };
+
+        // Send config update to device via WebSocket
+        await RealtimeHub.SendToDevice(d.DeviceId, "config:update", new
+        {
+            displayWidth = d.DisplayWidth,
+            displayHeight = d.DisplayHeight,
+            kioskMode = d.KioskMode
+        });
+
+        return new { id = d.Id, deviceId = d.DeviceId, name = d.Name, displayWidth = d.DisplayWidth, displayHeight = d.DisplayHeight, kioskMode = d.KioskMode };
     }
 
     public async Task RemoveAsync(int id)

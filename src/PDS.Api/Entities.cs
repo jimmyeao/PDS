@@ -21,6 +21,11 @@ public class Device
     public string Name { get; set; } = string.Empty;
     public string? Token { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Display Configuration (nullable - will use client .env defaults if not set)
+    public int? DisplayWidth { get; set; }
+    public int? DisplayHeight { get; set; }
+    public bool? KioskMode { get; set; }
 }
 
 public class DeviceLog
