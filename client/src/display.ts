@@ -199,14 +199,40 @@ class DisplayController {
 
       // Listen for new pages (popups) to handle authentication windows
       this.browser.on('targetcreated', async (target) => {
+        logger.info(`Target created: ${target.type()} - ${target.url()}`);
         if (target.type() === 'page') {
-          const newPage = await target.page();
-          if (newPage && newPage !== this.page) {
-            logger.info('New page detected (popup), switching control...');
-            await this.handlePageChange(newPage);
+          try {
+            const newPage = await target.page();
+            if (newPage && newPage !== this.page) {
+              logger.info('New page detected (popup), switching control...');
+              await this.handlePageChange(newPage);
+            }
+          } catch (e) {
+            logger.warn('Failed to get page from target:', e);
           }
         }
       });
+
+      // Poll for page changes (fallback for missed events)
+      setInterval(async () => {
+        if (!this.browser) return;
+        try {
+            const pages = await this.browser.pages();
+            // If we have multiple pages, assume the last one is the active popup
+            if (pages.length > 1) {
+                const lastPage = pages[pages.length - 1];
+                if (lastPage && lastPage !== this.page) {
+                    logger.info(`Found new active page via polling (total: ${pages.length}), switching...`);
+                    await this.handlePageChange(lastPage);
+                }
+            } else if (pages.length === 1 && pages[0] !== this.page) {
+                // Should rarely happen, but if we lost track
+                await this.handlePageChange(pages[0]);
+            }
+        } catch (e) {
+            // Ignore polling errors
+        }
+      }, 2000);
 
       this.browser.on('targetdestroyed', async (target) => {
         if (target.type() === 'page') {
