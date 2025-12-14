@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: pds-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Cc061mjw0!
+      POSTGRES_DB: pds
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  backend:
+    image: ghcr.io/jimmyeao/pds-backend:latest
+    container_name: pds-backend
+    environment:
+      - ConnectionStrings__Default=Host=postgres;Port=5432;Database=pds;Username=postgres;Password=Cc061mjw0!
+      - ASPNETCORE_ENVIRONMENT=Production
+    ports:
+      - "5001:8080"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/jimmyeao/pds-frontend:latest
+    container_name: pds-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
