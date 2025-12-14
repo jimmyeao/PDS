@@ -1095,10 +1095,36 @@ public static class RealtimeHub
                 case "device:register":
                     // When a device registers, confirm online status to admins
                     BroadcastAdmins("admin:device:status", new { deviceId, status = "online", timestamp = DateTime.UtcNow });
-                    // Also push current playlist content to the device
+
                     try
                     {
                         var db = ctx.RequestServices.GetRequiredService<PdsDbContext>();
+
+                        // FIRST: Send device's display configuration if set
+                        // This ensures display is configured before content starts playing
+                        var device = await db.Devices.FirstOrDefaultAsync(d => d.DeviceId == deviceId);
+                        if (device != null)
+                        {
+                            Serilog.Log.Information($"Device config from DB: Width={device.DisplayWidth}, Height={device.DisplayHeight}, Kiosk={device.KioskMode}");
+                            if (device.DisplayWidth.HasValue || device.DisplayHeight.HasValue || device.KioskMode.HasValue)
+                            {
+                                Serilog.Log.Information($"Sending config update to device {deviceId}");
+                                await Send(ws, "config:update", new
+                                {
+                                    displayWidth = device.DisplayWidth,
+                                    displayHeight = device.DisplayHeight,
+                                    kioskMode = device.KioskMode
+                                });
+                                // Wait for display to restart with new config (restart takes ~4s)
+                                await Task.Delay(6000);
+                            }
+                            else
+                            {
+                                Serilog.Log.Information($"Device {deviceId} has no custom display config set");
+                            }
+                        }
+
+                        // SECOND: Push playlist content after display is configured
                         var assigned = await db.DevicePlaylists.Where(x => x.DeviceId == db.Devices.Where(d => d.DeviceId == deviceId).Select(d => d.Id).FirstOrDefault())
                             .Select(x => x.PlaylistId)
                             .FirstOrDefaultAsync();
@@ -1116,27 +1142,6 @@ public static class RealtimeHub
                                 })
                                 .ToListAsync();
                             await Send(ws, ServerToClientEvent.CONTENT_UPDATE, new { playlistId = assigned, items });
-                        }
-
-                        // Send device's display configuration if set
-                        var device = await db.Devices.FirstOrDefaultAsync(d => d.DeviceId == deviceId);
-                        if (device != null)
-                        {
-                            Serilog.Log.Information($"Device config from DB: Width={device.DisplayWidth}, Height={device.DisplayHeight}, Kiosk={device.KioskMode}");
-                            if (device.DisplayWidth.HasValue || device.DisplayHeight.HasValue || device.KioskMode.HasValue)
-                            {
-                                Serilog.Log.Information($"Sending config update to device {deviceId}");
-                                await Send(ws, ServerToClientEvent.CONFIG_UPDATE, new
-                                {
-                                    displayWidth = device.DisplayWidth,
-                                    displayHeight = device.DisplayHeight,
-                                    kioskMode = device.KioskMode
-                                });
-                            }
-                            else
-                            {
-                                Serilog.Log.Information($"Device {deviceId} has no custom display config set");
-                            }
                         }
                     }
                     catch (Exception ex)

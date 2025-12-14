@@ -24,11 +24,15 @@ class KioskClient {
       // Setup signal handlers for graceful shutdown
       this.setupSignalHandlers();
 
-      // Initialize display controller
+      // Setup WebSocket handlers before connecting
+      this.setupWebSocketHandlers();
+
+      // Initialize display controller with current config
+      // (Config updates from server will trigger display restart if needed)
       await displayController.initialize();
 
       // Connect to backend via WebSocket
-      this.setupWebSocketHandlers();
+      // This will trigger device registration and receive playlist + config
       websocketClient.connect();
 
       // Start health monitoring

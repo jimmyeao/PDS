@@ -79,7 +79,19 @@
       "Bash(psql:*)",
       "Bash(node fix-playlist.js:*)",
       "Bash(node fix-playlist2.js:*)",
-      "Bash(node fix-duration-final.js:*)"
+      "Bash(node fix-duration-final.js:*)",
+      "Bash(cmd //c \"tasklist | findstr node\")",
+      "Bash(if [ -f stop-all.ps1 ])",
+      "Bash(then powershell -ExecutionPolicy Bypass -File stop-all.ps1)",
+      "Bash(else echo \"No stop script found\")",
+      "Bash(if [ -f start-dev.ps1 ])",
+      "Bash(then powershell -ExecutionPolicy Bypass -File start-dev.ps1)",
+      "Bash(else echo \"No start script found\")",
+      "Bash(cmd //c \"netstat -ano | findstr :3000\")",
+      "Bash(cmd //c \"taskkill /F /IM chrome.exe\")",
+      "Bash(cmd //c \"tasklist | findstr dotnet\")",
+      "Bash(cmd //c \"tasklist | findstr chrome.exe\")",
+      "Bash(timeout:*)"
     ]
   }
 }
