@@ -77,6 +77,10 @@ class DisplayController {
           '--disable-infobars',
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
+          '--disable-session-crashed-bubble',
+          '--disable-features=TranslateUI',
+          '--new-instance', // Force new instance instead of connecting to existing
+          '--user-agent=Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           '--disable-renderer-backgrounding',
           '--force-device-scale-factor=1', // Force 1:1 scaling
           '--high-dpi-support=1',
