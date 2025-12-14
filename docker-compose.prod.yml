@@ -4,7 +4,7 @@ services:
     container_name: pds-postgres
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: Cc061mjw0!
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: pds
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -16,8 +16,9 @@ services:
     image: ghcr.io/jimmyeao/pds-backend:latest
     container_name: pds-backend
     environment:
-      - ConnectionStrings__Default=Host=postgres;Port=5432;Database=pds;Username=postgres;Password=Cc061mjw0!
+      - ConnectionStrings__Default=Host=postgres;Port=5432;Database=pds;Username=postgres;Password=${POSTGRES_PASSWORD}
       - ASPNETCORE_ENVIRONMENT=Production
+      - Jwt__Secret=${JWT_SECRET}
     ports:
       - "5001:8080"
     depends_on:

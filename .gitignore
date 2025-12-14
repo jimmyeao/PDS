@@ -15,6 +15,10 @@ build/
 .env.local
 .env.production
 
+# App Settings with Secrets
+src/PDS.Api/appsettings.json
+src/PDS.Api/appsettings.Development.json
+
 # Database
 *.db
 *.db-*
