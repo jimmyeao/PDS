@@ -38,7 +38,21 @@ export const usePlaylistStore = create<PlaylistState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const playlists = await playlistService.getAll();
-      set({ playlists, isLoading: false });
+      // Ensure items are populated by fetching per-playlist if missing
+      const withItems = await Promise.all(
+        playlists.map(async (p) => {
+          if (!p.items || p.items.length === 0) {
+            try {
+              const items = await playlistService.getPlaylistItems(p.id);
+              return { ...p, items };
+            } catch {
+              return p;
+            }
+          }
+          return p;
+        })
+      );
+      set({ playlists: withItems, isLoading: false });
     } catch (error: any) {
       set({
         error: error.response?.data?.message || 'Failed to fetch playlists',
@@ -122,8 +136,22 @@ export const usePlaylistStore = create<PlaylistState>((set) => ({
   createPlaylistItem: async (data) => {
     set({ isLoading: true, error: null });
     try {
-      await playlistService.createItem(data);
-      set({ isLoading: false });
+      const created = await playlistService.createItem(data);
+      // Update local state: append to matching playlist.items and playlistItems
+      set((state) => {
+        const playlists = state.playlists.map((p) =>
+          p.id === created.playlistId
+            ? {
+                ...p,
+                items: [...(p.items || []), created].sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)),
+              }
+            : p
+        );
+        const playlistItems = state.selectedPlaylist?.id === created.playlistId
+          ? [...state.playlistItems, created]
+          : state.playlistItems;
+        return { playlists, playlistItems, isLoading: false };
+      });
     } catch (error: any) {
       set({
         error: error.response?.data?.message || 'Failed to create playlist item',

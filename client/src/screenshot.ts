@@ -7,6 +7,8 @@ class ScreenshotManager {
   private intervalId: NodeJS.Timeout | null = null;
   private isRunning = false;
   private page: Page | null = null;
+  private lastUrl: string | null = null;
+  private lastSentAt: number = 0;
 
   public setPage(page: Page): void {
     this.page = page;
@@ -27,15 +29,19 @@ class ScreenshotManager {
     logger.info(`Starting screenshot manager (interval: ${config.screenshotInterval}ms)`);
     this.isRunning = true;
 
-    // Take initial screenshot after a delay
+    // Take initial screenshot after a short delay
     setTimeout(() => {
       this.captureAndSendScreenshot();
-    }, 10000);
+    }, 5000);
 
-    // Schedule periodic screenshots
+    // Schedule periodic screenshots (fallback cadence)
     this.intervalId = setInterval(() => {
-      this.captureAndSendScreenshot();
-    }, config.screenshotInterval);
+      const now = Date.now();
+      // Only send periodic screenshot if at least screenshotInterval has elapsed
+      if (now - this.lastSentAt >= config.screenshotInterval) {
+        this.captureAndSendScreenshot();
+      }
+    }, Math.min(config.screenshotInterval, 5000));
   }
 
   public stop(): void {
@@ -54,6 +60,18 @@ class ScreenshotManager {
     }
 
     try {
+      const currentUrl = this.page.url();
+
+      // Change-triggered capture: if URL changed since last capture, send immediately
+      const urlChanged = this.lastUrl !== currentUrl;
+
+      // Throttle rapid repeats: avoid >1/sec even on fast changes
+      const now = Date.now();
+      if (!urlChanged && now - this.lastSentAt < 900) {
+        logger.debug('Skipping screenshot: recently sent');
+        return;
+      }
+
       logger.debug('Capturing screenshot...');
 
       const screenshot = await this.page.screenshot({
@@ -63,10 +81,10 @@ class ScreenshotManager {
         fullPage: false,
       });
 
-      const currentUrl = this.page.url();
-
       websocketClient.sendScreenshot(screenshot as string, currentUrl);
-      logger.info('Screenshot captured and sent');
+      this.lastUrl = currentUrl;
+      this.lastSentAt = now;
+      logger.info(`Screenshot captured and sent (${urlChanged ? 'url change' : 'periodic'})`);
     } catch (error: any) {
       logger.error('Failed to capture screenshot:', error.message);
       websocketClient.sendErrorReport(

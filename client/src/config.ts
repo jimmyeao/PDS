@@ -35,14 +35,16 @@ class ConfigManager {
 
   private loadConfig(): ClientConfig {
     return {
-      serverUrl: process.env.SERVER_URL || 'http://localhost:3000',
+      serverUrl: process.env.SERVER_URL || 'http://localhost:5000',
       deviceToken: process.env.DEVICE_TOKEN || '',
       displayWidth: parseInt(process.env.DISPLAY_WIDTH || '1920', 10),
       displayHeight: parseInt(process.env.DISPLAY_HEIGHT || '1080', 10),
       kioskMode: process.env.KIOSK_MODE === 'true',
       puppeteerExecutablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       healthCheckInterval: parseInt(process.env.HEALTH_CHECK_INTERVAL || '60000', 10),
-      screenshotInterval: parseInt(process.env.SCREENSHOT_INTERVAL || '300000', 10),
+      // Default to 30s to match UI expectations and backend sampling
+      // Enforce a minimum cadence to prevent excessive screenshots
+      screenshotInterval: Math.max(parseInt(process.env.SCREENSHOT_INTERVAL || '30000', 10), 30000),
       logLevel: (process.env.LOG_LEVEL || 'info') as 'debug' | 'info' | 'warn' | 'error',
     };
   }

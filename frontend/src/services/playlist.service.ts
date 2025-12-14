@@ -12,13 +12,40 @@ import type {
 export const playlistService = {
   // Playlist operations
   async getAll(): Promise<Playlist[]> {
-    const response = await api.get<Playlist[]>('/playlists');
-    return response.data;
+    const response = await api.get<any[]>('/playlists');
+    return response.data.map((p) => ({
+      ...p,
+      items: (p.items || []).map((r: any) => ({
+        id: r.id,
+        playlistId: r.playlistId,
+        contentId: r.contentId,
+        displayDuration: (r.durationSeconds ?? 0) * 1000,
+        orderIndex: r.orderIndex ?? 0,
+        timeWindowStart: r.timeWindowStart ?? undefined,
+        timeWindowEnd: r.timeWindowEnd ?? undefined,
+        daysOfWeek: r.daysOfWeek ?? undefined,
+        content: r.content ?? undefined,
+      })),
+    }));
   },
 
   async getById(id: number): Promise<Playlist> {
-    const response = await api.get<Playlist>(`/playlists/${id}`);
-    return response.data;
+    const response = await api.get<any>(`/playlists/${id}`);
+    const p = response.data;
+    return {
+      ...p,
+      items: (p.items || []).map((r: any) => ({
+        id: r.id,
+        playlistId: r.playlistId,
+        contentId: r.contentId,
+        displayDuration: (r.durationSeconds ?? 0) * 1000,
+        orderIndex: r.orderIndex ?? 0,
+        timeWindowStart: r.timeWindowStart ?? undefined,
+        timeWindowEnd: r.timeWindowEnd ?? undefined,
+        daysOfWeek: r.daysOfWeek ?? undefined,
+        content: r.content ?? undefined,
+      })),
+    } as Playlist;
   },
 
   async create(data: CreatePlaylistDto): Promise<Playlist> {
@@ -37,18 +64,44 @@ export const playlistService = {
 
   // Playlist item operations
   async createItem(data: CreatePlaylistItemDto): Promise<PlaylistItem> {
-    const response = await api.post<PlaylistItem>('/playlists/items', data);
-    return response.data;
+    const response = await api.post<any>('/playlists/items', data);
+    const r = response.data;
+    return {
+      id: r.id,
+      playlistId: r.playlistId,
+      contentId: r.contentId,
+      displayDuration: (r.durationSeconds ?? 0) * 1000, // convert seconds -> ms
+      orderIndex: r.orderIndex ?? 0,
+      content: r.content ?? undefined,
+    } as PlaylistItem;
   },
 
   async getPlaylistItems(playlistId: number): Promise<PlaylistItem[]> {
-    const response = await api.get<PlaylistItem[]>(`/playlists/${playlistId}/items`);
-    return response.data;
+    const response = await api.get<any[]>(`/playlists/${playlistId}/items`);
+    return response.data.map((r) => ({
+      id: r.id,
+      playlistId: r.playlistId,
+      contentId: r.contentId,
+      displayDuration: (r.durationSeconds ?? 0) * 1000, // convert seconds -> ms
+      orderIndex: r.orderIndex ?? 0,
+      timeWindowStart: r.timeWindowStart ?? undefined,
+      timeWindowEnd: r.timeWindowEnd ?? undefined,
+      daysOfWeek: r.daysOfWeek ?? undefined,
+      content: r.content ?? undefined,
+    } as PlaylistItem));
   },
 
   async updateItem(id: number, data: UpdatePlaylistItemDto): Promise<PlaylistItem> {
-    const response = await api.patch<PlaylistItem>(`/playlists/items/${id}`, data);
-    return response.data;
+    const response = await api.patch<any>(`/playlists/items/${id}`, data);
+    const r = response.data;
+    return {
+      id: r.id,
+      playlistId: r.playlistId,
+      contentId: r.contentId,
+      displayDuration: (r.durationSeconds ?? 0) * 1000, // convert seconds -> ms
+      orderIndex: r.orderIndex ?? 0,
+      content: r.content ?? undefined,
+    } as PlaylistItem;
   },
 
   async deleteItem(id: number): Promise<void> {

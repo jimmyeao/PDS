@@ -1,7 +1,10 @@
 import axios from 'axios';
 
+// Prefer localhost to satisfy CORS allowlist; fallback to env override
+const baseURL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5001';
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -34,9 +37,7 @@ api.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem('refreshToken');
         if (refreshToken) {
-          const response = await axios.post('/api/auth/refresh', {
-            refreshToken,
-          });
+          const response = await api.post('/auth/refresh', { refreshToken });
 
           const { accessToken, refreshToken: newRefreshToken } = response.data;
 

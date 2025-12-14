@@ -1,14 +1,22 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
-import { config } from './config';
+import { configManager } from './config';
 import { logger } from './logger';
 import { screenshotManager } from './screenshot';
 import { websocketClient } from './websocket';
+import { playlistExecutor } from './playlist-executor';
 
 class DisplayController {
   private browser: Browser | null = null;
   private page: Page | null = null;
   private currentUrl: string = '';
   private isInitialized = false;
+  private screencastClient: any | null = null;
+  private isScreencastActive = false;
+  private lastScreencastFrameAt: number = 0;
+  private screencastWatchdogId: NodeJS.Timeout | null = null;
+  private frameNavigatedHandler: (() => Promise<void>) | null = null;
+  private isRestartingScreencast = false;
+  private firstFrameTimeoutId: NodeJS.Timeout | null = null;
 
   public async initialize(): Promise<void> {
     if (this.isInitialized) {
@@ -18,32 +26,77 @@ class DisplayController {
 
     try {
       logger.info('Initializing display controller...');
+
+      // Get latest configuration (may have been updated remotely)
+      const config = configManager.get();
       logger.info(`Display configuration: ${config.displayWidth}x${config.displayHeight}, Kiosk: ${config.kioskMode}`);
+
+      const profileDir = process.platform === 'win32'
+        ? `${process.env.LOCALAPPDATA || 'C:/Users/Public/AppData/Local'}/PDS/browser-profile`
+        : '/tmp/kiosk-browser-profile';
+
+      // Ensure profile directory exists so Chromium can persist cookies/sessions
+      try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const dirPath = path.resolve(profileDir);
+        if (!fs.existsSync(dirPath)) {
+          fs.mkdirSync(dirPath, { recursive: true });
+          logger.info(`Created browser profile directory: ${dirPath}`);
+        } else {
+          logger.info(`Using existing browser profile directory: ${dirPath}`);
+        }
+      } catch (e: any) {
+        logger.warn(`Could not ensure profile directory: ${e?.message || e}`);
+      }
 
       const launchOptions: any = {
         headless: false,
-        userDataDir: '/tmp/kiosk-browser-profile', // Persist cookies and session data
+        // Use persistent profile unless NO_PROFILE env var is set (for troubleshooting)
+        ...(process.env.NO_PROFILE !== 'true' && { userDataDir: profileDir }),
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--no-zygote',
-          '--disable-gpu',
+          // Enable GPU/WebGL for proper rendering of certain pages/cards
+          '--ignore-gpu-blocklist',
+          '--enable-webgl',
+          '--enable-accelerated-2d-canvas',
+          ...(process.platform === 'win32' ? ['--use-angle=d3d11'] : []),
+          ...(process.platform === 'linux'
+            ? [
+                // Raspberry Pi / Linux: prefer EGL + hardware acceleration (X11-compatible)
+                '--use-gl=egl',
+                '--enable-gpu-rasterization',
+                '--enable-zero-copy',
+                '--autoplay-policy=no-user-gesture-required',
+                // Avoid Wayland-only flags since DISPLAY=:0 indicates X11
+              ]
+            : []),
           '--disable-blink-features=AutomationControlled',
           '--disable-infobars',
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
+          '--disable-session-crashed-bubble',
+          '--disable-features=TranslateUI',
+          '--new-instance', // Force new instance instead of connecting to existing
+          '--user-agent=Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           '--disable-renderer-backgrounding',
           '--force-device-scale-factor=1', // Force 1:1 scaling
           '--high-dpi-support=1',
           '--force-color-profile=srgb',
           `--window-size=${config.displayWidth},${config.displayHeight}`,
           `--window-position=0,0`,
+          '--new-window',
         ],
         ignoreDefaultArgs: ['--enable-automation'],
         defaultViewport: null, // Use window size instead of viewport
+        env: {
+          ...process.env,
+          DISPLAY: process.env.DISPLAY || ':0',
+        },
       };
 
       // Use custom Chromium path if provided (e.g., system chromium on Raspberry Pi)
@@ -66,6 +119,14 @@ class DisplayController {
       logger.info('Browser launched successfully');
 
       this.page = await this.browser.newPage();
+      try {
+        await this.page.bringToFront();
+        await this.page.goto('about:blank');
+        await this.page.evaluate(() => {
+          // @ts-ignore
+          window.focus();
+        });
+      } catch {}
 
       // Set viewport to match window size (for screenshots and page rendering)
       await this.page.setViewport({
@@ -136,6 +197,10 @@ class DisplayController {
       // Setup page error handlers
       this.setupErrorHandlers();
 
+      // Don't start screencast automatically - wait for admin to request it
+      // This prevents sending frames when no one is watching (causes backpressure and stalls)
+      logger.info('Display ready - screencast will start when admin connects');
+
       this.isInitialized = true;
       logger.info('✅ Display controller initialized');
     } catch (error: any) {
@@ -146,6 +211,231 @@ class DisplayController {
       );
       throw error;
     }
+  }
+
+  public async startScreencast(): Promise<void> {
+    if (!this.page) {
+      logger.warn('Cannot start screencast: page not initialized');
+      return;
+    }
+
+    // Prevent concurrent restarts
+    if (this.isRestartingScreencast) {
+      logger.warn('Screencast restart already in progress, skipping...');
+      return;
+    }
+
+    if (this.isScreencastActive && this.screencastClient) {
+      logger.info('Screencast already active and healthy');
+      return;
+    }
+
+    this.isRestartingScreencast = true;
+
+    try {
+      logger.info('Starting CDP screencast for live streaming...');
+
+      // Get latest configuration
+      const config = configManager.get();
+
+      // Clear any pending first-frame timeout
+      if (this.firstFrameTimeoutId) {
+        clearTimeout(this.firstFrameTimeoutId);
+        this.firstFrameTimeoutId = null;
+      }
+
+      // Clean up old session if it exists (without triggering events)
+      if (this.screencastClient) {
+        try {
+          // Remove all listeners before detaching to prevent cascade
+          this.screencastClient.removeAllListeners();
+          await this.screencastClient.send('Page.stopScreencast').catch(() => {});
+          await this.screencastClient.detach().catch(() => {});
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+        this.screencastClient = null;
+      }
+
+      // Get NEW CDP session (recreating fixes disconnection issues)
+      const client = await this.page.target().createCDPSession();
+      this.screencastClient = client;
+
+      // Add disconnect handler (but don't trigger immediate restart to prevent loop)
+      client.on('sessiondetached', () => {
+        logger.warn('CDP session detached unexpectedly');
+        // Don't set isScreencastActive = false here - let watchdog handle it
+        if (this.screencastClient === client) {
+          this.screencastClient = null;
+        }
+      });
+
+      // Ensure Page domain is enabled
+      try {
+        await client.send('Page.enable');
+      } catch (e: any) {
+        logger.warn(`Could not enable Page domain: ${e?.message || e}`);
+      }
+
+      // Start screencast with optimized settings
+      // everyNthFrame: 1 captures every frame for smoother streaming
+      // On-demand mode prevents backpressure since we only stream when admin is watching
+      await client.send('Page.startScreencast', {
+        format: 'jpeg',
+        quality: 80,
+        maxWidth: config.displayWidth,
+        maxHeight: config.displayHeight,
+        everyNthFrame: 1, // Capture every frame since we only stream when needed
+      });
+
+      let firstFrameReceived = false;
+
+      // Track frame count for debugging
+      let frameCount = 0;
+
+      // Listen for screencast frames
+      client.on('Page.screencastFrame', async (frame: any) => {
+        try {
+          frameCount++;
+
+          if (!firstFrameReceived) {
+            firstFrameReceived = true;
+            logger.info('✅ First screencast frame received - streaming active');
+            // Clear the timeout since we got a frame
+            if (this.firstFrameTimeoutId) {
+              clearTimeout(this.firstFrameTimeoutId);
+              this.firstFrameTimeoutId = null;
+            }
+          }
+
+          // Log every 50th frame to track activity
+          if (frameCount % 50 === 0) {
+            logger.info(`Screencast streaming: ${frameCount} frames sent`);
+          }
+
+          this.lastScreencastFrameAt = Date.now();
+
+          // Send frame to server via WebSocket
+          websocketClient.sendScreencastFrame({
+            data: frame.data,
+            metadata: {
+              sessionId: frame.sessionId,
+              timestamp: Date.now(),
+              width: frame.metadata.deviceWidth || config.displayWidth,
+              height: frame.metadata.deviceHeight || config.displayHeight,
+            },
+          });
+
+          // Acknowledge frame to continue receiving
+          try {
+            await client.send('Page.screencastFrameAck', {
+              sessionId: frame.sessionId,
+            });
+          } catch (ackError: any) {
+            logger.error('Frame acknowledgment failed:', ackError.message);
+            // Don't throw - try to continue
+          }
+        } catch (error: any) {
+          logger.error('Error handling screencast frame:', error.message, error.stack);
+          // Don't re-throw to prevent breaking the event listener
+        }
+      });
+
+      // Mark as active BEFORE setting timeout
+      this.isScreencastActive = true;
+      this.isRestartingScreencast = false;
+
+      // If no frame arrives within 10 seconds, restart once
+      this.firstFrameTimeoutId = setTimeout(async () => {
+        if (!firstFrameReceived && this.isScreencastActive) {
+          logger.warn('No screencast frames after 10s, attempting restart...');
+          this.isScreencastActive = false;
+          this.isRestartingScreencast = false;
+          await this.startScreencast();
+        }
+      }, 10000);
+
+      // Start watchdog if not already running
+      if (!this.screencastWatchdogId) {
+        this.screencastWatchdogId = setInterval(async () => {
+          const now = Date.now();
+
+          // Only restart if we're stalled for more than 15 seconds
+          if (this.isScreencastActive && this.lastScreencastFrameAt && now - this.lastScreencastFrameAt > 15000) {
+            logger.warn('Screencast stalled (no frames >15s). Restarting...');
+            this.isScreencastActive = false;
+            this.isRestartingScreencast = false;
+            await this.startScreencast();
+          }
+        }, 10000); // Check every 10 seconds
+      }
+
+      // Setup navigation handler (only once)
+      // Just log navigation - don't restart screencast, let it continue through navigation
+      if (!this.frameNavigatedHandler) {
+        this.frameNavigatedHandler = async () => {
+          try {
+            const now = Date.now();
+            const timeSinceLastFrame = this.lastScreencastFrameAt ? now - this.lastScreencastFrameAt : Infinity;
+            logger.info(`Frame navigated - screencast active: ${this.isScreencastActive}, last frame: ${timeSinceLastFrame}ms ago`);
+
+            // Don't restart! Let screencast continue through navigation.
+            // The watchdog will restart if it actually stalls for >15s
+
+            // Re-emit playback state so admin UI stays in sync after page refresh
+            playlistExecutor.refreshState();
+          } catch (navErr: any) {
+            logger.warn(`Navigation error: ${navErr?.message || navErr}`);
+          }
+        };
+        this.page.on('framenavigated', this.frameNavigatedHandler);
+      }
+
+      logger.info('CDP screencast session created, waiting for frames...');
+    } catch (error: any) {
+      logger.error('Failed to start screencast:', error.message);
+      websocketClient.sendErrorReport('Screencast start failed', error.stack);
+      this.isScreencastActive = false;
+      this.isRestartingScreencast = false;
+    }
+  }
+
+  public async stopScreencast(): Promise<void> {
+    logger.info('Stopping screencast...');
+
+    this.isScreencastActive = false;
+    this.isRestartingScreencast = false;
+
+    // Clear timeouts
+    if (this.firstFrameTimeoutId) {
+      clearTimeout(this.firstFrameTimeoutId);
+      this.firstFrameTimeoutId = null;
+    }
+
+    if (this.screencastWatchdogId) {
+      clearInterval(this.screencastWatchdogId);
+      this.screencastWatchdogId = null;
+    }
+
+    // Clean up CDP session
+    if (this.screencastClient) {
+      try {
+        this.screencastClient.removeAllListeners();
+        await this.screencastClient.send('Page.stopScreencast').catch(() => {});
+        await this.screencastClient.detach().catch(() => {});
+      } catch (e) {
+        // Ignore errors during cleanup
+      }
+      this.screencastClient = null;
+    }
+
+    // Remove navigation handler
+    if (this.frameNavigatedHandler && this.page) {
+      this.page.off('framenavigated', this.frameNavigatedHandler);
+      this.frameNavigatedHandler = null;
+    }
+
+    logger.info('Screencast stopped');
   }
 
   private setupErrorHandlers(): void {
@@ -202,7 +492,12 @@ class DisplayController {
         text.includes('blocked by CORS') ||
         text.includes('No \'Access-Control-Allow-Origin\'');
 
-      if (type === 'error' && !isResourceError) {
+      // Known benign app-specific console errors to ignore
+      const isBenignAppError =
+        text.includes('<rect> attribute width: A negative value is not valid') ||
+        text.toLowerCase().includes('missing queryfn');
+
+      if (type === 'error' && !isResourceError && !isBenignAppError) {
         logger.error(`Page console error: ${text}`);
       }
     });
@@ -302,6 +597,12 @@ class DisplayController {
       this.currentUrl = url;
       logger.info(`✅ Navigation successful: ${url}`);
 
+      // On Raspberry Pi/Linux, ensure screencast is active after first successful navigation
+      if (!this.isScreencastActive && process.platform === 'linux') {
+        logger.info('Ensuring screencast active after navigation (Linux/Pi)');
+        await this.startScreencast();
+      }
+
       // If duration is specified, navigate back after timeout
       if (duration) {
         setTimeout(() => {
@@ -310,8 +611,11 @@ class DisplayController {
       }
     } catch (error: any) {
       logger.error(`Navigation failed to ${url}:`, error.message);
-      // Only report critical navigation failures, not timeouts that we handled
-      if (!error.message.includes('Navigation timeout')) {
+      // Only report critical navigation failures; ignore benign aborts caused by redirects or SPA route changes
+      const msg = (error.message || '').toLowerCase();
+      const isTimeout = msg.includes('navigation timeout') || msg.includes('timeout');
+      const isErrAborted = msg.includes('net::err_aborted');
+      if (!isTimeout && !isErrAborted) {
         websocketClient.sendErrorReport(
           `Navigation failed to ${url}`,
           error.stack,
@@ -376,6 +680,135 @@ class DisplayController {
       }
     } catch (error: any) {
       logger.error('Error during shutdown:', error.message);
+    }
+  }
+
+  // Remote control methods
+  public async remoteClick(x: number, y: number, button: 'left' | 'right' | 'middle' = 'left'): Promise<void> {
+    if (!this.page) {
+      logger.warn('Cannot perform remote click: page not initialized');
+      return;
+    }
+
+    try {
+      logger.info(`Remote click at (${x}, ${y}) with ${button} button`);
+
+      await this.page.mouse.click(x, y, { button });
+
+      logger.info('Remote click executed successfully');
+    } catch (error: any) {
+      logger.error('Error performing remote click:', error.message);
+      websocketClient.sendErrorReport('Remote click error', error.stack);
+    }
+  }
+
+  public async remoteType(text: string, selector?: string): Promise<void> {
+    if (!this.page) {
+      logger.warn('Cannot perform remote type: page not initialized');
+      return;
+    }
+
+    try {
+      logger.info(`Remote type: "${text.substring(0, 20)}${text.length > 20 ? '...' : ''}"${selector ? ` in selector: ${selector}` : ''}`);
+
+      if (selector) {
+        // Focus on the element first
+        await this.page.waitForSelector(selector, { timeout: 5000 });
+        await this.page.focus(selector);
+        await this.page.keyboard.type(text);
+      } else {
+        // Check if there's an active element, if not try to find the first input/textarea
+        const hasActiveInput = await this.page.evaluate(() => {
+          // @ts-ignore - Code runs in browser context
+          const active = document.activeElement;
+          return active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.hasAttribute('contenteditable'));
+        });
+
+        if (!hasActiveInput) {
+          // Try to focus the first available input/textarea
+          const focused = await this.page.evaluate(() => {
+            // @ts-ignore - Code runs in browser context
+            const input = document.querySelector('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea, [contenteditable="true"]');
+            if (input) {
+              // @ts-ignore
+              (input as HTMLElement).focus();
+              return true;
+            }
+            return false;
+          });
+
+          if (!focused) {
+            logger.warn('No text input found or focused. Click on a text box first.');
+            websocketClient.sendErrorReport('Remote type failed', 'No text input focused. User should click on a text box first.');
+            return;
+          }
+        }
+
+        // Type at current focus
+        await this.page.keyboard.type(text);
+      }
+
+      logger.info('Remote type executed successfully');
+    } catch (error: any) {
+      logger.error('Error performing remote type:', error.message);
+      websocketClient.sendErrorReport('Remote type error', error.stack);
+    }
+  }
+
+  public async remoteKey(key: string, modifiers?: ('Shift' | 'Control' | 'Alt' | 'Meta')[]): Promise<void> {
+    if (!this.page) {
+      logger.warn('Cannot perform remote key: page not initialized');
+      return;
+    }
+
+    try {
+      logger.info(`Remote key: ${key}${modifiers ? ` with modifiers: ${modifiers.join('+')}` : ''}`);
+
+      // Press modifiers
+      if (modifiers) {
+        for (const mod of modifiers) {
+          await this.page.keyboard.down(mod);
+        }
+      }
+
+      // Press the main key as any to bypass type checking
+      await this.page.keyboard.press(key as any);
+
+      // Release modifiers
+      if (modifiers) {
+        for (const mod of modifiers.reverse()) {
+          await this.page.keyboard.up(mod);
+        }
+      }
+
+      logger.info('Remote key executed successfully');
+    } catch (error: any) {
+      logger.error('Error performing remote key:', error.message);
+      websocketClient.sendErrorReport('Remote key error', error.stack);
+    }
+  }
+
+  public async remoteScroll(x?: number, y?: number, deltaX?: number, deltaY?: number): Promise<void> {
+    if (!this.page) {
+      logger.warn('Cannot perform remote scroll: page not initialized');
+      return;
+    }
+
+    try {
+      logger.info(`Remote scroll: x=${x}, y=${y}, deltaX=${deltaX}, deltaY=${deltaY}`);
+
+      if (x !== undefined || y !== undefined) {
+        // Absolute scroll
+        await this.page.evaluate(`window.scrollTo(${x ?? 'window.scrollX'}, ${y ?? 'window.scrollY'})`);
+      } else if (deltaX !== undefined || deltaY !== undefined) {
+        // Relative scroll
+        await this.page.evaluate(`window.scrollBy(${deltaX ?? 0}, ${deltaY ?? 0})`);
+      }
+
+      logger.info('Remote scroll executed successfully');
+    } catch (error: any) {
+      logger.error('Error performing remote scroll:', error.message);
+      websocketClient.sendErrorReport('Remote scroll error', error.stack);
     }
   }
 }

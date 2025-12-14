@@ -24,11 +24,15 @@ class KioskClient {
       // Setup signal handlers for graceful shutdown
       this.setupSignalHandlers();
 
-      // Initialize display controller
+      // Setup WebSocket handlers before connecting
+      this.setupWebSocketHandlers();
+
+      // Initialize display controller with current config
+      // (Config updates from server will trigger display restart if needed)
       await displayController.initialize();
 
       // Connect to backend via WebSocket
-      this.setupWebSocketHandlers();
+      // This will trigger device registration and receive playlist + config
       websocketClient.connect();
 
       // Start health monitoring
@@ -54,6 +58,37 @@ class KioskClient {
       playlistExecutor.start();
     });
 
+    // Playlist control handlers
+    websocketClient.onPlaylistPause(() => {
+      logger.info('Playlist pause requested');
+      playlistExecutor.pause();
+    });
+
+    websocketClient.onPlaylistResume(() => {
+      logger.info('Playlist resume requested');
+      playlistExecutor.resume();
+    });
+
+    websocketClient.onPlaylistNext((payload) => {
+      logger.info('Playlist next requested');
+      playlistExecutor.next(payload.respectConstraints !== false);
+    });
+
+    websocketClient.onPlaylistPrevious((payload) => {
+      logger.info('Playlist previous requested');
+      playlistExecutor.previous(payload.respectConstraints !== false);
+    });
+
+    websocketClient.onPlaylistBroadcastStart((payload) => {
+      logger.info(`Playlist broadcast start: ${payload.url} for ${payload.duration || 0}s`);
+      playlistExecutor.startBroadcast(payload.url, payload.duration || 0);
+    });
+
+    websocketClient.onPlaylistBroadcastEnd(() => {
+      logger.info('Playlist broadcast end requested');
+      playlistExecutor.endBroadcast();
+    });
+
     // Display navigate handler
     websocketClient.onDisplayNavigate((payload) => {
       logger.info(`Navigating to: ${payload.url}`);
@@ -66,9 +101,22 @@ class KioskClient {
       screenshotManager.captureOnDemand();
     });
 
+    // Server-controlled stream start/stop
+    websocketClient.onStreamStart(async () => {
+      logger.info('Stream start requested by server');
+      await displayController.startScreencast();
+    });
+    websocketClient.onStreamStop(async () => {
+      logger.info('Stream stop requested by server');
+      await displayController.stopScreencast();
+    });
+
     // Config update handler
-    websocketClient.onConfigUpdate((payload) => {
+    websocketClient.onConfigUpdate(async (payload) => {
       logger.info('Configuration update received', payload);
+
+      // Track if display config changed (requires restart)
+      let displayConfigChanged = false;
 
       // Update config with new values
       if (payload.screenshotInterval) {
@@ -82,6 +130,31 @@ class KioskClient {
         healthMonitor.stop();
         healthMonitor.start();
       }
+
+      // Handle display configuration updates
+      const currentConfig = configManager.get();
+
+      if (payload.displayWidth !== undefined && payload.displayWidth !== currentConfig.displayWidth) {
+        configManager.update({ displayWidth: payload.displayWidth });
+        displayConfigChanged = true;
+      }
+
+      if (payload.displayHeight !== undefined && payload.displayHeight !== currentConfig.displayHeight) {
+        configManager.update({ displayHeight: payload.displayHeight });
+        displayConfigChanged = true;
+      }
+
+      if (payload.kioskMode !== undefined && payload.kioskMode !== currentConfig.kioskMode) {
+        configManager.update({ kioskMode: payload.kioskMode });
+        displayConfigChanged = true;
+      }
+
+      // Restart display if display config changed
+      if (displayConfigChanged) {
+        logger.info('Display configuration changed, restarting display...');
+        await displayController.restart();
+        logger.info('Display restarted with new configuration');
+      }
     });
 
     // Device restart handler
@@ -94,6 +167,38 @@ class KioskClient {
     websocketClient.onDisplayRefresh((payload) => {
       logger.info('Display refresh requested', payload);
       displayController.refresh(payload.force);
+    });
+
+    // Remote control handlers
+    websocketClient.onRemoteClick((payload) => {
+      logger.info(`Remote click at (${payload.x}, ${payload.y})`);
+      displayController.remoteClick(payload.x, payload.y, payload.button);
+    });
+
+    websocketClient.onRemoteType((payload) => {
+      logger.info(`Remote type: ${payload.text.substring(0, 20)}...`);
+      displayController.remoteType(payload.text, payload.selector);
+    });
+
+    websocketClient.onRemoteKey((payload) => {
+      logger.info(`Remote key: ${payload.key}`);
+      displayController.remoteKey(payload.key, payload.modifiers);
+    });
+
+    websocketClient.onRemoteScroll((payload) => {
+      logger.info('Remote scroll requested');
+      displayController.remoteScroll(payload.x, payload.y, payload.deltaX, payload.deltaY);
+    });
+
+    // Screencast control handlers
+    websocketClient.onScreencastStart(() => {
+      logger.info('Admin requested screencast start');
+      displayController.startScreencast();
+    });
+
+    websocketClient.onScreencastStop(() => {
+      logger.info('Admin requested screencast stop');
+      displayController.stopScreencast();
     });
   }
 

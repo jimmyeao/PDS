@@ -9,6 +9,16 @@ export enum ServerToClientEvent {
   CONFIG_UPDATE = 'config:update',
   DEVICE_RESTART = 'device:restart',
   DISPLAY_REFRESH = 'display:refresh',
+  REMOTE_CLICK = 'remote:click',
+  REMOTE_TYPE = 'remote:type',
+  REMOTE_KEY = 'remote:key',
+  REMOTE_SCROLL = 'remote:scroll',
+  PLAYLIST_PAUSE = 'playlist:pause',
+  PLAYLIST_RESUME = 'playlist:resume',
+  PLAYLIST_NEXT = 'playlist:next',
+  PLAYLIST_PREVIOUS = 'playlist:previous',
+  PLAYLIST_BROADCAST_START = 'playlist:broadcast:start',
+  PLAYLIST_BROADCAST_END = 'playlist:broadcast:end',
 }
 
 // WebSocket Events - Backend to Admin UI
@@ -19,6 +29,7 @@ export enum ServerToAdminEvent {
   DEVICE_HEALTH_UPDATE = 'admin:device:health',
   SCREENSHOT_RECEIVED = 'admin:screenshot:received',
   ERROR_OCCURRED = 'admin:error',
+  PLAYBACK_STATE_CHANGED = 'admin:playback:state',
 }
 
 // WebSocket Events - Client to Backend
@@ -28,6 +39,7 @@ export enum ClientToServerEvent {
   HEALTH_REPORT = 'health:report',
   DEVICE_STATUS = 'device:status',
   ERROR_REPORT = 'error:report',
+  PLAYBACK_STATE_UPDATE = 'playback:state:update',
 }
 
 // Payload types for Backend → Client
@@ -48,6 +60,9 @@ export interface ScreenshotRequestPayload {
 export interface ConfigUpdatePayload {
   screenshotInterval?: number;
   healthCheckInterval?: number;
+  displayWidth?: number;
+  displayHeight?: number;
+  kioskMode?: boolean;
   [key: string]: any;
 }
 
@@ -57,6 +72,29 @@ export interface DeviceRestartPayload {
 
 export interface DisplayRefreshPayload {
   force?: boolean;
+}
+
+export interface RemoteClickPayload {
+  x: number;
+  y: number;
+  button?: 'left' | 'right' | 'middle';
+}
+
+export interface RemoteTypePayload {
+  text: string;
+  selector?: string; // Optional CSS selector to focus before typing
+}
+
+export interface RemoteKeyPayload {
+  key: string; // e.g., 'Enter', 'Tab', 'Escape', 'ArrowDown'
+  modifiers?: ('Shift' | 'Control' | 'Alt' | 'Meta')[];
+}
+
+export interface RemoteScrollPayload {
+  x?: number;
+  y?: number;
+  deltaX?: number; // For relative scrolling
+  deltaY?: number;
 }
 
 // Payload types for Client → Backend
@@ -116,6 +154,51 @@ export interface AdminScreenshotReceivedPayload {
 export interface AdminErrorPayload {
   deviceId: string;
   error: string;
+  timestamp: Date;
+}
+
+// Playlist control payloads
+export interface PlaylistPausePayload {
+  // Empty payload - just pause current state
+}
+
+export interface PlaylistResumePayload {
+  // Empty payload - resume from current position
+}
+
+export interface PlaylistNextPayload {
+  respectConstraints?: boolean; // Default true - respect time windows and days
+}
+
+export interface PlaylistPreviousPayload {
+  respectConstraints?: boolean; // Default true - respect time windows and days
+}
+
+export interface PlaylistBroadcastStartPayload {
+  url: string;
+  duration?: number; // Duration in milliseconds, 0 = infinite until manual end
+}
+
+export interface PlaylistBroadcastEndPayload {
+  // Empty payload - restore to original playlist
+}
+
+// Playback state reporting
+export interface PlaybackStateUpdatePayload {
+  isPlaying: boolean;
+  isPaused: boolean;
+  isBroadcasting: boolean;
+  currentItemId: number | null;
+  currentItemIndex: number;
+  playlistId: number | null;
+  totalItems: number;
+  currentUrl: string | null;
+  timeRemaining: number | null; // Milliseconds until next rotation, null if static
+}
+
+export interface AdminPlaybackStatePayload {
+  deviceId: string;
+  state: PlaybackStateUpdatePayload;
   timestamp: Date;
 }
 
