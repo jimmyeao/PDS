@@ -260,13 +260,6 @@ class DisplayController {
         if (!this.browser) return;
         try {
             const pages = await this.browser.pages();
-            const targets = this.browser.targets();
-            
-      // Poll for page changes (fallback for missed events)
-      setInterval(async () => {
-        if (!this.browser) return;
-        try {
-            const pages = await this.browser.pages();
             // If we have multiple pages, assume the last one is the active popup
             if (pages.length > 1) {
                 const lastPage = pages[pages.length - 1];
