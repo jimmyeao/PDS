@@ -141,6 +141,10 @@ using (var scope = app.Services.CreateScope())
                 ""PasswordHash"" text NOT NULL
             );");
 
+        // Add MFA columns to Users table
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"MfaSecret\" text;");
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"IsMfaEnabled\" boolean DEFAULT false;");
+
         // Seed default admin user if not exists (password: admin)
         // SHA256 hash of 'admin' is 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
         var userCount = db.Database.SqlQueryRaw<int>("SELECT COUNT(*) as \"Value\" FROM \"Users\"").AsEnumerable().FirstOrDefault();
