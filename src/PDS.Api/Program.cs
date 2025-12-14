@@ -14,7 +14,7 @@ using Serilog;
 var builder = WebApplication.CreateBuilder(args);
 
 // Bind to all interfaces on port 5001 by default
-builder.WebHost.UseUrls("http://0.0.0.0:5001");
+// builder.WebHost.UseUrls("http://0.0.0.0:5001");
 
 builder.Host.UseSerilog((ctx, lc) => lc.ReadFrom.Configuration(ctx.Configuration)
     .WriteTo.Console());

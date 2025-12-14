@@ -14,7 +14,7 @@ Start-Sleep -Seconds 2
 # Start .NET backend
 Write-Host "Starting .NET backend..." -ForegroundColor Green
 Set-Location "$PSScriptRoot\src\PDS.Api"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host 'ASP.NET Core Backend' -ForegroundColor Cyan; Write-Host '====================' -ForegroundColor Cyan; dotnet run"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host 'ASP.NET Core Backend' -ForegroundColor Cyan; Write-Host '====================' -ForegroundColor Cyan; dotnet run --urls http://0.0.0.0:5001"
 
 # Wait a moment before starting frontend
 Start-Sleep -Seconds 3
