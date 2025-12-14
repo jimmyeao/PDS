@@ -1,7 +1,12 @@
 import axios from 'axios';
 
 // Prefer localhost to satisfy CORS allowlist; fallback to env override
-const baseURL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5001';
+let baseURL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5001';
+
+// If baseURL is relative (starts with /), prepend the current origin
+if (baseURL.startsWith('/')) {
+  baseURL = window.location.origin + baseURL;
+}
 
 const api = axios.create({
   baseURL,
