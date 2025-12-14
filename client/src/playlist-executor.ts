@@ -500,6 +500,8 @@
 
         // Capture a screenshot on first display and each rotation step for rotating playlists
         if (this.playlistItems.length > 1 && item.displayDuration !== 0) {
+          // Wait a few seconds for the page to visually settle/render before capturing
+          await new Promise(resolve => setTimeout(resolve, 3000));
           await screenshotManager.captureAndSendScreenshot();
         } else if (this.playlistItems.length === 1 || item.displayDuration === 0) {
           // Ensure periodic screenshots are running for static screens
