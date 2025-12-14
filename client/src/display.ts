@@ -518,6 +518,8 @@ class DisplayController {
         errorMessage.includes('getmastercategorylist') ||
         errorMessage.includes('microsoft.exchange') ||
         errorMessage.includes('cannot read properties of undefined') ||
+        errorMessage.includes('resizeobserver loop') ||
+        errorMessage.includes('script error') ||
         errorMessage === 'uncaught exception' ||
         errorStack.includes('trustedtypepolicy') ||
         errorStack.includes('content security') ||
@@ -531,7 +533,8 @@ class DisplayController {
 
       if (!isNoiseError) {
         logger.error('Page JavaScript error:', err.message);
-        websocketClient.sendErrorReport('Page JavaScript error', err.stack);
+        // Send the actual error message instead of a generic title
+        websocketClient.sendErrorReport(`JS Error: ${err.message.substring(0, 100)}`, err.stack);
       }
     });
 
