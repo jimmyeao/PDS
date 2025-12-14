@@ -792,7 +792,7 @@ public class AuthService : IAuthService
     }
 
     public UserDto Me(ClaimsPrincipal user)
-        => new UserDto(1, user.Identity?.Name ?? "user");
+        => new UserDto(1, user.Identity?.Name ?? "user", false);
 
     private AuthResponse GenerateTokens(string username)
     {
