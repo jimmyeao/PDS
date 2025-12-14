@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Prefer localhost to satisfy CORS allowlist; fallback to env override
-let baseURL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5001';
+let baseURL = (import.meta as any).env?.VITE_API_URL || '/api';
 
 // If baseURL is relative (starts with /), prepend the current origin
 if (baseURL.startsWith('/')) {

@@ -41,7 +41,7 @@ class WebSocketService {
       return;
     }
 
-    let baseUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5001';
+    let baseUrl = (import.meta as any).env?.VITE_API_URL || '/api';
     
     // If baseUrl is relative, prepend origin
     if (baseUrl.startsWith('/')) {
