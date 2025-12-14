@@ -213,6 +213,20 @@ class DisplayController {
               await this.handlePageChange(newPage);
             } else if (!newPage) {
                 logger.debug(`Target ${target.type()} created but no page object available yet.`);
+                
+                // If it's 'other', it might become a page later, so we can try to attach to it
+                if (target.type() === 'other') {
+                    // Wait a bit and check again
+                    setTimeout(async () => {
+                        try {
+                            const p = await target.page();
+                            if (p && p !== this.page) {
+                                logger.info('Target "other" became a page, switching...');
+                                await this.handlePageChange(p);
+                            }
+                        } catch (e) {}
+                    }, 1000);
+                }
             }
           } catch (e) {
             logger.warn('Failed to get page from target:', e);
