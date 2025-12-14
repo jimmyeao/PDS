@@ -239,6 +239,22 @@ class DisplayController {
         if (!this.browser) return;
         try {
             const pages = await this.browser.pages();
+            const targets = this.browser.targets();
+            
+            // Log detailed target info periodically (every 10s) to avoid spam
+            if (Date.now() % 10000 < 2000) {
+                logger.info(`Polling: ${pages.length} pages, ${targets.length} targets`);
+                targets.forEach(t => {
+                    logger.info(`Target: type=${t.type()}, url=${t.url()}, attached=${t.page() ? 'yes' : 'no'}`);
+                });
+                
+                if (this.page) {
+                    const frames = this.page.frames();
+                    logger.info(`Current page frames: ${frames.length}`);
+                    frames.forEach(f => logger.info(`Frame: url=${f.url()}, name=${f.name()}`));
+                }
+            }
+
             // If we have multiple pages, assume the last one is the active popup
             if (pages.length > 1) {
                 const lastPage = pages[pages.length - 1];
