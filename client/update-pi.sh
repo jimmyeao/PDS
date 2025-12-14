@@ -84,9 +84,3 @@ echo "🚀 Restarting service..."
 sudo systemctl restart ${SERVICE_NAME}
 
 echo "✨ Update complete! Client is running as a service."
-
-
-echo "✅ Update complete."
-echo "Next steps:"
-echo "  - If running manually: cd $INSTALL_DIR/client && npm start"
-echo "  - If using systemd:   sudo systemctl restart kiosk-client && sudo journalctl -u kiosk-client -f"

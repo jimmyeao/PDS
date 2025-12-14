@@ -197,6 +197,31 @@ class DisplayController {
       // Setup page error handlers
       this.setupErrorHandlers();
 
+      // Listen for new pages (popups) to handle authentication windows
+      this.browser.on('targetcreated', async (target) => {
+        if (target.type() === 'page') {
+          const newPage = await target.page();
+          if (newPage && newPage !== this.page) {
+            logger.info('New page detected (popup), switching control...');
+            await this.handlePageChange(newPage);
+          }
+        }
+      });
+
+      this.browser.on('targetdestroyed', async (target) => {
+        if (target.type() === 'page') {
+          logger.info('Page destroyed, checking for remaining pages...');
+          const pages = await this.browser?.pages();
+          if (pages && pages.length > 0) {
+            // Switch to the last remaining page
+            const lastPage = pages[pages.length - 1];
+            if (lastPage && lastPage !== this.page) {
+               await this.handlePageChange(lastPage);
+            }
+          }
+        }
+      });
+
       // Don't start screencast automatically - wait for admin to request it
       // This prevents sending frames when no one is watching (causes backpressure and stalls)
       logger.info('Display ready - screencast will start when admin connects');
@@ -210,6 +235,41 @@ class DisplayController {
         error.stack
       );
       throw error;
+    }
+  }
+
+  private async handlePageChange(newPage: Page): Promise<void> {
+    logger.info('Switching active page control');
+    this.page = newPage;
+    
+    const config = configManager.get();
+    
+    try {
+        // Bring to front
+        await this.page.bringToFront().catch(() => {});
+        
+        // Set viewport
+        await this.page.setViewport({
+            width: config.displayWidth,
+            height: config.displayHeight,
+            deviceScaleFactor: 1,
+        }).catch(e => logger.warn('Failed to set viewport on new page:', e));
+        
+        // Setup handlers
+        this.setupErrorHandlers();
+        
+        // Update screenshot manager
+        screenshotManager.setPage(this.page);
+        
+        // Restart screencast if active
+        if (this.isScreencastActive) {
+            logger.info('Restarting screencast on new page');
+            // We need to reset the restarting flag to allow startScreencast to run
+            this.isRestartingScreencast = false; 
+            this.startScreencast().catch(e => logger.error('Failed to restart screencast:', e));
+        }
+    } catch (error) {
+        logger.error('Error handling page change:', error);
     }
   }
 
