@@ -869,6 +869,13 @@ class DisplayController {
         }
       }
 
+      // Log focused element for debugging
+      const focusedElement = await this.page.evaluate(() => {
+        const el = document.activeElement;
+        return el ? { tagName: el.tagName, id: el.id, className: el.className, type: (el as any).type } : null;
+      });
+      logger.info(`Key '${key}' sent to focused element: ${JSON.stringify(focusedElement)}`);
+
       // Press the main key as any to bypass type checking
       await this.page.keyboard.press(key as any);
 
