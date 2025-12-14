@@ -48,6 +48,44 @@ cd ../client
 npm install --legacy-peer-deps
 npm run build
 
+echo "🔌 Setting up systemd service..."
+
+SERVICE_NAME="pds-client"
+SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+CURRENT_USER=$(whoami)
+NODE_PATH=$(which node)
+
+# Generate service file
+cat <<EOF > /tmp/${SERVICE_NAME}.service
+[Unit]
+Description=PDS Kiosk Client
+After=network.target
+
+[Service]
+Type=simple
+User=${CURRENT_USER}
+WorkingDirectory=${INSTALL_DIR}/client
+ExecStart=${NODE_PATH} dist/index.js
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "📝 Installing service to ${SERVICE_FILE}..."
+sudo mv /tmp/${SERVICE_NAME}.service ${SERVICE_FILE}
+sudo systemctl daemon-reload
+sudo systemctl enable ${SERVICE_NAME}
+echo "✅ Service installed and enabled."
+
+echo "🚀 Restarting service..."
+sudo systemctl restart ${SERVICE_NAME}
+
+echo "✨ Update complete! Client is running as a service."
+
+
 echo "✅ Update complete."
 echo "Next steps:"
 echo "  - If running manually: cd $INSTALL_DIR/client && npm start"

@@ -55,12 +55,43 @@ if [ ! -f .env ]; then
   echo ""
 fi
 
+echo "🔌 Setting up systemd service..."
+
+SERVICE_NAME="pds-client"
+SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+CURRENT_USER=$(whoami)
+NODE_PATH=$(which node)
+
+# Generate service file
+cat <<EOF > /tmp/${SERVICE_NAME}.service
+[Unit]
+Description=PDS Kiosk Client
+After=network.target
+
+[Service]
+Type=simple
+User=${CURRENT_USER}
+WorkingDirectory=${INSTALL_DIR}/client
+ExecStart=${NODE_PATH} dist/index.js
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "📝 Installing service to ${SERVICE_FILE}..."
+sudo mv /tmp/${SERVICE_NAME}.service ${SERVICE_FILE}
+sudo systemctl daemon-reload
+sudo systemctl enable ${SERVICE_NAME}
+echo "✅ Service installed and enabled."
+
 echo ""
 echo "✅ Setup complete!"
 echo ""
 echo "Next steps:"
 echo "1. Edit configuration: nano $INSTALL_DIR/client/.env"
-echo "2. Start the client: cd $INSTALL_DIR/client && npm start"
+echo "2. Start service: sudo systemctl start $SERVICE_NAME"
 echo ""
-echo "To update in the future:"
-echo "  cd $INSTALL_DIR && git pull && npm run build"
+echo "To update in the future, run the update script."
