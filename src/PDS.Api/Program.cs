@@ -14,7 +14,7 @@ using Serilog;
 var builder = WebApplication.CreateBuilder(args);
 
 // Bind to all interfaces on port 5001 by default
-// builder.WebHost.UseUrls("http://0.0.0.0:5001");
+builder.WebHost.UseUrls("http://0.0.0.0:5001");
 
 builder.Host.UseSerilog((ctx, lc) => lc.ReadFrom.Configuration(ctx.Configuration)
     .WriteTo.Console());
@@ -632,13 +632,26 @@ public class AuthService : IAuthService
     public async Task<AuthResponse> LoginAsync(LoginDto dto)
     {
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == dto.Username);
-        if (user == null) throw new Exception("Invalid credentials");
+        if (user == null) 
+        {
+            Console.WriteLine($"[Auth] User '{dto.Username}' not found in database.");
+            throw new Exception("Invalid credentials");
+        }
 
         using var sha256 = System.Security.Cryptography.SHA256.Create();
         var bytes = System.Text.Encoding.UTF8.GetBytes(dto.Password);
         var hash = BitConverter.ToString(sha256.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
 
-        if (user.PasswordHash != hash) throw new Exception("Invalid credentials");
+        Console.WriteLine($"[Auth] Login attempt for '{dto.Username}'");
+        Console.WriteLine($"[Auth] Input Password: '{dto.Password}'");
+        Console.WriteLine($"[Auth] Computed Hash:  '{hash}'");
+        Console.WriteLine($"[Auth] Stored Hash:    '{user.PasswordHash}'");
+
+        if (user.PasswordHash != hash) 
+        {
+            Console.WriteLine($"[Auth] Hash mismatch!");
+            throw new Exception("Invalid credentials");
+        }
 
         return GenerateTokens(user.Username);
     }
@@ -648,6 +661,9 @@ public class AuthService : IAuthService
 
     public async Task ChangePasswordAsync(string username, string currentPassword, string newPassword)
     {
+        if (string.IsNullOrEmpty(newPassword) || newPassword.Length < 6)
+            throw new Exception("New password must be at least 6 characters long");
+
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == username);
         if (user == null) throw new Exception("User not found");
 
@@ -655,7 +671,7 @@ public class AuthService : IAuthService
         var currentBytes = System.Text.Encoding.UTF8.GetBytes(currentPassword);
         var currentHash = BitConverter.ToString(sha256.ComputeHash(currentBytes)).Replace("-", "").ToLowerInvariant();
 
-        if (user.PasswordHash != currentHash) throw new Exception("Invalid password");
+        if (user.PasswordHash != currentHash) throw new Exception("Current password is incorrect");
 
         var newBytes = System.Text.Encoding.UTF8.GetBytes(newPassword);
         var newHash = BitConverter.ToString(sha256.ComputeHash(newBytes)).Replace("-", "").ToLowerInvariant();
