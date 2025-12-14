@@ -408,14 +408,14 @@ class DisplayController {
       }
 
       // Start screencast with optimized settings
-      // everyNthFrame: 1 captures every frame for smoother streaming
+      // everyNthFrame: 2 captures every other frame to reduce CPU/bandwidth load
       // On-demand mode prevents backpressure since we only stream when admin is watching
       await client.send('Page.startScreencast', {
         format: 'jpeg',
-        quality: 80,
+        quality: 60, // Reduced from 80 to improve performance
         maxWidth: config.displayWidth,
         maxHeight: config.displayHeight,
-        everyNthFrame: 1, // Capture every frame since we only stream when needed
+        everyNthFrame: 2, // Capture every 2nd frame (30fps max) to reduce load
       });
 
       let firstFrameReceived = false;
@@ -590,6 +590,7 @@ class DisplayController {
         errorMessage.includes('cannot read properties of undefined') ||
         errorMessage.includes('resizeobserver loop') ||
         errorMessage.includes('script error') ||
+        errorMessage.includes('appendchild') || // Filter out common DOM errors
         errorMessage === 'uncaught exception' ||
         errorStack.includes('trustedtypepolicy') ||
         errorStack.includes('content security') ||
@@ -598,6 +599,7 @@ class DisplayController {
         errorStack.includes('adsprebid') ||
         errorStack.includes('prebid') ||
         errorStack.includes('analytics') ||
+        errorStack.includes('onetrust') || // Filter out OneTrust cookie consent errors
         errorStack.includes('advertisement') ||
         errorStack.includes('imrworldwide.com');
 
