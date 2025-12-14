@@ -83,6 +83,9 @@ export const DashboardLayout = () => {
             <Link to="/playlists" className={navLinkClass('/playlists')}>
               📅 Playlists
             </Link>
+            <Link to="/settings" className={navLinkClass('/settings')}>
+              ⚙️ Settings
+            </Link>
           </nav>
         </aside>
 

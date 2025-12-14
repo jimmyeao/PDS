@@ -13,6 +13,14 @@ public partial class PdsDbContext : DbContext
     public DbSet<DevicePlaylist> DevicePlaylists => Set<DevicePlaylist>();
     public DbSet<Screenshot> Screenshots => Set<Screenshot>();
     public DbSet<DeviceBroadcastState> DeviceBroadcastStates => Set<DeviceBroadcastState>();
+    public DbSet<User> Users => Set<User>();
+}
+
+public class User
+{
+    public int Id { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public string PasswordHash { get; set; } = string.Empty;
 }
 
 public class Device

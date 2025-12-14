@@ -9,6 +9,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { DevicesPage } from './pages/DevicesPage';
 import { ContentPage } from './pages/ContentPage';
 import { PlaylistsPage } from './pages/PlaylistsPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 function App() {
   const { initialize, isAuthenticated } = useAuthStore();
@@ -39,6 +40,7 @@ function App() {
           <Route path="devices" element={<DevicesPage />} />
           <Route path="content" element={<ContentPage />} />
           <Route path="playlists" element={<PlaylistsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

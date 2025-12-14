@@ -31,6 +31,12 @@ Write-Host "Copying files to deploy directory..." -ForegroundColor Yellow
 Copy-Item -Path "dist" -Destination "$deployDir\dist" -Recurse
 Copy-Item -Path "package.json" -Destination "$deployDir\"
 Copy-Item -Path ".env.example" -Destination "$deployDir\"
+# Copy .env if it exists, otherwise warn
+if (Test-Path "deploy\.env") {
+    Copy-Item -Path "deploy\.env" -Destination "$deployDir\.env"
+} else {
+    Write-Host "Warning: deploy\.env not found. Using .env.example." -ForegroundColor Yellow
+}
 Copy-Item -Path "README-WINDOWS.md" -Destination "$deployDir\README.md" -ErrorAction SilentlyContinue
 
 # Copy shared package

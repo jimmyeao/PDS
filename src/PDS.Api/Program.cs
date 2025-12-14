@@ -132,6 +132,24 @@ using (var scope = app.Services.CreateScope())
         db.Database.ExecuteSqlRaw("ALTER TABLE \"Devices\" ADD COLUMN IF NOT EXISTS \"DisplayHeight\" int;");
         db.Database.ExecuteSqlRaw("ALTER TABLE \"Devices\" ADD COLUMN IF NOT EXISTS \"KioskMode\" boolean;");
 
+        // Create Users table
+        db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS ""Users"" (
+                ""Id"" SERIAL PRIMARY KEY,
+                ""Username"" text NOT NULL UNIQUE,
+                ""PasswordHash"" text NOT NULL
+            );");
+
+        // Seed default admin user if not exists (password: admin)
+        // SHA256 hash of 'admin' is 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+        var userCount = db.Database.SqlQueryRaw<int>("SELECT COUNT(*) as \"Value\" FROM \"Users\"").AsEnumerable().FirstOrDefault();
+        if (userCount == 0)
+        {
+            db.Database.ExecuteSqlRaw(@"
+                INSERT INTO ""Users"" (""Username"", ""PasswordHash"") 
+                VALUES ('admin', '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918');");
+        }
+
         // Create DeviceBroadcastStates table for broadcast tracking
         db.Database.ExecuteSqlRaw(@"
             CREATE TABLE IF NOT EXISTS ""DeviceBroadcastStates"" (
@@ -167,11 +185,11 @@ app.MapPost("/auth/register", ([FromBody] RegisterDto dto, ILogger<Program> log)
     }
 }).AllowAnonymous();
 
-app.MapPost("/auth/login", ([FromBody] LoginDto dto, ILogger<Program> log) =>
+app.MapPost("/auth/login", async ([FromBody] LoginDto dto, IAuthService auth, ILogger<Program> log) =>
 {
     try
     {
-        var res = AuthHelpers.GenerateTokens(dto.Username, cfg);
+        var res = await auth.LoginAsync(dto);
         return Results.Ok(res);
     }
     catch (Exception ex)
@@ -181,11 +199,11 @@ app.MapPost("/auth/login", ([FromBody] LoginDto dto, ILogger<Program> log) =>
     }
 }).AllowAnonymous();
 
-app.MapPost("/auth/refresh", ([FromBody] RefreshDto dto, ILogger<Program> log) =>
+app.MapPost("/auth/refresh", async ([FromBody] RefreshDto dto, IAuthService auth, ILogger<Program> log) =>
 {
     try
     {
-        var res = AuthHelpers.GenerateTokens("user", cfg);
+        var res = await auth.RefreshAsync(dto);
         return Results.Ok(res);
     }
     catch (Exception ex)
@@ -194,6 +212,24 @@ app.MapPost("/auth/refresh", ([FromBody] RefreshDto dto, ILogger<Program> log) =
         return Results.Problem(title: "Refresh failed", detail: ex.Message, statusCode: 500);
     }
 }).AllowAnonymous();
+
+app.MapPost("/auth/change-password", async ([FromBody] ChangePasswordDto dto, IAuthService auth, ClaimsPrincipal user, ILogger<Program> log) =>
+{
+    try
+    {
+        var username = user.Identity?.Name;
+        if (string.IsNullOrEmpty(username)) return Results.Unauthorized();
+
+        await auth.ChangePasswordAsync(username, dto.CurrentPassword, dto.NewPassword);
+        return Results.Ok();
+    }
+    catch (Exception ex)
+    {
+        log.LogError(ex, "Change password failed");
+        return Results.Problem(title: "Change password failed", detail: ex.Message, statusCode: 500);
+    }
+}).RequireAuthorization();
+
 app.MapGet("/auth/me", (ClaimsPrincipal user) => new UserDto(1, user.Identity?.Name ?? "user"))
     .RequireAuthorization();
 
@@ -478,6 +514,7 @@ public record AuthResponse(string AccessToken, string RefreshToken);
 public record RegisterDto(string Username, string Password);
 public record LoginDto(string Username, string Password);
 public record RefreshDto(string RefreshToken);
+public record ChangePasswordDto(string CurrentPassword, string NewPassword);
 public record UserDto(int Id, string Username);
 
 public record CreateDeviceDto(string DeviceId, string Name, string? Description, string? Location);
@@ -529,6 +566,7 @@ public interface IAuthService
     Task<AuthResponse> RegisterAsync(RegisterDto dto);
     Task<AuthResponse> LoginAsync(LoginDto dto);
     Task<AuthResponse> RefreshAsync(RefreshDto dto);
+    Task ChangePasswordAsync(string username, string currentPassword, string newPassword);
     UserDto Me(ClaimsPrincipal user);
 }
 
@@ -580,16 +618,51 @@ public interface IScreenshotService
 public class AuthService : IAuthService
 {
     private readonly IConfiguration _config;
-    public AuthService(IConfiguration config) => _config = config;
+    private readonly PdsDbContext _db;
+
+    public AuthService(IConfiguration config, PdsDbContext db)
+    {
+        _config = config;
+        _db = db;
+    }
 
     public Task<AuthResponse> RegisterAsync(RegisterDto dto)
         => Task.FromResult(GenerateTokens(dto.Username));
 
-    public Task<AuthResponse> LoginAsync(LoginDto dto)
-        => Task.FromResult(GenerateTokens(dto.Username));
+    public async Task<AuthResponse> LoginAsync(LoginDto dto)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == dto.Username);
+        if (user == null) throw new Exception("Invalid credentials");
+
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var bytes = System.Text.Encoding.UTF8.GetBytes(dto.Password);
+        var hash = BitConverter.ToString(sha256.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
+
+        if (user.PasswordHash != hash) throw new Exception("Invalid credentials");
+
+        return GenerateTokens(user.Username);
+    }
 
     public Task<AuthResponse> RefreshAsync(RefreshDto dto)
         => Task.FromResult(GenerateTokens("user"));
+
+    public async Task ChangePasswordAsync(string username, string currentPassword, string newPassword)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == username);
+        if (user == null) throw new Exception("User not found");
+
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var currentBytes = System.Text.Encoding.UTF8.GetBytes(currentPassword);
+        var currentHash = BitConverter.ToString(sha256.ComputeHash(currentBytes)).Replace("-", "").ToLowerInvariant();
+
+        if (user.PasswordHash != currentHash) throw new Exception("Invalid password");
+
+        var newBytes = System.Text.Encoding.UTF8.GetBytes(newPassword);
+        var newHash = BitConverter.ToString(sha256.ComputeHash(newBytes)).Replace("-", "").ToLowerInvariant();
+
+        user.PasswordHash = newHash;
+        await _db.SaveChangesAsync();
+    }
 
     public UserDto Me(ClaimsPrincipal user)
         => new UserDto(1, user.Identity?.Name ?? "user");

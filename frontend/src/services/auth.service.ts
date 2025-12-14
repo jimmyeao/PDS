@@ -1,10 +1,14 @@
 import api from './api';
-import type { AuthResponse, LoginDto, RegisterDto, User } from '@kiosk/shared';
+import type { AuthResponse, LoginDto, RegisterDto, User, ChangePasswordDto } from '@kiosk/shared';
 
 export const authService = {
   async login(credentials: LoginDto): Promise<AuthResponse> {
     const response = await api.post<AuthResponse>('/auth/login', credentials);
     return response.data;
+  },
+
+  async changePassword(data: ChangePasswordDto): Promise<void> {
+    await api.post('/auth/change-password', data);
   },
 
   async register(data: RegisterDto): Promise<AuthResponse> {
