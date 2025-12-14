@@ -871,6 +871,7 @@ class DisplayController {
 
       // Log focused element for debugging
       const focusedElement = await this.page.evaluate(() => {
+        // @ts-ignore - Code runs in browser context
         const el = document.activeElement;
         return el ? { tagName: el.tagName, id: el.id, className: el.className, type: (el as any).type } : null;
       });
