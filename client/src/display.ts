@@ -264,6 +264,8 @@ class DisplayController {
         // Restart screencast if active
         if (this.isScreencastActive) {
             logger.info('Restarting screencast on new page');
+            // Force cleanup of the old session so startScreencast creates a new one for the new page
+            this.screencastClient = null;
             // We need to reset the restarting flag to allow startScreencast to run
             this.isRestartingScreencast = false; 
             this.startScreencast().catch(e => logger.error('Failed to restart screencast:', e));
