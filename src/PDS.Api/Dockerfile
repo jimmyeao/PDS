@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+# Ensure wwwroot exists so UseStaticFiles works correctly
+RUN mkdir -p wwwroot
+
 COPY --from=build /app/publish .
 EXPOSE 8080
 ENV ASPNETCORE_HTTP_PORTS=8080

@@ -91,7 +91,15 @@ var app = builder.Build();
 var cfg = builder.Configuration;
 
 app.UseSerilogRequestLogging();
+
+// Ensure wwwroot exists and serve static files
+var webRoot = app.Environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+if (!Directory.Exists(webRoot))
+{
+    Directory.CreateDirectory(webRoot);
+}
 app.UseStaticFiles(); // Enable static file serving for slideshow images
+
 app.UseSwagger();
 app.UseSwaggerUI();
 // Apply CORS before auth/authorization so preflights and failures still include CORS headers
