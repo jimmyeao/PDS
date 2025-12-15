@@ -1372,6 +1372,14 @@ public class PlaylistService : IPlaylistService
     {
         var c = await _db.Content.FindAsync(id);
         if (c == null) return;
+
+        // Remove all playlist items referencing this content
+        var items = await _db.PlaylistItems.Where(i => i.ContentId == id).ToListAsync();
+        if (items.Any())
+        {
+            _db.PlaylistItems.RemoveRange(items);
+        }
+
         _db.Content.Remove(c);
         await _db.SaveChangesAsync();
     }
