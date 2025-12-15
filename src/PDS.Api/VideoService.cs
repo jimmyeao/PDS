@@ -68,16 +68,17 @@ public class VideoService : IVideoService
     </style>
 </head>
 <body>
-    <video id=""player"" src=""{videoFileName}"" autoplay muted playsinline></video>
+    <video id=""player"" src=""{videoFileName}"" autoplay playsinline></video>
     <script>
         const video = document.getElementById('player');
-        // Optional: Reload page when video ends to ensure loop if playlist logic doesn't catch it?
-        // Or just let it sit there. The playlist executor should handle the timing.
-        // Actually, for single item playlists, we might want it to loop.
-        // But usually the playlist executor will reload the page or move to next item.
         
-        // Ensure it plays
+        // Unmute immediately - we control the browser environment
+        video.muted = false;
+        
         video.play().catch(e => console.error('Autoplay failed:', e));
+        
+        // Loop video
+        video.loop = true;
     </script>
 </body>
 </html>";

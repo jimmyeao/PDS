@@ -93,6 +93,7 @@ class DisplayController {
           `--window-size=${config.displayWidth},${config.displayHeight}`,
           `--window-position=0,0`,
           '--new-window',
+          '--start-fullscreen', // Force fullscreen mode
         ],
         ignoreDefaultArgs: ['--enable-automation'],
         defaultViewport: null, // Use window size instead of viewport
@@ -142,6 +143,24 @@ class DisplayController {
       });
 
       logger.info(`Viewport set to: ${config.displayWidth}x${config.displayHeight} with deviceScaleFactor=1`);
+
+      // Inject CSS to hide scrollbars globally
+      await this.page.evaluateOnNewDocument(() => {
+        const style = document.createElement('style');
+        style.innerHTML = `
+          ::-webkit-scrollbar { 
+            display: none; 
+            width: 0 !important;
+            height: 0 !important;
+          }
+          body { 
+            -ms-overflow-style: none; 
+            scrollbar-width: none; 
+            overflow: hidden;
+          }
+        `;
+        document.head.appendChild(style);
+      });
 
       // Log actual browser dimensions and device pixel ratio
       const browserInfo = await this.page.evaluate(() => {

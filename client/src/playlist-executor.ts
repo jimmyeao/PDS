@@ -388,9 +388,14 @@
       }
 
       // If only one item, display it permanently without rotation
-      if (this.playlistItems.length === 1 || nextDelay === 0) {
+      if (this.playlistItems.length === 1 && nextDelay === 0) {
         logger.info('Displaying permanently without rotation');
         return;
+      }
+
+      // If only one item but has duration (e.g. video), loop it
+      if (this.playlistItems.length === 1 && nextDelay > 0) {
+         logger.info(`Single item with duration ${nextDelay}ms - scheduling loop`);
       }
 
       this.timeoutId = setTimeout(() => {
