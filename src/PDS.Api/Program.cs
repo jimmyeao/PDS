@@ -9,10 +9,25 @@ using PDS.Api.Contracts;
 using Microsoft.Extensions.Configuration;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Http.Features;
 using Serilog;
 using OtpNet;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure Kestrel for large uploads (100MB)
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 100 * 1024 * 1024; // 100 MB
+});
+
+// Configure FormOptions for large multipart uploads
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.ValueLengthLimit = int.MaxValue;
+    options.MultipartBodyLengthLimit = 100 * 1024 * 1024; // 100 MB
+    options.MemoryBufferThreshold = int.MaxValue;
+});
 
 // Bind to all interfaces on port 5001 by default
 // builder.WebHost.UseUrls("http://0.0.0.0:5001");
