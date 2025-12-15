@@ -75,6 +75,8 @@ Default admin credentials:
 - Username: `admin`
 - Password: `admin123`
 
+**⚠️ Security Warning**: Change the default admin password immediately after first login, especially for production deployments!
+
 ### Development Setup
 
 #### 1. Install Dependencies
@@ -438,7 +440,7 @@ ConnectionStrings__Default=Host=postgres;Port=5432;Database=pds;Username=postgre
 
 ### Client (.env in client directory)
 ```env
-SERVER_URL=http://your-server:5001
+SERVER_URL=http://your-server-ip:5001
 DEVICE_TOKEN=your-jwt-token
 DISPLAY_WIDTH=1920
 DISPLAY_HEIGHT=1080
