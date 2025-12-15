@@ -82,7 +82,7 @@ class DisplayController {
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
           '--disable-session-crashed-bubble',
-          '--disable-features=TranslateUI,WebAuthentication,WebAuth,ClientSideDetectionModel', // Disable WebAuthn and other features
+          '--disable-features=TranslateUI,WebAuthentication,WebAuth,ClientSideDetectionModel,AudioServiceOutOfProcess', // Disable WebAuthn and other features
           '--disable-blink-features=WebAuthentication', // Disable at Blink level too
           '--new-instance', // Force new instance instead of connecting to existing
           '--user-agent=Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -96,6 +96,9 @@ class DisplayController {
           '--start-fullscreen', // Force fullscreen mode
           '--autoplay-policy=no-user-gesture-required', // Allow autoplay with sound
           '--no-user-gesture-required', // Additional flag for autoplay
+          '--disable-gesture-requirement-for-media-playback',
+          '--disk-cache-size=1', // Disable disk cache
+          '--media-cache-size=1', // Disable media cache
         ],
         ignoreDefaultArgs: ['--enable-automation', '--mute-audio'], // Ensure audio is not muted
         defaultViewport: null, // Use window size instead of viewport
@@ -146,7 +149,7 @@ class DisplayController {
 
       logger.info(`Viewport set to: ${config.displayWidth}x${config.displayHeight} with deviceScaleFactor=1`);
 
-      // Inject CSS to hide scrollbars globally
+      // Inject CSS to hide scrollbars globally and enforce video settings
       await this.page.evaluateOnNewDocument(() => {
         // @ts-ignore
         const style = document.createElement('style');
@@ -160,10 +163,41 @@ class DisplayController {
             -ms-overflow-style: none; 
             scrollbar-width: none; 
             overflow: hidden;
+            margin: 0 !important;
+            padding: 0 !important;
+            background-color: black !important;
+          }
+          video {
+            object-fit: contain !important;
+            width: 100vw !important;
+            height: 100vh !important;
           }
         `;
         // @ts-ignore
         document.head.appendChild(style);
+
+        // Force video settings (autoplay, loop, unmute)
+        // @ts-ignore
+        function enforceVideoSettings() {
+            // @ts-ignore
+            const videos = document.getElementsByTagName('video');
+            for (let i = 0; i < videos.length; i++) {
+                const v = videos[i];
+                if (!v.loop) v.loop = true;
+                if (v.muted) v.muted = false;
+                // Try to play if paused
+                if (v.paused) {
+                    v.play().catch(() => {});
+                }
+            }
+        }
+
+        // Run periodically to catch dynamically added videos
+        setInterval(enforceVideoSettings, 1000);
+        
+        // Run on load
+        // @ts-ignore
+        window.addEventListener('load', enforceVideoSettings);
       });
 
       // Log actual browser dimensions and device pixel ratio
@@ -676,7 +710,16 @@ class DisplayController {
     }
 
     try {
+      // Clear previous page state by navigating to about:blank if switching from a video or heavy content
+      // This helps prevent memory leaks and ensures a clean slate for the next page
+      if (this.currentUrl.includes('/videos/') || url.includes('/videos/')) {
+          try {
+              await this.page.goto('about:blank', { waitUntil: 'domcontentloaded', timeout: 5000 });
+          } catch (e) {}
+      }
+
       logger.info(`Navigating to: ${url}${duration ? ` (duration: ${duration}ms)` : ''}`);
+      this.currentUrl = url;
 
       // Determine timeout and wait strategy based on URL
       const requiresAuth = url.includes('outlook.') || url.includes('office.com') || url.includes('microsoft.com');
@@ -692,6 +735,12 @@ class DisplayController {
         });
         navigationSuccess = true;
       } catch (error: any) {
+        // Ignore abort errors caused by rapid navigation changes
+        if (error.message.includes('net::ERR_ABORTED')) {
+            logger.warn(`Navigation aborted (likely due to new navigation request): ${error.message}`);
+            return;
+        }
+
         if (error.message.includes('Navigation timeout') || error.message.includes('Timeout')) {
           logger.warn(`Network idle timeout, retrying with domcontentloaded strategy...`);
 
@@ -704,6 +753,12 @@ class DisplayController {
             navigationSuccess = true;
             logger.info('Navigation succeeded with domcontentloaded strategy');
           } catch (retryError: any) {
+             // Ignore abort errors on retry too
+             if (retryError.message.includes('net::ERR_ABORTED')) {
+                logger.warn(`Retry navigation aborted: ${retryError.message}`);
+                return;
+             }
+
             logger.warn(`Navigation partially succeeded, continuing anyway: ${retryError.message}`);
             // Continue anyway - page might still be usable even if not fully loaded
             navigationSuccess = true;
