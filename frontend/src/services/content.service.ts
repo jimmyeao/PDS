@@ -39,4 +39,18 @@ export const contentService = {
     });
     return response.data;
   },
+
+  async uploadVideo(file: File, name: string): Promise<Content> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('name', name);
+
+    const response = await api.post<Content>('/content/upload/video', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
 };
+

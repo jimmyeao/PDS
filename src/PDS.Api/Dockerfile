@@ -6,11 +6,12 @@ COPY . .
 RUN dotnet publish "PDS.Api.csproj" -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
-# Install LibreOffice and Poppler Utils for PPTX conversion
+# Install LibreOffice and Poppler Utils for PPTX conversion, and FFmpeg for video processing
 RUN apt-get update && apt-get install -y \
     libreoffice \
     poppler-utils \
     fonts-liberation \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

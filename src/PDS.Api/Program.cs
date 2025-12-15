@@ -15,17 +15,17 @@ using OtpNet;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Kestrel for large uploads (100MB)
+// Configure Kestrel for large uploads (500MB)
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.Limits.MaxRequestBodySize = 100 * 1024 * 1024; // 100 MB
+    options.Limits.MaxRequestBodySize = 500 * 1024 * 1024; // 500 MB
 });
 
 // Configure FormOptions for large multipart uploads
 builder.Services.Configure<FormOptions>(options =>
 {
     options.ValueLengthLimit = int.MaxValue;
-    options.MultipartBodyLengthLimit = 100 * 1024 * 1024; // 100 MB
+    options.MultipartBodyLengthLimit = 500 * 1024 * 1024; // 500 MB
     options.MemoryBufferThreshold = int.MaxValue;
 });
 
@@ -86,6 +86,7 @@ builder.Services.AddScoped<IDeviceService, DeviceService>();
 builder.Services.AddScoped<IPlaylistService, PlaylistService>();
 builder.Services.AddScoped<IScreenshotService, ScreenshotService>();
 builder.Services.AddScoped<ISlideshowService, SlideshowService>();
+builder.Services.AddScoped<IVideoService, VideoService>();
 
 var app = builder.Build();
 var cfg = builder.Configuration;
@@ -516,6 +517,29 @@ app.MapPost("/content/upload/pptx", async (HttpRequest request, ISlideshowServic
     try
     {
         var content = await svc.ConvertAndCreateAsync(file, name, duration);
+        return Results.Ok(content);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(ex.Message);
+    }
+}).RequireAuthorization();
+
+app.MapPost("/content/upload/video", async (HttpRequest request, IVideoService svc) =>
+{
+    if (!request.HasFormContentType)
+        return Results.BadRequest("Invalid content type");
+
+    var form = await request.ReadFormAsync();
+    var file = form.Files["file"];
+    var name = form["name"].ToString();
+
+    if (file == null || file.Length == 0)
+        return Results.BadRequest("No file uploaded");
+
+    try
+    {
+        var content = await svc.ProcessAndCreateAsync(file, name);
         return Results.Ok(content);
     }
     catch (Exception ex)

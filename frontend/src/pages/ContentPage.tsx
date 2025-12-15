@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { useContentStore } from '../store/contentStore';
 
 export const ContentPage = () => {
-  const { content, fetchContent, createContent, updateContent, deleteContent, uploadPptx, isLoading } = useContentStore();
+  const { content, fetchContent, createContent, updateContent, deleteContent, uploadPptx, uploadVideo, isLoading } = useContentStore();
   const [showModal, setShowModal] = useState(false);
   const [showPptxModal, setShowPptxModal] = useState(false);
+  const [showVideoModal, setShowVideoModal] = useState(false);
   const [editingContent, setEditingContent] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -16,6 +17,10 @@ export const ContentPage = () => {
     name: '',
     file: null as File | null,
     durationPerSlide: 10000,
+  });
+  const [videoData, setVideoData] = useState({
+    name: '',
+    file: null as File | null,
   });
 
   useEffect(() => {
@@ -55,6 +60,19 @@ export const ContentPage = () => {
     }
   };
 
+  const handleVideoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!videoData.file) return;
+    
+    try {
+      await uploadVideo(videoData.file, videoData.name);
+      setShowVideoModal(false);
+      setVideoData({ name: '', file: null });
+    } catch (error) {
+      // Error handled by store
+    }
+  };
+
   const handleEdit = (item: any) => {
     setFormData({
       name: item.name,
@@ -66,7 +84,16 @@ export const ContentPage = () => {
     setShowModal(true);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelVideoData({ name: '', file: null });
+              setShowVideoModal(true);
+            }}
+            className="btn-secondary"
+          >
+            Upload Video
+          </button>
+          <button
+            onClick={() => {
+              setete = async (id: number) => {
     if (confirm('Are you sure you want to delete this content?')) {
       await deleteContent(id);
     }
@@ -300,6 +327,57 @@ export const ContentPage = () => {
                 </button>
                 <button type="submit" className="btn-primary flex-1" disabled={isLoading}>
                   {isLoading ? 'Uploading...' : 'Upload & Convert'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Video Upload Modal */}
+      {showVideoModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-md w-full shadow-2xl">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+              Upload Video
+            </h2>
+            <form onSubmit={handleVideoSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={videoData.name}
+                  onChange={(e) => setVideoData({ ...videoData, name: e.target.value })}
+                  className="input"
+                  placeholder="e.g., Promo Video"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Video File (.mp4, .webm)
+                </label>
+                <input
+                  type="file"
+                  accept=".mp4,.webm,.mkv,.mov"
+                  onChange={(e) => setVideoData({ ...videoData, file: e.target.files ? e.target.files[0] : null })}
+                  className="input"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowVideoModal(false)}
+                  className="btn-secondary flex-1"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary flex-1" disabled={isLoading}>
+                  {isLoading ? 'Uploading...' : 'Upload & Process'}
                 </button>
               </div>
             </form>

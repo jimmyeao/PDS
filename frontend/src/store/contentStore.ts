@@ -14,6 +14,7 @@ interface ContentState {
   updateContent: (id: number, data: any) => Promise<void>;
   deleteContent: (id: number) => Promise<void>;
   uploadPptx: (file: File, name: string, durationPerSlide: number) => Promise<void>;
+  uploadVideo: (file: File, name: string) => Promise<void>;
   setSelectedContent: (content: Content | null) => void;
   clearError: () => void;
 }
@@ -104,6 +105,21 @@ export const useContentStore = create<ContentState>((set) => ({
     } catch (error: any) {
       set({
         error: error.response?.data?.message || 'Failed to upload PPTX',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  uploadVideo: async (file, name) => {
+    set({ isLoading: true, error: null });
+    try {
+      await contentService.uploadVideo(file, name);
+      const content = await contentService.getAll();
+      set({ content, isLoading: false });
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Failed to upload Video',
         isLoading: false,
       });
       throw error;
