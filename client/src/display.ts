@@ -772,6 +772,30 @@ class DisplayController {
         throw new Error('Navigation failed after retries');
       }
 
+      // AGGRESSIVE FIX: Inject CSS again to ensure scrollbars are hidden
+      // This handles cases where the page's own CSS overrides our initial injection
+      await this.page.addStyleTag({
+        content: `
+          ::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
+          html, body { 
+            overflow: hidden !important; 
+            scrollbar-width: none !important; 
+            -ms-overflow-style: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+          }
+          video {
+            object-fit: contain !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
+          }
+        `
+      });
+
       // Force page to use full viewport (code runs in browser context via page.evaluate)
       await this.page.evaluate(() => {
         // @ts-ignore
@@ -782,6 +806,20 @@ class DisplayController {
           meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
           // @ts-ignore
           document.head.appendChild(meta);
+        }
+        
+        // Simulate user interaction to unlock audio context
+        // @ts-ignore
+        document.body.click();
+        
+        // Force video playback again just in case
+        // @ts-ignore
+        const videos = document.getElementsByTagName('video');
+        for (let i = 0; i < videos.length; i++) {
+            const v = videos[i];
+            v.muted = false;
+            v.volume = 1.0;
+            v.play().catch(() => {});
         }
 
         // Force body and html to use 100% width/height and remove any scaling
