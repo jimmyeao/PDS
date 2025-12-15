@@ -812,26 +812,45 @@ class DisplayController {
         // @ts-ignore
         document.body.click();
         
-        // Force video playback again just in case
+        // Setup robust video handling (works for both HTML wrappers and raw video files)
         // @ts-ignore
-        const videos = document.getElementsByTagName('video');
-        for (let i = 0; i < videos.length; i++) {
-            const v = videos[i];
-            v.muted = false;
-            v.volume = 1.0;
-            v.play().catch(() => {});
+        function setupVideoHandling() {
+            // @ts-ignore
+            const videos = document.getElementsByTagName('video');
+            for (let i = 0; i < videos.length; i++) {
+                const v = videos[i];
+                
+                // Ensure loop and audio
+                if (!v.loop) v.loop = true;
+                if (v.muted) v.muted = false;
+                v.volume = 1.0;
+                
+                // Add event listeners to keep it alive
+                v.onended = () => { v.currentTime = 0; v.play().catch(() => {}); };
+                v.onpause = () => { if (!v.ended) v.play().catch(() => {}); };
+                
+                // Try to play
+                v.play().catch(() => {});
+            }
         }
+
+        // Run immediately
+        setupVideoHandling();
+        
+        // And periodically (less frequent to save CPU)
+        // @ts-ignore
+        setInterval(setupVideoHandling, 5000);
 
         // Force body and html to use 100% width/height and remove any scaling
         // @ts-ignore
         if (document.documentElement) {
           // @ts-ignore
-          document.documentElement.style.cssText = 'width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden;';
+          document.documentElement.style.cssText = 'width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden; background-color: black;';
         }
         // @ts-ignore
         if (document.body) {
           // @ts-ignore
-          document.body.style.cssText = 'width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: auto; zoom: 100%;';
+          document.body.style.cssText = 'width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden; zoom: 100%; background-color: black;';
         }
       });
 
