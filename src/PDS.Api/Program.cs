@@ -99,7 +99,22 @@ if (!Directory.Exists(webRoot))
 {
     Directory.CreateDirectory(webRoot);
 }
-app.UseStaticFiles(); // Enable static file serving for slideshow images
+
+// Configure static files with proper MIME types and caching
+var provider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+provider.Mappings[".mp4"] = "video/mp4";
+provider.Mappings[".m4v"] = "video/mp4";
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    ContentTypeProvider = provider,
+    OnPrepareResponse = ctx =>
+    {
+        // Cache static assets for 1 year (since we use unique GUIDs for folders)
+        // This helps video playback significantly by allowing the browser to cache the file
+        ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=31536000");
+    }
+});
 
 app.UseSwagger();
 app.UseSwaggerUI();

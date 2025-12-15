@@ -97,8 +97,9 @@ class DisplayController {
           '--autoplay-policy=no-user-gesture-required', // Allow autoplay with sound
           '--no-user-gesture-required', // Additional flag for autoplay
           '--disable-gesture-requirement-for-media-playback',
-          '--disk-cache-size=1', // Disable disk cache
-          '--media-cache-size=1', // Disable media cache
+          // Enable caching for better video performance
+          // '--disk-cache-size=1', 
+          // '--media-cache-size=1', 
         ],
         ignoreDefaultArgs: ['--enable-automation', '--mute-audio'], // Ensure audio is not muted
         defaultViewport: null, // Use window size instead of viewport
@@ -712,9 +713,14 @@ class DisplayController {
     try {
       // Clear previous page state by navigating to about:blank if switching from a video or heavy content
       // This helps prevent memory leaks and ensures a clean slate for the next page
-      if (this.currentUrl.includes('/videos/') || url.includes('/videos/')) {
+      // Only do this if we are actually switching content types, to avoid unnecessary flashing
+      const isVideo = url.includes('.mp4') || url.includes('/videos/');
+      const wasVideo = this.currentUrl.includes('.mp4') || this.currentUrl.includes('/videos/');
+      
+      if (wasVideo || isVideo) {
           try {
-              await this.page.goto('about:blank', { waitUntil: 'domcontentloaded', timeout: 5000 });
+              // Use a shorter timeout and don't wait for full load
+              await this.page.goto('about:blank', { waitUntil: 'domcontentloaded', timeout: 2000 });
           } catch (e) {}
       }
 
@@ -729,8 +735,11 @@ class DisplayController {
       let navigationSuccess = false;
 
       try {
+        // For video files, we don't need networkidle2, domcontentloaded is enough
+        const waitStrategy = isVideo ? 'domcontentloaded' : 'networkidle2';
+        
         await this.page.goto(url, {
-          waitUntil: 'networkidle2',
+          waitUntil: waitStrategy,
           timeout: timeout,
         });
         navigationSuccess = true;
@@ -837,9 +846,10 @@ class DisplayController {
         // Run immediately
         setupVideoHandling();
         
-        // And periodically (less frequent to save CPU)
+        // Remove the interval to prevent CPU usage and potential playback interference
+        // The event listeners (onended, onpause) should handle keeping it alive
         // @ts-ignore
-        setInterval(setupVideoHandling, 5000);
+        // setInterval(setupVideoHandling, 5000);
 
         // Force body and html to use 100% width/height and remove any scaling
         // @ts-ignore
@@ -881,12 +891,8 @@ class DisplayController {
         await this.startScreencast();
       }
 
-      // If duration is specified, navigate back after timeout
-      if (duration) {
-        setTimeout(() => {
-          logger.info(`Duration ${duration}ms elapsed, ready for next navigation`);
-        }, duration);
-      }
+      // REMOVED: Do not wait or log duration here. PlaylistExecutor handles timing.
+      // This prevents race conditions and confusing logs.
     } catch (error: any) {
       logger.error(`Navigation failed to ${url}:`, error.message);
       // Only report critical navigation failures; ignore benign aborts caused by redirects or SPA route changes
