@@ -84,16 +84,7 @@ export const ContentPage = () => {
     setShowModal(true);
   };
 
-  const handleDelVideoData({ name: '', file: null });
-              setShowVideoModal(true);
-            }}
-            className="btn-secondary"
-          >
-            Upload Video
-          </button>
-          <button
-            onClick={() => {
-              setete = async (id: number) => {
+  const handleDelete = async (id: number) => {
     if (confirm('Are you sure you want to delete this content?')) {
       await deleteContent(id);
     }
@@ -104,6 +95,15 @@ export const ContentPage = () => {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Content</h1>
         <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setVideoData({ name: '', file: null });
+              setShowVideoModal(true);
+            }}
+            className="btn-secondary"
+          >
+            Upload Video
+          </button>
           <button
             onClick={() => {
               setPptxData({ name: '', file: null, durationPerSlide: 10000 });
