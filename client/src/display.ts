@@ -644,6 +644,14 @@ class DisplayController {
       return;
     }
 
+    // Resolve relative URLs against the server URL
+    if (url.startsWith('/')) {
+      const config = configManager.get();
+      // Remove trailing slash from serverUrl if present and leading slash from url
+      const baseUrl = config.serverUrl.endsWith('/') ? config.serverUrl.slice(0, -1) : config.serverUrl;
+      url = `${baseUrl}${url}`;
+    }
+
     try {
       logger.info(`Navigating to: ${url}${duration ? ` (duration: ${duration}ms)` : ''}`);
 
