@@ -62,6 +62,7 @@ public class ContentItem
     public string? Username { get; set; }          // Username to fill
     public string? Password { get; set; }          // Password to fill (encrypted in production!)
     public bool AutoLogin { get; set; } = false;   // Enable auto-login for this content
+    public int? DefaultDuration { get; set; }      // Default duration in seconds (e.g. for slideshows)
 }
 
 public class Playlist

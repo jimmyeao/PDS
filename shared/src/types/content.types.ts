@@ -5,6 +5,7 @@ export interface Content {
   description?: string;
   requiresInteraction: boolean;
   thumbnailUrl?: string;
+  defaultDuration?: number; // Duration in seconds
   createdAt: Date;
   updatedAt: Date;
 }

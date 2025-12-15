@@ -60,14 +60,18 @@ public class SlideshowService : ISlideshowService
         // 4. Cleanup temp
         try { Directory.Delete(tempDir, true); } catch { /* ignore */ }
 
+        // Calculate total duration
+        // Count the generated images
+        var slideCount = Directory.GetFiles(outputDir, "*.jpg").Length;
+        var totalDurationSeconds = (slideCount * durationPerSlide) / 1000;
+
         // 5. Create ContentItem
         // The URL will point to the viewer endpoint
         var content = new ContentItem
         {
             Name = name,
             Url = $"/api/render/slideshow/{storageId}?duration={durationPerSlide}",
-            // We can store the storageId in a new field if we want, but URL parsing is fine for now.
-            // Or better: The URL is the API endpoint that returns the HTML viewer.
+            DefaultDuration = totalDurationSeconds
         };
 
         _db.Content.Add(content);

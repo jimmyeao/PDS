@@ -443,16 +443,23 @@ export const PlaylistsPage = () => {
                 </label>
                 <select
                   value={itemFormData.contentId}
-                  onChange={(e) =>
-                    setItemFormData({ ...itemFormData, contentId: Number(e.target.value) })
-                  }
+                  onChange={(e) => {
+                    const contentId = parseInt(e.target.value);
+                    const selectedContent = content.find(c => c.id === contentId);
+                    setItemFormData({
+                      ...itemFormData,
+                      contentId,
+                      // If content has a default duration, use it!
+                      displayDuration: selectedContent?.defaultDuration ? selectedContent.defaultDuration * 1000 : itemFormData.displayDuration
+                    });
+                  }}
                   className="input"
                   required
                 >
                   <option value="">Select content...</option>
                   {content.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name}
+                      {c.name} {c.defaultDuration ? `(${c.defaultDuration}s)` : ''}
                     </option>
                   ))}
                 </select>
