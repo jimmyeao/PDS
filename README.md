@@ -27,13 +27,18 @@ A web-based digital signage solution with central management of display devices,
 ```
 PDS/
 ├── src/
-│   └── PDS.Api/      # ASP.NET Core API server
-├── frontend/         # React admin UI
-├── client/           # Display client application (Windows, Linux, Raspberry Pi)
-├── shared/           # Shared TypeScript types
-├── scripts/          # Deployment and utility scripts
-└── installer/        # Windows installer resources
+│   ├── PDS.Api/         # ASP.NET Core 8 API server (.NET/C#)
+│   └── PDS.sln          # Visual Studio solution file
+├── frontend/            # React admin UI (Node.js workspace)
+├── client/              # Display client app (Node.js workspace)
+├── shared/              # Shared TypeScript types (Node.js workspace)
+├── scripts/             # Deployment and utility scripts
+├── installer/           # Windows installer resources
+├── docker-compose.yml   # Docker deployment configuration
+└── *.ps1                # PowerShell convenience scripts
 ```
+
+**Note**: The project uses npm workspaces for frontend, client, and shared packages. The backend is a separate .NET project not managed by npm.
 
 ## Getting Started
 
@@ -95,23 +100,27 @@ createdb pds
 
 #### 3. Start Backend
 
-```bash
-# Using npm script
-npm run backend:dev
+The backend is an ASP.NET Core 8 application (not Node.js):
 
-# Or using PowerShell script (Windows)
+```bash
+# Using PowerShell script (Windows)
 .\start-backend-dotnet.ps1
 
 # Or directly with dotnet CLI
 cd src/PDS.Api
 dotnet restore
 dotnet run
+
+# Or with specific configuration
+dotnet run --configuration Development
 ```
 
 Backend will be available at: http://localhost:5001
 - Swagger UI: http://localhost:5001/swagger
 - Health Check: http://localhost:5001/healthz
 - WebSocket: ws://localhost:5001/ws
+
+**Note**: The npm scripts `backend:dev`, `backend:build`, and `backend:start` in package.json are legacy references and do not work with the current .NET backend.
 
 #### 4. Start Frontend
 
@@ -389,29 +398,33 @@ When running the backend, access interactive API documentation:
 Available npm scripts in the root `package.json`:
 
 ```bash
-# Development
-npm run backend:dev      # Start ASP.NET Core backend in development
+# Frontend Development
 npm run frontend:dev     # Start React frontend with Vite
-npm run client:dev       # Run client in development mode
-
-# Building
-npm run backend:build    # Build backend
 npm run frontend:build   # Build frontend for production
-npm run client:build     # Build client application
 
-# Production
-npm run backend:start    # Start backend in production mode
+# Client Development
+npm run client:dev       # Run client in development mode
+npm run client:build     # Build client application
 
 # Utilities
 npm run install:all      # Install all dependencies
 npm run clean            # Clean node_modules from all workspaces
 ```
 
+**Backend**: The backend is an ASP.NET Core 8 application and must be run using .NET CLI:
+```bash
+cd src/PDS.Api
+dotnet restore
+dotnet run
+```
+
 Windows PowerShell scripts:
 - `start-everything.ps1` - Start backend, frontend, and test client
-- `start-backend-dotnet.ps1` - Start only the backend
+- `start-backend-dotnet.ps1` - Start only the backend (.NET)
 - `start-frontend.ps1` - Start only the frontend
 - `stop-all.ps1` - Stop all running services
+
+**Note**: Legacy npm scripts `backend:dev`, `backend:build`, and `backend:start` are outdated and do not work with the current .NET backend.
 
 ## Environment Variables
 
