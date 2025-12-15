@@ -987,22 +987,29 @@ public class PlaylistService : IPlaylistService
 
     public async Task<object?> GetPlaylistAsync(int id)
     {
-        var p = await _db.Playlists.Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id);
+        var p = await _db.Playlists.FindAsync(id);
         if (p == null) return null;
-        var items = p.Items
-            .OrderBy(i => i.Id)
-            .Select(i => new
-            {
-                id = i.Id,
-                playlistId = p.Id,
-                contentId = i.Id, // placeholder until schema expanded
-                displayDuration = (i.DurationSeconds ?? 0) * 1000,
-                orderIndex = i.Id,
-                timeWindowStart = (string?)null,
-                timeWindowEnd = (string?)null,
-                daysOfWeek = (string?)null,
-                content = new { id = i.Id, name = i.Url, url = i.Url, requiresInteraction = false }
-            });
+
+        var itemsQuery = from i in _db.PlaylistItems
+                    where i.PlaylistId == id
+                    join c in _db.Content on i.ContentId equals c.Id into contentGroup
+                    from c in contentGroup.DefaultIfEmpty()
+                    orderby i.OrderIndex ?? i.Id
+                    select new
+                    {
+                        id = i.Id,
+                        playlistId = i.PlaylistId,
+                        contentId = i.ContentId,
+                        url = i.Url,
+                        durationSeconds = i.DurationSeconds,
+                        orderIndex = i.OrderIndex ?? 0,
+                        timeWindowStart = i.TimeWindowStart,
+                        timeWindowEnd = i.TimeWindowEnd,
+                        daysOfWeek = i.DaysOfWeek,
+                        content = c == null ? null : new { id = c.Id, name = c.Name, url = c.Url, requiresInteraction = false }
+                    };
+        
+        var items = await itemsQuery.ToListAsync();
         return new { id = p.Id, name = p.Name, isActive = p.IsActive, items };
     }
 
@@ -1048,17 +1055,21 @@ public class PlaylistService : IPlaylistService
         var deviceIds = await _db.DevicePlaylists.Where(x => x.PlaylistId == pid)
             .Join(_db.Devices, dp => dp.DeviceId, d => d.Id, (dp, d) => d.DeviceId)
             .ToListAsync();
-        var items = await _db.PlaylistItems.Where(x => x.PlaylistId == pid)
-            .OrderBy(x => x.OrderIndex ?? x.Id)
-            .Select(x => new {
-                id = x.Id,
-                playlistId = x.PlaylistId,
-                contentId = x.ContentId,
-                displayDuration = (x.DurationSeconds ?? 0) * 1000,
-                orderIndex = x.OrderIndex ?? 0,
-                content = new { id = x.ContentId, name = x.Url, url = x.Url, requiresInteraction = false }
-            })
-            .ToListAsync();
+        
+        var itemsQuery = from x in _db.PlaylistItems
+                         where x.PlaylistId == pid
+                         join c in _db.Content on x.ContentId equals c.Id into contentGroup
+                         from c in contentGroup.DefaultIfEmpty()
+                         orderby x.OrderIndex ?? x.Id
+                         select new {
+                             id = x.Id,
+                             playlistId = x.PlaylistId,
+                             contentId = x.ContentId,
+                             displayDuration = (x.DurationSeconds ?? 0) * 1000,
+                             orderIndex = x.OrderIndex ?? 0,
+                             content = c == null ? null : new { id = c.Id, name = c.Name, url = c.Url, requiresInteraction = false }
+                         };
+        var items = await itemsQuery.ToListAsync();
         foreach (var devId in deviceIds)
         {
             await RealtimeHub.SendToDevice(devId, ServerToClientEvent.CONTENT_UPDATE, new { playlistId = pid, items });
@@ -1069,21 +1080,26 @@ public class PlaylistService : IPlaylistService
 
     public async Task<IEnumerable<object>> GetItemsAsync(int playlistId)
     {
-        return await _db.PlaylistItems.Where(i => i.PlaylistId == playlistId)
-            .OrderBy(i => i.OrderIndex ?? i.Id)
-            .Select(i => new
-            {
-                id = i.Id,
-                playlistId = i.PlaylistId,
-                contentId = i.ContentId,
-                url = i.Url,
-                durationSeconds = i.DurationSeconds,
-                orderIndex = i.OrderIndex ?? 0,
-                timeWindowStart = i.TimeWindowStart,
-                timeWindowEnd = i.TimeWindowEnd,
-                daysOfWeek = i.DaysOfWeek
-            })
-            .ToListAsync();
+        var query = from i in _db.PlaylistItems
+                    where i.PlaylistId == playlistId
+                    join c in _db.Content on i.ContentId equals c.Id into contentGroup
+                    from c in contentGroup.DefaultIfEmpty()
+                    orderby i.OrderIndex ?? i.Id
+                    select new
+                    {
+                        id = i.Id,
+                        playlistId = i.PlaylistId,
+                        contentId = i.ContentId,
+                        url = i.Url,
+                        durationSeconds = i.DurationSeconds,
+                        orderIndex = i.OrderIndex ?? 0,
+                        timeWindowStart = i.TimeWindowStart,
+                        timeWindowEnd = i.TimeWindowEnd,
+                        daysOfWeek = i.DaysOfWeek,
+                        content = c == null ? null : new { id = c.Id, name = c.Name, url = c.Url, requiresInteraction = false }
+                    };
+        
+        return await query.ToListAsync();
     }
 
     public async Task<object> UpdateItemAsync(int id, UpdatePlaylistItemDto dto)
@@ -1111,17 +1127,21 @@ public class PlaylistService : IPlaylistService
         var deviceIds = await _db.DevicePlaylists.Where(x => x.PlaylistId == pid)
             .Join(_db.Devices, dp => dp.DeviceId, d => d.Id, (dp, d) => d.DeviceId)
             .ToListAsync();
-        var items = await _db.PlaylistItems.Where(x => x.PlaylistId == pid)
-            .OrderBy(x => x.OrderIndex ?? x.Id)
-            .Select(x => new {
-                id = x.Id,
-                playlistId = x.PlaylistId,
-                contentId = x.ContentId,
-                displayDuration = (x.DurationSeconds ?? 0) * 1000,
-                orderIndex = x.OrderIndex ?? 0,
-                content = new { id = x.ContentId, name = x.Url, url = x.Url, requiresInteraction = false }
-            })
-            .ToListAsync();
+        
+        var itemsQuery = from x in _db.PlaylistItems
+                         where x.PlaylistId == pid
+                         join c in _db.Content on x.ContentId equals c.Id into contentGroup
+                         from c in contentGroup.DefaultIfEmpty()
+                         orderby x.OrderIndex ?? x.Id
+                         select new {
+                             id = x.Id,
+                             playlistId = x.PlaylistId,
+                             contentId = x.ContentId,
+                             displayDuration = (x.DurationSeconds ?? 0) * 1000,
+                             orderIndex = x.OrderIndex ?? 0,
+                             content = c == null ? null : new { id = c.Id, name = c.Name, url = c.Url, requiresInteraction = false }
+                         };
+        var items = await itemsQuery.ToListAsync();
         foreach (var devId in deviceIds)
         {
             await RealtimeHub.SendToDevice(devId, ServerToClientEvent.CONTENT_UPDATE, new { playlistId = pid, items });

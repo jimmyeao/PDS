@@ -88,7 +88,7 @@ export const ContentPage = () => {
           {content.map((item) => (
             <div key={item.id} className="card">
               <div className="flex items-start justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-900">{item.name}</h3>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">{item.name}</h3>
                 {item.requiresInteraction && (
                   <span className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                     Interactive
