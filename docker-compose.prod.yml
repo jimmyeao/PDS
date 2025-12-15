@@ -23,6 +23,8 @@ services:
       - "5001:8080"
     depends_on:
       - postgres
+    volumes:
+      - pds_media:/app/wwwroot
     restart: unless-stopped
 
   frontend:
@@ -36,3 +38,4 @@ services:
 
 volumes:
   postgres_data:
+  pds_media:
