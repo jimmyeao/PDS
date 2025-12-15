@@ -396,6 +396,8 @@
       // If only one item but has duration (e.g. video), loop it
       if (this.playlistItems.length === 1 && nextDelay > 0) {
          logger.info(`Single item with duration ${nextDelay}ms - scheduling loop`);
+         // Force reload for single item video loops
+         this.currentIndex = (this.currentIndex - 1 + this.playlistItems.length) % this.playlistItems.length;
       }
 
       this.timeoutId = setTimeout(() => {

@@ -94,8 +94,10 @@ class DisplayController {
           `--window-position=0,0`,
           '--new-window',
           '--start-fullscreen', // Force fullscreen mode
+          '--autoplay-policy=no-user-gesture-required', // Allow autoplay with sound
+          '--no-user-gesture-required', // Additional flag for autoplay
         ],
-        ignoreDefaultArgs: ['--enable-automation'],
+        ignoreDefaultArgs: ['--enable-automation', '--mute-audio'], // Ensure audio is not muted
         defaultViewport: null, // Use window size instead of viewport
         env: {
           ...process.env,
@@ -230,6 +232,24 @@ class DisplayController {
             // @ts-ignore
             delete window.PublicKeyCredential;
         } catch (e) {}
+      });
+
+      // Inject CSS to hide scrollbars globally
+      await this.page.evaluateOnNewDocument(() => {
+        const style = document.createElement('style');
+        style.innerHTML = `
+          ::-webkit-scrollbar { 
+            display: none; 
+            width: 0 !important;
+            height: 0 !important;
+          }
+          body { 
+            -ms-overflow-style: none; 
+            scrollbar-width: none; 
+            overflow: hidden;
+          }
+        `;
+        document.head.appendChild(style);
       });
 
       logger.info('Page created with viewport set');
