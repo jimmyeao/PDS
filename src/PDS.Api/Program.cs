@@ -1336,7 +1336,8 @@ public class PlaylistService : IPlaylistService
                 submitSelector = c.SubmitSelector,
                 username = c.Username,
                 password = c.Password,
-                autoLogin = c.AutoLogin
+                autoLogin = c.AutoLogin,
+                defaultDuration = c.DefaultDuration
             })
             .ToListAsync();
     }
@@ -1354,7 +1355,8 @@ public class PlaylistService : IPlaylistService
             submitSelector = c.SubmitSelector,
             username = c.Username,
             password = c.Password,
-            autoLogin = c.AutoLogin
+            autoLogin = c.AutoLogin,
+            defaultDuration = c.DefaultDuration
         };
     }
 
