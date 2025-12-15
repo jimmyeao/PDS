@@ -25,4 +25,18 @@ export const contentService = {
   async delete(id: number): Promise<void> {
     await api.delete(`/content/${id}`);
   },
+
+  async uploadPptx(file: File, name: string, durationPerSlide: number): Promise<Content> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('name', name);
+    formData.append('durationPerSlide', durationPerSlide.toString());
+
+    const response = await api.post<Content>('/content/upload/pptx', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
 };

@@ -70,11 +70,13 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IDeviceService, DeviceService>();
 builder.Services.AddScoped<IPlaylistService, PlaylistService>();
 builder.Services.AddScoped<IScreenshotService, ScreenshotService>();
+builder.Services.AddScoped<ISlideshowService, SlideshowService>();
 
 var app = builder.Build();
 var cfg = builder.Configuration;
 
 app.UseSerilogRequestLogging();
+app.UseStaticFiles(); // Enable static file serving for slideshow images
 app.UseSwagger();
 app.UseSwaggerUI();
 // Apply CORS before auth/authorization so preflights and failures still include CORS headers
@@ -469,6 +471,39 @@ app.MapDelete("/content/{id:int}", async (int id, IPlaylistService svc) =>
     await svc.RemoveContentAsync(id);
     return Results.Ok(new { message = "Content deleted successfully" });
 }).RequireAuthorization();
+
+// Slideshow endpoints
+app.MapPost("/content/upload/pptx", async (HttpRequest request, ISlideshowService svc) =>
+{
+    if (!request.HasFormContentType)
+        return Results.BadRequest("Invalid content type");
+
+    var form = await request.ReadFormAsync();
+    var file = form.Files["file"];
+    var name = form["name"].ToString();
+    var durationStr = form["durationPerSlide"].ToString();
+    int.TryParse(durationStr, out int duration);
+    if (duration <= 0) duration = 10000; // Default 10s
+
+    if (file == null || file.Length == 0)
+        return Results.BadRequest("No file uploaded");
+
+    try
+    {
+        var content = await svc.ConvertAndCreateAsync(file, name, duration);
+        return Results.Ok(content);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(ex.Message);
+    }
+}).RequireAuthorization();
+
+app.MapGet("/api/render/slideshow/{storageId}", async (string storageId, [FromQuery] int duration, ISlideshowService svc) =>
+{
+    var html = await svc.GenerateViewerHtmlAsync(storageId, duration > 0 ? duration : 10000);
+    return Results.Content(html, "text/html");
+}).AllowAnonymous(); // Allow anonymous so devices can load it without auth headers (unless we add token to URL)
 
 // Playlists endpoints
 app.MapPost("/playlists", async ([FromBody] CreatePlaylistDto dto, IPlaylistService svc) => await svc.CreatePlaylistAsync(dto))

@@ -13,6 +13,7 @@ interface ContentState {
   createContent: (data: any) => Promise<void>;
   updateContent: (id: number, data: any) => Promise<void>;
   deleteContent: (id: number) => Promise<void>;
+  uploadPptx: (file: File, name: string, durationPerSlide: number) => Promise<void>;
   setSelectedContent: (content: Content | null) => void;
   clearError: () => void;
 }
@@ -88,6 +89,21 @@ export const useContentStore = create<ContentState>((set) => ({
     } catch (error: any) {
       set({
         error: error.response?.data?.message || 'Failed to delete content',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  uploadPptx: async (file, name, durationPerSlide) => {
+    set({ isLoading: true, error: null });
+    try {
+      await contentService.uploadPptx(file, name, durationPerSlide);
+      const content = await contentService.getAll();
+      set({ content, isLoading: false });
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Failed to upload PPTX',
         isLoading: false,
       });
       throw error;

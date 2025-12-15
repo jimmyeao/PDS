@@ -2,14 +2,20 @@ import { useEffect, useState } from 'react';
 import { useContentStore } from '../store/contentStore';
 
 export const ContentPage = () => {
-  const { content, fetchContent, createContent, updateContent, deleteContent, isLoading } = useContentStore();
+  const { content, fetchContent, createContent, updateContent, deleteContent, uploadPptx, isLoading } = useContentStore();
   const [showModal, setShowModal] = useState(false);
+  const [showPptxModal, setShowPptxModal] = useState(false);
   const [editingContent, setEditingContent] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     url: '',
     description: '',
     requiresInteraction: false,
+  });
+  const [pptxData, setPptxData] = useState({
+    name: '',
+    file: null as File | null,
+    durationPerSlide: 10000,
   });
 
   useEffect(() => {
@@ -36,6 +42,19 @@ export const ContentPage = () => {
     }
   };
 
+  const handlePptxSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pptxData.file) return;
+    
+    try {
+      await uploadPptx(pptxData.file, pptxData.name, pptxData.durationPerSlide);
+      setShowPptxModal(false);
+      setPptxData({ name: '', file: null, durationPerSlide: 10000 });
+    } catch (error) {
+      // Error handled by store
+    }
+  };
+
   const handleEdit = (item: any) => {
     setFormData({
       name: item.name,
@@ -57,16 +76,27 @@ export const ContentPage = () => {
     <div>
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Content</h1>
-        <button
-          onClick={() => {
-            setEditingContent(null);
-            setFormData({ name: '', url: '', description: '', requiresInteraction: false });
-            setShowModal(true);
-          }}
-          className="btn-primary"
-        >
-          + Add Content
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setPptxData({ name: '', file: null, durationPerSlide: 10000 });
+              setShowPptxModal(true);
+            }}
+            className="btn-secondary"
+          >
+            Upload PowerPoint
+          </button>
+          <button
+            onClick={() => {
+              setEditingContent(null);
+              setFormData({ name: '', url: '', description: '', requiresInteraction: false });
+              setShowModal(true);
+            }}
+            className="btn-primary"
+          >
+            + Add Content
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -204,6 +234,73 @@ export const ContentPage = () => {
                 </button>
                 <button type="submit" className="btn-primary flex-1">
                   {editingContent ? 'Update Content' : 'Add Content'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* PPTX Upload Modal */}
+      {showPptxModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-md w-full shadow-2xl">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+              Upload PowerPoint
+            </h2>
+            <form onSubmit={handlePptxSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={pptxData.name}
+                  onChange={(e) => setPptxData({ ...pptxData, name: e.target.value })}
+                  className="input"
+                  placeholder="e.g., Monthly Report"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  PowerPoint File (.pptx)
+                </label>
+                <input
+                  type="file"
+                  accept=".pptx"
+                  onChange={(e) => setPptxData({ ...pptxData, file: e.target.files ? e.target.files[0] : null })}
+                  className="input"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Slide Duration (ms)
+                </label>
+                <input
+                  type="number"
+                  value={pptxData.durationPerSlide}
+                  onChange={(e) => setPptxData({ ...pptxData, durationPerSlide: parseInt(e.target.value) })}
+                  className="input"
+                  min="1000"
+                  step="1000"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Time to show each slide in milliseconds</p>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowPptxModal(false)}
+                  className="btn-secondary flex-1"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary flex-1" disabled={isLoading}>
+                  {isLoading ? 'Uploading...' : 'Upload & Convert'}
                 </button>
               </div>
             </form>
