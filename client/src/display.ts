@@ -148,6 +148,7 @@ class DisplayController {
 
       // Inject CSS to hide scrollbars globally
       await this.page.evaluateOnNewDocument(() => {
+        // @ts-ignore
         const style = document.createElement('style');
         style.innerHTML = `
           ::-webkit-scrollbar { 
@@ -161,6 +162,7 @@ class DisplayController {
             overflow: hidden;
           }
         `;
+        // @ts-ignore
         document.head.appendChild(style);
       });
 
@@ -232,24 +234,6 @@ class DisplayController {
             // @ts-ignore
             delete window.PublicKeyCredential;
         } catch (e) {}
-      });
-
-      // Inject CSS to hide scrollbars globally
-      await this.page.evaluateOnNewDocument(() => {
-        const style = document.createElement('style');
-        style.innerHTML = `
-          ::-webkit-scrollbar { 
-            display: none; 
-            width: 0 !important;
-            height: 0 !important;
-          }
-          body { 
-            -ms-overflow-style: none; 
-            scrollbar-width: none; 
-            overflow: hidden;
-          }
-        `;
-        document.head.appendChild(style);
       });
 
       logger.info('Page created with viewport set');
