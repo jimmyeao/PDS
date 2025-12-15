@@ -109,7 +109,7 @@ public class SlideshowService : ISlideshowService
 <head>
     <style>
         body, html {{ margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: black; }}
-        #slide {{ width: 100%; height: 100%; object-fit: contain; }}
+        #slide {{ width: 100%; height: 100%; object-fit: contain; display: block; }}
     </style>
 </head>
 <body>

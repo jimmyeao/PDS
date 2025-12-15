@@ -277,18 +277,17 @@ export const ContentPage = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Slide Duration (ms)
+                  Slide Duration (seconds)
                 </label>
                 <input
                   type="number"
-                  value={pptxData.durationPerSlide}
-                  onChange={(e) => setPptxData({ ...pptxData, durationPerSlide: parseInt(e.target.value) })}
+                  value={pptxData.durationPerSlide / 1000}
+                  onChange={(e) => setPptxData({ ...pptxData, durationPerSlide: Number(e.target.value) * 1000 })}
                   className="input"
-                  min="1000"
-                  step="1000"
+                  min="1"
                   required
                 />
-                <p className="text-xs text-gray-500 mt-1">Time to show each slide in milliseconds</p>
+                <p className="text-xs text-gray-500 mt-1">Time to show each slide in seconds</p>
               </div>
 
               <div className="flex gap-3 pt-4">
