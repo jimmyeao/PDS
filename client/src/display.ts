@@ -834,6 +834,9 @@ class DisplayController {
                 if (v.muted) v.muted = false;
                 v.volume = 1.0;
                 
+                // Set preload to auto to encourage buffering
+                v.preload = 'auto';
+                
                 // Add event listeners to keep it alive
                 v.onended = () => { v.currentTime = 0; v.play().catch(() => {}); };
                 v.onpause = () => { if (!v.ended) v.play().catch(() => {}); };

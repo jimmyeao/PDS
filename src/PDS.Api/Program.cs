@@ -15,10 +15,15 @@ using OtpNet;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Kestrel for large uploads (500MB)
+// Configure Kestrel for large uploads (500MB) and robust streaming
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.Limits.MaxRequestBodySize = 500 * 1024 * 1024; // 500 MB
+    // Prevent timeouts during long video streams
+    options.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(10);
+    options.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(5);
+    // Allow unlimited response rate (don't throttle downloads)
+    options.Limits.MinResponseDataRate = null;
 });
 
 // Configure FormOptions for large multipart uploads
