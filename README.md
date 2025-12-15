@@ -1,85 +1,192 @@
-# Kiosk Digital Signage Solution
+# PDS - Digital Signage Solution
 
-A web-based digital signage solution with central management of Raspberry Pi displays, featuring remote viewing capability, content scheduling, and interactive page support.
+A web-based digital signage solution with central management of display devices, featuring remote viewing capability, content scheduling, playlist control, and interactive page support. Supports Windows, Linux, and Raspberry Pi clients.
 
 ## Features
 
 - **Central Management**: Web-based admin UI to manage all displays from one place
-- **Remote Viewing**: See what's currently displayed on each Raspberry Pi screen in real-time
+- **Remote Viewing**: See what's currently displayed on each device screen in real-time
 - **Content Scheduling**: Create rotation schedules with display durations and time windows
+- **Playlist Control**: Play/pause, next/previous navigation, and global broadcast capabilities
+- **Remote Browser Control**: Remotely interact with displayed pages (click, type, navigate)
 - **Interactive Page Support**: Handle authentication and MFA prompts without interruption
 - **Real-time Updates**: WebSocket-based communication for instant configuration changes
-- **Health Monitoring**: Track device status, CPU, memory, and connection health
+- **Health Monitoring**: Track device status, CPU, memory, temperature, and connection health
+- **Cross-Platform Clients**: Supports Windows (Intel NUCs, PCs), Linux, and Raspberry Pi
 
 ## Architecture
 
-- **Backend**: NestJS (Node.js + TypeScript) with SQLite database
+- **Backend**: ASP.NET Core 8 (C#) with PostgreSQL database
 - **Frontend**: React + Vite with TypeScript
-- **Client**: Node.js + Puppeteer + Chromium (kiosk mode) for Raspberry Pi
-- **Real-time**: Socket.IO for WebSocket communication
+- **Client**: Node.js + Puppeteer + Chromium/Chrome/Edge (kiosk mode) for display devices
+- **Real-time**: WebSocket communication for instant updates
 - **Authentication**: JWT tokens
 
 ## Project Structure
 
 ```
-kiosk/
-├── backend/      # NestJS API server
-├── frontend/     # React admin UI
-├── client/       # Raspberry Pi client application
-└── shared/       # Shared TypeScript types
+PDS/
+├── src/
+│   └── PDS.Api/      # ASP.NET Core API server
+├── frontend/         # React admin UI
+├── client/           # Display client application (Windows, Linux, Raspberry Pi)
+├── shared/           # Shared TypeScript types
+├── scripts/          # Deployment and utility scripts
+└── installer/        # Windows installer resources
 ```
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ LTS
-- npm 9+
+- **Node.js** 18+ LTS
+- **npm** 9+
+- **.NET SDK** 8.0+ (for backend development)
+- **PostgreSQL** 15+ (or use Docker)
 
-### Installation
+### Quick Start with Docker (Recommended)
 
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+The easiest way to run the entire system:
 
-### Development
-
-Start the backend server:
 ```bash
+# Clone the repository
+git clone https://github.com/jimmyeao/PDS.git
+cd PDS
+
+# Configure environment (optional - has defaults)
+cp .env.example .env
+nano .env
+
+# Start all services with Docker Compose
+docker-compose up -d
+```
+
+Services will be available at:
+- **Frontend UI**: http://localhost:5173
+- **Backend API**: http://localhost:5001
+- **PostgreSQL**: localhost:5432
+
+Default admin credentials:
+- Username: `admin`
+- Password: `admin123`
+
+### Development Setup
+
+#### 1. Install Dependencies
+
+```bash
+# Install workspace dependencies
+npm install
+```
+
+#### 2. Set Up Database
+
+**Option A: Using Docker (Recommended)**
+```bash
+docker-compose up postgres -d
+```
+
+**Option B: Local PostgreSQL**
+```bash
+# Install PostgreSQL 15+
+# Create database 'pds'
+createdb pds
+```
+
+#### 3. Start Backend
+
+```bash
+# Using npm script
 npm run backend:dev
+
+# Or using PowerShell script (Windows)
+.\start-backend-dotnet.ps1
+
+# Or directly with dotnet CLI
+cd src/PDS.Api
+dotnet restore
+dotnet run
 ```
 
-Start the frontend development server:
+Backend will be available at: http://localhost:5001
+- Swagger UI: http://localhost:5001/swagger
+- Health Check: http://localhost:5001/healthz
+- WebSocket: ws://localhost:5001/ws
+
+#### 4. Start Frontend
+
 ```bash
+# Using npm script
 npm run frontend:dev
+
+# Or using PowerShell script (Windows)
+.\start-frontend.ps1
+
+# Or directly
+cd frontend
+npm run dev
 ```
 
-Build the client application:
+Frontend will be available at: http://localhost:5173
+
+#### 5. Build Client Application
+
 ```bash
 npm run client:build
 ```
 
-## Client Installation (Raspberry Pi)
+### Start Everything (Windows)
 
-The client application runs on Raspberry Pi devices to display content in kiosk mode.
+For Windows development, use the convenience script:
 
-### Quick Setup (Recommended)
+```powershell
+.\start-everything.ps1
+```
+
+This starts backend, frontend, and a local test client in separate windows.
+
+## Client Installation
+
+The client application runs on display devices (Windows, Linux, or Raspberry Pi) to show content in kiosk mode.
+
+### Raspberry Pi - Quick Setup (Recommended)
 
 Run this one-liner on your Raspberry Pi:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jimmyeao/PDS/main/client/setup-on-pi.sh | bash
+curl -sSL https://raw.githubusercontent.com/jimmyeao/PDS/main/install-pi.sh | bash
 ```
 
-This will:
-- Install Node.js if needed
-- Clone the repository
-- Build all dependencies
-- Set up the client application
+This automated installer will:
+- Install Node.js 20 LTS
+- Install Chromium browser
+- Clone the repository to `~/kiosk-client`
+- Install all dependencies
+- Create `.env` configuration file
+- Set up systemd service for auto-start
+- Create update script
 
-### Manual Setup
+📖 **For detailed Raspberry Pi instructions**, see [README-PI-INSTALL.md](README-PI-INSTALL.md)
+
+### Windows - Deployment
+
+For Windows PCs or Intel NUCs:
+
+```powershell
+# From your development machine
+cd client
+npm run deploy:win
+```
+
+This creates a `deploy` folder with everything needed. Copy it to your Windows machine and:
+
+1. Copy `.env.example` to `.env` and configure
+2. Run `start.bat` for manual start
+3. Or install as Windows Service using NSSM
+
+📖 **For detailed Windows instructions**, see [client/README-WINDOWS.md](client/README-WINDOWS.md)
+
+### Linux - Manual Setup
 
 1. **Install Node.js** (if not already installed):
    ```bash
@@ -87,47 +194,55 @@ This will:
    sudo apt-get install -y nodejs
    ```
 
-2. **Clone the repository**:
+2. **Install Chromium browser**:
    ```bash
-   git clone https://github.com/jimmyeao/PDS.git ~/kiosk
-   cd ~/kiosk
+   sudo apt-get install -y chromium-browser chromium-codecs-ffmpeg
    ```
 
-3. **Install and build**:
+3. **Clone the repository**:
    ```bash
-   # Install and build shared package
+   git clone https://github.com/jimmyeao/PDS.git ~/kiosk-client
+   cd ~/kiosk-client
+   ```
+
+4. **Deploy the client**:
+   ```bash
+   # Option A: Using deployment script
+   cd client
+   npm run deploy
+   cd deploy
+   
+   # Option B: Manual build
    cd shared
-   npm install --legacy-peer-deps
+   npm install
    npm run build
-   cd ..
-
-   # Install and build client
-   cd client
-   npm install --legacy-peer-deps
+   cd ../client
+   npm install
    npm run build
-   cd ..
    ```
 
-4. **Configure the client**:
+5. **Configure the client**:
    ```bash
-   cd client
    cp .env.example .env
    nano .env
    ```
 
    Update the following variables in `.env`:
    ```env
-   DEVICE_ID=your-device-id          # Unique identifier for this device
+   SERVER_URL=http://your-server-ip:5001
    DEVICE_TOKEN=your-device-token    # Token from admin UI when creating device
-   BACKEND_URL=http://your-backend-ip:3000
-   KIOSK_MODE=true
    DISPLAY_WIDTH=1920
    DISPLAY_HEIGHT=1080
-   PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser  # Or path to Chrome/Chromium
+   KIOSK_MODE=true
+   PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
    ```
 
-5. **Start the client**:
+6. **Start the client**:
    ```bash
+   # If using deployment build
+   node dist/index.js
+   
+   # If using manual build
    npm start
    ```
 
@@ -135,12 +250,13 @@ This will:
 
 Before running the client, you need to register it in the admin UI:
 
-1. Access the admin UI at `http://your-backend-ip:3000`
-2. Go to **Devices** page
-3. Click **Add Device**
-4. Fill in device details (ID, name, location)
-5. **Copy the device token** (shown only once!)
-6. Use this token in your client's `.env` file
+1. Access the admin UI at `http://your-server-ip:5173` (or your deployed frontend URL)
+2. Log in with admin credentials
+3. Go to **Devices** page
+4. Click **Add Device**
+5. Fill in device details (name, location)
+6. **Copy the device token** (shown only once!)
+7. Use this token in your client's `.env` file as `DEVICE_TOKEN`
 
 ### Running as a Service (Production)
 
@@ -154,16 +270,17 @@ To run the client automatically on boot:
 2. Add the following content:
    ```ini
    [Unit]
-   Description=Kiosk Digital Signage Client
+   Description=PDS Digital Signage Client
    After=network.target
 
    [Service]
    Type=simple
    User=pi
-   WorkingDirectory=/home/pi/kiosk/client
-   ExecStart=/usr/bin/npm start
+   WorkingDirectory=/home/pi/kiosk-client/client
+   ExecStart=/usr/bin/node dist/index.js
    Restart=always
    RestartSec=10
+   Environment=NODE_ENV=production
 
    [Install]
    WantedBy=multi-user.target
@@ -176,32 +293,40 @@ To run the client automatically on boot:
    sudo systemctl start kiosk-client
    ```
 
-4. Check status:
+4. Check status and view logs:
    ```bash
    sudo systemctl status kiosk-client
+   sudo journalctl -u kiosk-client -f
    ```
+
+**Note**: The automated Raspberry Pi installer (`install-pi.sh`) sets this up automatically.
 
 ### Updating the Client
 
 To update to the latest version:
 
 ```bash
-cd ~/kiosk
+# If you used the automated installer, use the update script
+~/kiosk-client/update.sh
+
+# Or manually:
+cd ~/kiosk-client
 git pull
 
 # Rebuild shared package
 cd shared
-npm install --legacy-peer-deps
+npm install
 npm run build
 cd ..
 
 # Rebuild client
 cd client
-npm install --legacy-peer-deps
+npm install
 npm run build
 cd ..
 
-sudo systemctl restart kiosk-client  # If running as service
+# Restart the service
+sudo systemctl restart kiosk-client
 ```
 
 ### Troubleshooting
@@ -210,22 +335,141 @@ sudo systemctl restart kiosk-client  # If running as service
 - **Solution**: This has been fixed in the latest version. Make sure you've pulled the latest code.
 
 **Issue**: Client won't connect to backend
-- Check `BACKEND_URL` in `.env` is correct
+- Check `SERVER_URL` in `.env` is correct (should be `http://your-server-ip:5001`)
 - Verify `DEVICE_TOKEN` is correct (from admin UI)
-- Check firewall settings on backend server
-- Check backend logs: `cd ~/kiosk/backend && npm run logs`
+- Check firewall settings on backend server (port 5001)
+- Test backend health: `curl http://your-server-ip:5001/healthz`
+- Check client logs: `sudo journalctl -u kiosk-client -f`
 
 **Issue**: Chromium not found
-- Install Chromium: `sudo apt-get install chromium-browser`
-- Update `PUPPETEER_EXECUTABLE_PATH` in `.env`
+- Install Chromium: `sudo apt-get install chromium-browser chromium-codecs-ffmpeg`
+- Update `PUPPETEER_EXECUTABLE_PATH` in `.env` to `/usr/bin/chromium-browser`
 
 **Issue**: Client shows as offline after refresh
 - This is normal behavior - reconnection happens automatically
 - The latest version includes state synchronization
 
-## Documentation
+**Issue**: Display not showing on Raspberry Pi
+- Set display environment: `export DISPLAY=:0`
+- Add user to video group: `sudo usermod -a -G video $USER`
 
-See the [implementation plan](https://github.com/anthropics/claude-code/plans/mutable-knitting-dove.md) for detailed architecture and development phases.
+**Issue**: Permission denied errors
+- Make sure the service user has correct permissions
+- Check file ownership in the installation directory
+
+## Advanced Features
+
+### Playlist Control
+
+The system supports real-time playlist control:
+- **Play/Pause**: Pause content rotation on any device
+- **Next/Previous**: Navigate through playlist items
+- **Global Broadcast**: Override all displays with a temporary message
+- **Time Constraints**: Schedule content for specific times and days
+
+📖 See [PLAYLIST-CONTROL-PROGRESS.md](PLAYLIST-CONTROL-PROGRESS.md) for implementation details
+
+### Remote Browser Control
+
+Remotely interact with pages displayed on client devices:
+- **Remote Click**: Click at specific coordinates
+- **Remote Type**: Type text into form fields
+- **Remote Key**: Press keyboard keys
+- **Remote Scroll**: Scroll pages
+
+📖 See [REMOTE-CONTROL.md](REMOTE-CONTROL.md) for usage guide
+
+## API Documentation
+
+When running the backend, access interactive API documentation:
+- **Swagger UI**: http://localhost:5001/swagger
+
+## Project Scripts
+
+Available npm scripts in the root `package.json`:
+
+```bash
+# Development
+npm run backend:dev      # Start ASP.NET Core backend in development
+npm run frontend:dev     # Start React frontend with Vite
+npm run client:dev       # Run client in development mode
+
+# Building
+npm run backend:build    # Build backend
+npm run frontend:build   # Build frontend for production
+npm run client:build     # Build client application
+
+# Production
+npm run backend:start    # Start backend in production mode
+
+# Utilities
+npm run install:all      # Install all dependencies
+npm run clean            # Clean node_modules from all workspaces
+```
+
+Windows PowerShell scripts:
+- `start-everything.ps1` - Start backend, frontend, and test client
+- `start-backend-dotnet.ps1` - Start only the backend
+- `start-frontend.ps1` - Start only the frontend
+- `stop-all.ps1` - Stop all running services
+
+## Environment Variables
+
+### Backend (.env or docker-compose.yml)
+```env
+POSTGRES_PASSWORD=your-secure-password
+JWT_SECRET=your-long-random-secret-string
+ASPNETCORE_URLS=http://localhost:5001
+ConnectionStrings__Default=Host=postgres;Port=5432;Database=pds;Username=postgres;Password=...
+```
+
+### Client (.env in client directory)
+```env
+SERVER_URL=http://your-server:5001
+DEVICE_TOKEN=your-jwt-token
+DISPLAY_WIDTH=1920
+DISPLAY_HEIGHT=1080
+KIOSK_MODE=true
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser  # Linux/Pi
+# PUPPETEER_EXECUTABLE_PATH=C:\Program Files\Google\Chrome\Application\chrome.exe  # Windows
+HEALTH_CHECK_INTERVAL=60000
+SCREENSHOT_INTERVAL=300000
+LOG_LEVEL=info
+```
+
+## Architecture Details
+
+### Backend (ASP.NET Core 8)
+- RESTful API with Swagger/OpenAPI documentation
+- WebSocket support for real-time communication
+- PostgreSQL database with Entity Framework Core
+- JWT authentication
+- Health checks and monitoring endpoints
+
+### Frontend (React + Vite)
+- Modern React with TypeScript
+- Tailwind CSS for styling
+- WebSocket integration for live updates
+- Device management dashboard
+- Playlist and schedule management
+- Real-time device monitoring
+
+### Client (Node.js + Puppeteer)
+- Cross-platform support (Windows, Linux, Raspberry Pi)
+- Headless Chromium/Chrome/Edge browser control
+- WebSocket client for server communication
+- Automatic content rotation with scheduling
+- Health monitoring and reporting
+- Screenshot capture and upload
+- Remote control capabilities
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
