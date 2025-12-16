@@ -57,6 +57,7 @@ export const ContentPage = () => {
     const lowerUrl = url.toLowerCase();
     if (lowerUrl.includes('/api/render/slideshow/')) return 'presentation';
     if (lowerUrl.match(/\.(mp4|webm|mkv|mov|avi)(\?|$)/)) return 'video';
+    if (lowerUrl.includes('/videos/') && lowerUrl.endsWith('/index.html')) return 'video';
     return 'web';
   };
 
