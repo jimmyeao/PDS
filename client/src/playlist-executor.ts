@@ -38,12 +38,10 @@
         this.currentPlaylistId = playlistId;
       }
 
-      // Sync content to local cache
-      try {
-        await contentCacheManager.syncPlaylist(items);
-      } catch (e: any) {
-        logger.error(`Failed to sync playlist content: ${e.message}`);
-      }
+      // Sync content to local cache (background)
+      contentCacheManager.syncPlaylist(items).catch(e => {
+        logger.error(`Failed to trigger playlist sync: ${e.message}`);
+      });
 
       // Sort items by orderIndex
       this.playlistItems = items.sort((a, b) => a.orderIndex - b.orderIndex);

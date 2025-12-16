@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as stream from 'stream';
+import * as http from 'http';
+import * as https from 'https';
 import { promisify } from 'util';
 import { configManager } from './config';
 import { logger } from './logger';
@@ -9,6 +11,7 @@ const pipeline = promisify(stream.pipeline);
 
 export class ContentCacheManager {
     private cacheDir: string;
+    private activeDownloads: Set<string> = new Set();
 
     constructor() {
         // Use a cache directory in the user's home or app data
@@ -28,6 +31,8 @@ export class ContentCacheManager {
         if (!filename) return null;
         
         const localPath = path.join(this.cacheDir, filename);
+        // Only return path if file exists and is NOT currently being downloaded
+        // (Though we download to .tmp, so checking existence of final file is safe)
         if (fs.existsSync(localPath)) {
             return localPath;
         }
@@ -35,7 +40,14 @@ export class ContentCacheManager {
     }
 
     public async syncPlaylist(items: any[]): Promise<void> {
-        logger.info('Syncing playlist content to local cache...');
+        // Run in background to not block playback
+        this.syncPlaylistInternal(items).catch(err => {
+            logger.error(`Background sync failed: ${err.message}`);
+        });
+    }
+
+    private async syncPlaylistInternal(items: any[]): Promise<void> {
+        logger.info('Starting background sync of playlist content...');
         const config = configManager.get();
         const baseUrl = config.serverUrl.endsWith('/') ? config.serverUrl.slice(0, -1) : config.serverUrl;
 
@@ -54,20 +66,21 @@ export class ContentCacheManager {
             activeFiles.add(filename);
             const localPath = path.join(this.cacheDir, filename);
 
-            if (!fs.existsSync(localPath)) {
+            // Check if file exists or is already downloading
+            if (!fs.existsSync(localPath) && !this.activeDownloads.has(filename)) {
                 // Resolve full URL
                 const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
                 
+                this.activeDownloads.add(filename);
                 try {
                     logger.info(`Downloading ${filename} from ${fullUrl}...`);
                     await this.downloadFile(fullUrl, localPath);
-                    logger.info(`Downloaded ${filename}`);
+                    logger.info(`✅ Downloaded ${filename}`);
                 } catch (err: any) {
                     logger.error(`Failed to download ${fullUrl}: ${err.message}`);
-                    // Delete partial file if exists
-                    if (fs.existsSync(localPath)) {
-                        fs.unlinkSync(localPath);
-                    }
+                    // Cleanup is handled in downloadFile (removes tmp file)
+                } finally {
+                    this.activeDownloads.delete(filename);
                 }
             }
         }
@@ -80,9 +93,14 @@ export class ContentCacheManager {
         try {
             const files = fs.readdirSync(this.cacheDir);
             for (const file of files) {
-                if (!activeFiles.has(file)) {
+                // Don't delete files that are in the playlist OR are currently downloading (.tmp)
+                if (!activeFiles.has(file) && !file.endsWith('.tmp')) {
                     logger.info(`Removing unused cache file: ${file}`);
-                    fs.unlinkSync(path.join(this.cacheDir, file));
+                    try {
+                        fs.unlinkSync(path.join(this.cacheDir, file));
+                    } catch (e) {
+                        // Ignore errors (e.g. file locked)
+                    }
                 }
             }
         } catch (e: any) {
@@ -106,12 +124,60 @@ export class ContentCacheManager {
     }
 
     private async downloadFile(url: string, dest: string): Promise<void> {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
-        if (!response.body) throw new Error('No response body');
+        const tmpDest = `${dest}.tmp`;
+        const file = fs.createWriteStream(tmpDest);
         
-        // @ts-ignore - fetch types for node might be missing stream compatibility in some versions
-        await pipeline(stream.Readable.fromWeb(response.body), fs.createWriteStream(dest));
+        return new Promise((resolve, reject) => {
+            const protocol = url.startsWith('https') ? https : http;
+            
+            const request = protocol.get(url, (response) => {
+                if (response.statusCode !== 200) {
+                    fs.unlink(tmpDest, () => {}); // Delete tmp file
+                    reject(new Error(`HTTP ${response.statusCode} ${response.statusMessage}`));
+                    return;
+                }
+
+                const totalSize = parseInt(response.headers['content-length'] || '0', 10);
+                let downloadedSize = 0;
+                let lastLoggedPercent = 0;
+
+                response.on('data', (chunk) => {
+                    downloadedSize += chunk.length;
+                    if (totalSize > 0) {
+                        const percent = Math.floor((downloadedSize / totalSize) * 100);
+                        // Log every 10%
+                        if (percent >= lastLoggedPercent + 10) {
+                            logger.info(`Downloading ${path.basename(dest)}: ${percent}% (${(downloadedSize / 1024 / 1024).toFixed(1)} MB)`);
+                            lastLoggedPercent = percent;
+                        }
+                    }
+                });
+
+                response.pipe(file);
+
+                file.on('finish', () => {
+                    file.close(() => {
+                        // Rename tmp to final
+                        fs.rename(tmpDest, dest, (err) => {
+                            if (err) reject(err);
+                            else resolve();
+                        });
+                    });
+                });
+            });
+
+            request.on('error', (err) => {
+                fs.unlink(tmpDest, () => {}); // Delete tmp file
+                reject(err);
+            });
+
+            // Set a long timeout (1 hour)
+            request.setTimeout(3600000, () => {
+                request.destroy();
+                fs.unlink(tmpDest, () => {}); // Delete tmp file
+                reject(new Error('Download timeout'));
+            });
+        });
     }
 }
 
