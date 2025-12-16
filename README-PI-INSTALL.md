@@ -50,13 +50,17 @@ PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 - Paste the device token you copied from the admin UI
 - The `PUPPETEER_EXECUTABLE_PATH` is required for Raspberry Pi to use system Chromium
 
-### 3. Restart after configuration:
+### 3. Caching Note
+
+The client will create a `.pds-cache` folder in the user's home directory (`/home/pi/.pds-cache`) to store downloaded video files. This ensures smooth playback even with poor network connectivity.
+
+### 4. Restart after configuration:
 ```bash
 sudo systemctl restart kiosk-client
 sudo systemctl status kiosk-client
 ```
 
-### 4. Verify it's working:
+### 5. Verify it's working:
 ```bash
 sudo journalctl -u kiosk-client -f
 ```

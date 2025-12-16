@@ -8,6 +8,8 @@ A web-based digital signage solution with central management of display devices,
 - **Remote Viewing**: See what's currently displayed on each device screen in real-time
 - **Content Scheduling**: Create rotation schedules with display durations and time windows
 - **Playlist Control**: Play/pause, next/previous navigation, and global broadcast capabilities
+- **Offline Caching**: Automatically downloads and caches video content locally for seamless playback and reduced bandwidth
+- **Large File Support**: Supports video uploads up to 2.5GB
 - **Remote Browser Control**: Remotely interact with displayed pages (click, type, navigate)
 - **Interactive Page Support**: Handle authentication and MFA prompts without interruption
 - **Real-time Updates**: WebSocket-based communication for instant configuration changes

@@ -31,7 +31,7 @@ builder.Services.Configure<FormOptions>(options =>
 {
     options.ValueLengthLimit = int.MaxValue;
     options.MultipartBodyLengthLimit = 2560L * 1024 * 1024; // 2.5 GB
-    options.MemoryBufferThreshold = int.MaxValue;
+    options.MemoryBufferThreshold = 10 * 1024 * 1024; // 10 MB buffer before writing to disk
 });
 
 // Bind to all interfaces on port 5001 by default
@@ -543,7 +543,7 @@ app.MapPost("/content/upload/pptx", async (HttpRequest request, ISlideshowServic
     {
         return Results.Problem(ex.Message);
     }
-}).RequireAuthorization();
+}).RequireAuthorization().WithMetadata(new DisableRequestSizeLimitAttribute());
 
 app.MapPost("/content/upload/video", async (HttpRequest request, IVideoService svc) =>
 {
@@ -566,7 +566,7 @@ app.MapPost("/content/upload/video", async (HttpRequest request, IVideoService s
     {
         return Results.Problem(ex.Message);
     }
-}).RequireAuthorization();
+}).RequireAuthorization().WithMetadata(new DisableRequestSizeLimitAttribute());
 
 app.MapGet("/api/render/slideshow/{storageId}", async (string storageId, [FromQuery] int duration, ISlideshowService svc) =>
 {

@@ -9,10 +9,20 @@ Supports **Windows (Intel NUCs, PCs)**, **Linux**, and **Raspberry Pi**.
 - **Cross-Platform**: Works on Windows, Linux, and Raspberry Pi
 - **WebSocket Communication**: Real-time connection to backend server
 - **Content Scheduling**: Automatic content rotation based on schedules
+- **Offline Caching**: Automatically caches video content locally to reduce bandwidth and ensure smooth playback
 - **Health Monitoring**: CPU, memory, and temperature reporting
 - **Screenshot Capture**: Periodic and on-demand screenshots
 - **Kiosk Mode**: Fullscreen display using Chrome/Chromium/Edge
 - **Remote Control**: Restart, refresh, and navigate commands from admin UI
+
+## Caching & Bandwidth
+
+The client includes a robust caching system to minimize bandwidth usage and ensure playback stability:
+
+- **Local Cache**: Video files are automatically downloaded to a local cache directory (`.pds-cache` in the user's home folder) before playback.
+- **Offline Playback**: Once cached, videos play directly from the local disk (`file://`), bypassing the network entirely.
+- **Smart Sync**: The client only downloads files that are not already in the cache and automatically cleans up unused files.
+- **Browser Cache**: For web content, the client utilizes a persistent 1GB Chrome disk cache.
 
 ## Platform Support
 

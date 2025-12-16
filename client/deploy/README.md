@@ -48,7 +48,11 @@ KIOSK_MODE=true
 # PUPPETEER_EXECUTABLE_PATH=C:\Program Files\Google\Chrome\Application\chrome.exe
 ```
 
-### 3. Get Your Device Token
+### 3. Caching Note
+
+The client will create a `.pds-cache` folder in the user's home directory (e.g., `C:\Users\YourUser\.pds-cache`) to store downloaded video files. Ensure the user running the client has write permissions to this location.
+
+### 4. Get Your Device Token
 
 1. Open the admin UI in your browser
 2. Go to the **Devices** page
