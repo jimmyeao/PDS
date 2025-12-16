@@ -97,9 +97,9 @@ class DisplayController {
           '--autoplay-policy=no-user-gesture-required', // Allow autoplay with sound
           '--no-user-gesture-required', // Additional flag for autoplay
           '--disable-gesture-requirement-for-media-playback',
-          // Enable caching for better video performance
-          // '--disk-cache-size=1', 
-          // '--media-cache-size=1', 
+          // Enable caching for better video performance (1GB cache)
+          '--disk-cache-size=1073741824', 
+          '--media-cache-size=1073741824', 
         ],
         ignoreDefaultArgs: ['--enable-automation', '--mute-audio'], // Ensure audio is not muted
         defaultViewport: null, // Use window size instead of viewport
@@ -836,10 +836,16 @@ class DisplayController {
                 
                 // Set preload to auto to encourage buffering
                 v.preload = 'auto';
+                v.setAttribute('playsinline', '');
+                v.setAttribute('webkit-playsinline', '');
                 
                 // Add event listeners to keep it alive
                 v.onended = () => { v.currentTime = 0; v.play().catch(() => {}); };
                 v.onpause = () => { if (!v.ended) v.play().catch(() => {}); };
+                
+                // Log buffering issues
+                v.onwaiting = () => { console.log('Video buffering...'); };
+                v.onstalled = () => { console.log('Video stalled!'); v.play().catch(() => {}); };
                 
                 // Try to play
                 v.play().catch(() => {});
