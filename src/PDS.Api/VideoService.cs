@@ -86,12 +86,12 @@ public class VideoService : IVideoService
         await File.WriteAllTextAsync(Path.Combine(outputDir, "index.html"), html);
 
         // 4. Create ContentItem
-        // Url points directly to the video file to let Chrome handle it natively
-        // This is more efficient than an HTML wrapper and less prone to renderer crashes
+        // Use the HTML wrapper to ensure consistent styling (full screen, black background)
+        // and reliable playback events. The video file itself is cached by the browser.
         var content = new ContentItem
         {
             Name = name,
-            Url = $"/videos/{storageId}/{videoFileName}",
+            Url = $"/videos/{storageId}/index.html",
             DefaultDuration = (int)Math.Ceiling(durationSeconds)
         };
 

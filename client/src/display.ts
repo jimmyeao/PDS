@@ -717,10 +717,12 @@ class DisplayController {
       const isVideo = url.includes('.mp4') || url.includes('/videos/');
       const wasVideo = this.currentUrl.includes('.mp4') || this.currentUrl.includes('/videos/');
       
-      if (wasVideo || isVideo) {
+      // Only use about:blank if we are switching AWAY from a video to a web page
+      // Switching TO a video (index.html) is fast enough and handles its own cleanup
+      if (wasVideo && !isVideo) {
           try {
               // Use a shorter timeout and don't wait for full load
-              await this.page.goto('about:blank', { waitUntil: 'domcontentloaded', timeout: 2000 });
+              await this.page.goto('about:blank', { waitUntil: 'domcontentloaded', timeout: 1000 });
           } catch (e) {}
       }
 
@@ -735,7 +737,7 @@ class DisplayController {
       let navigationSuccess = false;
 
       try {
-        // For video files, we don't need networkidle2, domcontentloaded is enough
+        // For video files/wrappers, we don't need networkidle2, domcontentloaded is enough
         const waitStrategy = isVideo ? 'domcontentloaded' : 'networkidle2';
         
         await this.page.goto(url, {
@@ -794,6 +796,7 @@ class DisplayController {
             padding: 0 !important;
             width: 100vw !important;
             height: 100vh !important;
+            background-color: black !important;
           }
           video {
             object-fit: contain !important;
@@ -801,6 +804,9 @@ class DisplayController {
             height: 100vh !important;
             max-width: 100% !important;
             max-height: 100% !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
           }
         `
       });
