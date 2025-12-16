@@ -1,12 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useContentStore } from '../store/contentStore';
+import { usePlaylistStore } from '../store/playlistStore';
+import { 
+  VideoCameraIcon, 
+  PresentationChartBarIcon, 
+  GlobeAltIcon, 
+  ListBulletIcon, 
+  Squares2X2Icon,
+  MagnifyingGlassIcon
+} from '@heroicons/react/24/outline';
+
+type ContentType = 'all' | 'video' | 'presentation' | 'web';
+type ViewMode = 'grid' | 'list';
 
 export const ContentPage = () => {
   const { content, fetchContent, createContent, updateContent, deleteContent, uploadPptx, uploadVideo, isLoading } = useContentStore();
+  const { playlists, fetchPlaylists } = usePlaylistStore();
+  
+  // UI State
+  const [activeTab, setActiveTab] = useState<ContentType>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+  // Modal State
   const [showModal, setShowModal] = useState(false);
   const [showPptxModal, setShowPptxModal] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [editingContent, setEditingContent] = useState<number | null>(null);
+  
+  // Form State
   const [formData, setFormData] = useState({
     name: '',
     url: '',
@@ -25,7 +48,73 @@ export const ContentPage = () => {
 
   useEffect(() => {
     fetchContent();
-  }, [fetchContent]);
+    fetchPlaylists();
+  }, [fetchContent, fetchPlaylists]);
+
+  // Helper to determine content type
+  const getContentType = (url: string): 'video' | 'presentation' | 'web' => {
+    if (!url) return 'web';
+    const lowerUrl = url.toLowerCase();
+    if (lowerUrl.includes('/api/render/slideshow/')) return 'presentation';
+    if (lowerUrl.match(/\.(mp4|webm|mkv|mov|avi)(\?|$)/)) return 'video';
+    return 'web';
+  };
+
+  // Helper to get playlists for a content item
+  const getContentPlaylists = (contentId: number) => {
+    return playlists.filter(p => p.items?.some(i => i.contentId === contentId));
+  };
+
+  // Filter and Sort Content
+  const filteredContent = useMemo(() => {
+    let result = content;
+
+    // Filter by Tab
+    if (activeTab !== 'all') {
+      result = result.filter(item => getContentType(item.url) === activeTab);
+    }
+
+    // Filter by Search
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(item => 
+        item.name.toLowerCase().includes(query) || 
+        item.url.toLowerCase().includes(query) ||
+        (item.description && item.description.toLowerCase().includes(query))
+      );
+    }
+
+    // Sort
+    if (sortConfig) {
+      result = [...result].sort((a, b) => {
+        let aValue: any = a[sortConfig.key as keyof typeof a];
+        let bValue: any = b[sortConfig.key as keyof typeof b];
+
+        // Handle special sort keys
+        if (sortConfig.key === 'playlists') {
+          aValue = getContentPlaylists(a.id).length;
+          bValue = getContentPlaylists(b.id).length;
+        }
+
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return result;
+  }, [content, activeTab, searchQuery, sortConfig, playlists]);
+
+  const handleSort = (key: string) => {
+    setSortConfig(current => {
+      if (current?.key === key) {
+        return current.direction === 'asc' 
+          ? { key, direction: 'desc' } 
+          : null;
+      }
+      return { key, direction: 'asc' };
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,18 +179,31 @@ export const ContentPage = () => {
     }
   };
 
+  const renderTypeIcon = (type: string) => {
+    switch (type) {
+      case 'video': return <VideoCameraIcon className="w-5 h-5 text-purple-500" />;
+      case 'presentation': return <PresentationChartBarIcon className="w-5 h-5 text-orange-500" />;
+      default: return <GlobeAltIcon className="w-5 h-5 text-blue-500" />;
+    }
+  };
+
   return (
-    <div>
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Content</h1>
-        <div className="flex gap-2">
+    <div className="space-y-6">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Content Library</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Manage your digital signage assets</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => {
               setVideoData({ name: '', file: null });
               setShowVideoModal(true);
             }}
-            className="btn-secondary"
+            className="btn-secondary flex items-center gap-2"
           >
+            <VideoCameraIcon className="w-5 h-5" />
             Upload Video
           </button>
           <button
@@ -109,9 +211,10 @@ export const ContentPage = () => {
               setPptxData({ name: '', file: null, durationPerSlide: 10000 });
               setShowPptxModal(true);
             }}
-            className="btn-secondary"
+            className="btn-secondary flex items-center gap-2"
           >
-            Upload PowerPoint
+            <PresentationChartBarIcon className="w-5 h-5" />
+            Upload PPTX
           </button>
           <button
             onClick={() => {
@@ -119,69 +222,225 @@ export const ContentPage = () => {
               setFormData({ name: '', url: '', description: '', requiresInteraction: false });
               setShowModal(true);
             }}
-            className="btn-primary"
+            className="btn-primary flex items-center gap-2"
           >
-            + Add Content
+            <GlobeAltIcon className="w-5 h-5" />
+            Add URL
           </button>
         </div>
       </div>
 
+      {/* Controls Bar */}
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col md:flex-row justify-between items-center gap-4">
+        {/* Tabs */}
+        <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+          {(['all', 'video', 'presentation', 'web'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === tab
+                  ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {/* Search and View Toggle */}
+        <div className="flex items-center gap-4 w-full md:w-auto">
+          <div className="relative flex-1 md:w-64">
+            <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search content..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="input pl-10 w-full"
+            />
+          </div>
+          <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-2 rounded-md ${viewMode === 'grid' ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500'}`}
+            >
+              <Squares2X2Icon className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-2 rounded-md ${viewMode === 'list' ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-500'}`}
+            >
+              <ListBulletIcon className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Content Area */}
       {isLoading ? (
         <div className="text-center py-12">
-          <p className="text-gray-600">Loading content...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="text-gray-600 mt-4">Loading content...</p>
         </div>
-      ) : content.length === 0 ? (
-        <div className="card text-center py-12">
-          <p className="text-gray-600 mb-4">No content added yet.</p>
-          <button
-            onClick={() => setShowModal(true)}
-            className="btn-primary"
-          >
-            Add Your First Content
+      ) : filteredContent.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">No content found matching your filters.</p>
+          <button onClick={() => { setActiveTab('all'); setSearchQuery(''); }} className="text-blue-600 hover:underline">
+            Clear filters
           </button>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {content.map((item) => (
-            <div key={item.id} className="card">
-              <div className="flex items-start justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">{item.name}</h3>
-                {item.requiresInteraction && (
-                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                    Interactive
-                  </span>
+      ) : viewMode === 'grid' ? (
+        // Grid View
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredContent.map((item) => {
+            const type = getContentType(item.url);
+            const itemPlaylists = getContentPlaylists(item.id);
+            
+            return (
+              <div key={item.id} className="card group hover:shadow-lg transition-shadow duration-200">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    {renderTypeIcon(type)}
+                    <span className="text-xs font-medium text-gray-500 uppercase">{type}</span>
+                  </div>
+                  {item.requiresInteraction && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
+                      Interactive
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 line-clamp-1" title={item.name}>
+                  {item.name}
+                </h3>
+
+                <div className="bg-gray-50 dark:bg-gray-900/50 rounded p-2 mb-3 text-xs font-mono text-gray-500 break-all h-12 overflow-hidden">
+                  {item.url}
+                </div>
+
+                {item.description && (
+                  <p className="text-gray-600 dark:text-gray-400 text-sm mb-3 line-clamp-2 h-10">
+                    {item.description}
+                  </p>
                 )}
+
+                <div className="flex items-center gap-2 mb-4 text-xs text-gray-500">
+                  <span className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                    Used in {itemPlaylists.length} playlist{itemPlaylists.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+
+                <div className="flex gap-2 pt-3 border-t dark:border-gray-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleEdit(item)}
+                    className="btn-secondary text-xs flex-1 py-1.5"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(item.id)}
+                    className="btn-danger text-xs flex-1 py-1.5"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
-
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 text-sm break-all mb-3 block"
-              >
-                {item.url}
-              </a>
-
-              {item.description && (
-                <p className="text-gray-600 text-sm mb-3">{item.description}</p>
-              )}
-
-              <div className="flex gap-2 mt-4 pt-4 border-t dark:border-gray-700">
-                <button
-                  onClick={() => handleEdit(item)}
-                  className="btn-secondary text-sm flex-1"
+            );
+          })}
+        </div>
+      ) : (
+        // List View
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                  onClick={() => handleSort('name')}
                 >
-                  Edit
-                </button>
-                <button
-                  onClick={() => handleDelete(item.id)}
-                  className="btn-danger text-sm flex-1"
+                  Name {sortConfig?.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Type
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  URL
+                </th>
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                  onClick={() => handleSort('playlists')}
                 >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
+                  Playlists {sortConfig?.key === 'playlists' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {filteredContent.map((item) => {
+                const type = getContentType(item.url);
+                const itemPlaylists = getContentPlaylists(item.id);
+                
+                return (
+                  <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-10 w-10 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-lg">
+                          {renderTypeIcon(type)}
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{item.name}</div>
+                          {item.description && (
+                            <div className="text-xs text-gray-500 truncate max-w-xs">{item.description}</div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                        ${type === 'video' ? 'bg-purple-100 text-purple-800' : 
+                          type === 'presentation' ? 'bg-orange-100 text-orange-800' : 
+                          'bg-blue-100 text-blue-800'}`}>
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
+                      <a href={item.url} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600">
+                        {item.url}
+                      </a>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {itemPlaylists.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {itemPlaylists.slice(0, 2).map(p => (
+                            <span key={p.id} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
+                              {p.name}
+                            </span>
+                          ))}
+                          {itemPlaylists.length > 2 && (
+                            <span className="text-xs text-gray-500">+{itemPlaylists.length - 2} more</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 italic">Unused</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <button onClick={() => handleEdit(item)} className="text-blue-600 hover:text-blue-900 dark:hover:text-blue-400 mr-4">
+                        Edit
+                      </button>
+                      <button onClick={() => handleDelete(item.id)} className="text-red-600 hover:text-red-900 dark:hover:text-red-400">
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
