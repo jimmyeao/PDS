@@ -129,3 +129,4 @@ C:\Users\jimmy\source\repos\PDS\PDS\src\PDS.Api\obj\Debug\net8.0\PDS.Api.pdb
 C:\Users\jimmy\source\repos\PDS\PDS\src\PDS.Api\obj\Debug\net8.0\PDS.Api.genruntimeconfig.cache
 C:\Users\jimmy\source\repos\PDS\PDS\src\PDS.Api\obj\Debug\net8.0\ref\PDS.Api.dll
 C:\Users\jimmy\source\repos\PDS\PDS\src\PDS.Api\bin\Debug\net8.0\Otp.NET.dll
+C:\Users\jimmy\source\repos\PDS\PDS\src\PDS.Api\bin\Debug\net8.0\appsettings.example.json

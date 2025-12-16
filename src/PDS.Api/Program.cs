@@ -15,10 +15,10 @@ using OtpNet;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Kestrel for large uploads (500MB) and robust streaming
+// Configure Kestrel for large uploads (2.5GB) and robust streaming
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.Limits.MaxRequestBodySize = 500 * 1024 * 1024; // 500 MB
+    options.Limits.MaxRequestBodySize = 2560L * 1024 * 1024; // 2.5 GB
     // Prevent timeouts during long video streams
     options.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(10);
     options.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(5);
@@ -30,7 +30,7 @@ builder.WebHost.ConfigureKestrel(options =>
 builder.Services.Configure<FormOptions>(options =>
 {
     options.ValueLengthLimit = int.MaxValue;
-    options.MultipartBodyLengthLimit = 500 * 1024 * 1024; // 500 MB
+    options.MultipartBodyLengthLimit = 2560L * 1024 * 1024; // 2.5 GB
     options.MemoryBufferThreshold = int.MaxValue;
 });
 
