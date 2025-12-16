@@ -27,12 +27,10 @@ export class ContentCacheManager {
     }
 
     public getLocalPath(url: string): string | null {
-        const filename = this.getFilenameFromUrl(url);
-        if (!filename) return null;
+        const relativePath = this.getRelativePathFromUrl(url);
+        if (!relativePath) return null;
         
-        const localPath = path.join(this.cacheDir, filename);
-        // Only return path if file exists and is NOT currently being downloaded
-        // (Though we download to .tmp, so checking existence of final file is safe)
+        const localPath = path.join(this.cacheDir, relativePath);
         if (fs.existsSync(localPath)) {
             return localPath;
         }
@@ -57,70 +55,158 @@ export class ContentCacheManager {
             if (!item.content || !item.content.url) continue;
             
             let url = item.content.url;
-            // We only cache video files for now
             if (!this.isCacheable(url)) continue;
 
-            const filename = this.getFilenameFromUrl(url);
-            if (!filename) continue;
+            const relativePath = this.getRelativePathFromUrl(url);
+            if (!relativePath) continue;
 
-            activeFiles.add(filename);
-            const localPath = path.join(this.cacheDir, filename);
+            activeFiles.add(relativePath);
+            const localPath = path.join(this.cacheDir, relativePath);
+            const localDir = path.dirname(localPath);
+
+            // Ensure directory exists
+            if (!fs.existsSync(localDir)) {
+                fs.mkdirSync(localDir, { recursive: true });
+            }
 
             // Check if file exists or is already downloading
-            if (!fs.existsSync(localPath) && !this.activeDownloads.has(filename)) {
-                // Resolve full URL
+            // Use a unique key for active downloads to avoid collisions
+            const downloadKey = relativePath;
+            if (!fs.existsSync(localPath) && !this.activeDownloads.has(downloadKey)) {
                 const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
                 
-                this.activeDownloads.add(filename);
+                this.activeDownloads.add(downloadKey);
                 try {
-                    logger.info(`Downloading ${filename} from ${fullUrl}...`);
-                    await this.downloadFile(fullUrl, localPath);
-                    logger.info(`✅ Downloaded ${filename}`);
+                    if (relativePath.endsWith('index.html')) {
+                        await this.downloadVideoWrapper(fullUrl, localPath, baseUrl);
+                        // Also mark the video file as active so cleanup doesn't kill it
+                        // We'll discover the video file during downloadVideoWrapper, but for cleanup purposes
+                        // we might need to be smarter. For now, we'll assume anything in the GUID folder is kept
+                        // if the index.html is kept.
+                    } else {
+                        logger.info(`Downloading ${path.basename(localPath)}...`);
+                        await this.downloadFile(fullUrl, localPath);
+                        logger.info(`✅ Downloaded ${path.basename(localPath)}`);
+                    }
                 } catch (err: any) {
                     logger.error(`Failed to download ${fullUrl}: ${err.message}`);
-                    // Cleanup is handled in downloadFile (removes tmp file)
                 } finally {
-                    this.activeDownloads.delete(filename);
+                    this.activeDownloads.delete(downloadKey);
                 }
             }
         }
 
-        // Cleanup old files
         this.cleanup(activeFiles);
     }
 
     private cleanup(activeFiles: Set<string>) {
         try {
-            const files = fs.readdirSync(this.cacheDir);
-            for (const file of files) {
-                // Don't delete files that are in the playlist OR are currently downloading (.tmp)
-                if (!activeFiles.has(file) && !file.endsWith('.tmp')) {
-                    logger.info(`Removing unused cache file: ${file}`);
-                    try {
-                        fs.unlinkSync(path.join(this.cacheDir, file));
-                    } catch (e) {
-                        // Ignore errors (e.g. file locked)
+            // Helper to recursively clean
+            const cleanDir = (dir: string, relativeRoot: string) => {
+                const entries = fs.readdirSync(dir, { withFileTypes: true });
+                let isEmpty = true;
+
+                for (const entry of entries) {
+                    const fullPath = path.join(dir, entry.name);
+                    const relPath = path.join(relativeRoot, entry.name);
+
+                    if (entry.isDirectory()) {
+                        if (cleanDir(fullPath, relPath)) {
+                            fs.rmdirSync(fullPath);
+                        } else {
+                            isEmpty = false;
+                        }
+                    } else {
+                        // Keep if in activeFiles OR if it's a video file in an active wrapper folder
+                        // If activeFiles has "GUID/index.html", we keep "GUID/video.mp4" too.
+                        const parentDir = path.dirname(relPath);
+                        const parentIndex = path.join(parentDir, 'index.html');
+                        
+                        const keep = activeFiles.has(relPath) || 
+                                   (activeFiles.has(parentIndex) && !entry.name.endsWith('.tmp'));
+
+                        if (!keep && !entry.name.endsWith('.tmp')) {
+                            logger.info(`Removing unused cache file: ${relPath}`);
+                            try {
+                                fs.unlinkSync(fullPath);
+                            } catch (e) { /* ignore */ }
+                        } else {
+                            isEmpty = false;
+                        }
                     }
                 }
-            }
+                return isEmpty;
+            };
+
+            cleanDir(this.cacheDir, '');
         } catch (e: any) {
             logger.error(`Cache cleanup failed: ${e.message}`);
         }
     }
 
     private isCacheable(url: string): boolean {
-        const ext = path.extname(url).toLowerCase();
-        return ['.mp4', '.webm', '.mkv', '.avi', '.mov'].includes(ext);
+        const lower = url.toLowerCase();
+        const ext = path.extname(lower);
+        if (['.mp4', '.webm', '.mkv', '.avi', '.mov'].includes(ext)) return true;
+        if (lower.includes('/videos/') && lower.endsWith('/index.html')) return true;
+        return false;
     }
 
-    private getFilenameFromUrl(url: string): string | null {
+    private getRelativePathFromUrl(url: string): string | null {
         try {
-            // Handle /path/to/file.mp4
+            // Check for new video wrapper format: .../videos/{guid}/index.html
+            const videoWrapperMatch = url.match(/\/videos\/([a-f0-9-]+)\/index\.html$/i);
+            if (videoWrapperMatch) {
+                return path.join(videoWrapperMatch[1], 'index.html');
+            }
+
+            // Handle standard /path/to/file.mp4
             const parts = url.split('/');
             return parts[parts.length - 1];
         } catch {
             return null;
         }
+    }
+
+    private async downloadVideoWrapper(url: string, localHtmlPath: string, baseUrl: string): Promise<void> {
+        const localDir = path.dirname(localHtmlPath);
+        
+        // 1. Download HTML content
+        const htmlContent = await this.fetchText(url);
+        
+        // 2. Find video src
+        const srcMatch = htmlContent.match(/<video[^>]+src="([^"]+)"/);
+        if (!srcMatch) {
+            throw new Error('No video src found in wrapper HTML');
+        }
+        const videoFilename = srcMatch[1];
+        const videoUrl = new URL(videoFilename, url).toString();
+        const localVideoPath = path.join(localDir, videoFilename);
+
+        // 3. Download video if missing
+        if (!fs.existsSync(localVideoPath)) {
+            logger.info(`Downloading wrapper video: ${videoFilename}...`);
+            await this.downloadFile(videoUrl, localVideoPath);
+            logger.info(`✅ Downloaded ${videoFilename}`);
+        }
+
+        // 4. Save HTML
+        fs.writeFileSync(localHtmlPath, htmlContent);
+    }
+
+    private fetchText(url: string): Promise<string> {
+        return new Promise((resolve, reject) => {
+            const protocol = url.startsWith('https') ? https : http;
+            protocol.get(url, (res) => {
+                if (res.statusCode !== 200) {
+                    reject(new Error(`HTTP ${res.statusCode}`));
+                    return;
+                }
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => resolve(data));
+            }).on('error', reject);
+        });
     }
 
     private async downloadFile(url: string, dest: string): Promise<void> {
