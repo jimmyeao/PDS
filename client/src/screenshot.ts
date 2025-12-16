@@ -17,7 +17,6 @@ class ScreenshotManager {
 
   public start(): void {
     if (this.isRunning) {
-      logger.warn('Screenshot manager already running');
       return;
     }
 
@@ -26,22 +25,11 @@ class ScreenshotManager {
       return;
     }
 
-    logger.info(`Starting screenshot manager (interval: ${config.screenshotInterval}ms)`);
+    logger.info('Starting screenshot manager (on-demand mode)');
     this.isRunning = true;
-
-    // Take initial screenshot after a short delay
-    setTimeout(() => {
-      this.captureAndSendScreenshot();
-    }, 5000);
-
-    // Schedule periodic screenshots (fallback cadence)
-    this.intervalId = setInterval(() => {
-      const now = Date.now();
-      // Only send periodic screenshot if at least screenshotInterval has elapsed
-      if (now - this.lastSentAt >= config.screenshotInterval) {
-        this.captureAndSendScreenshot();
-      }
-    }, Math.min(config.screenshotInterval, 5000));
+    
+    // We no longer run a periodic interval to save bandwidth/CPU on the Pi.
+    // Screenshots are triggered explicitly by the playlist executor on content change.
   }
 
   public stop(): void {

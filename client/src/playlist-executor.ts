@@ -524,15 +524,15 @@
 
         await displayController.navigateTo(url, item.displayDuration);
 
-        // Capture a screenshot on first display and each rotation step for rotating playlists
-        if (this.playlistItems.length > 1 && item.displayDuration !== 0) {
-          // Wait a few seconds for the page to visually settle/render before capturing
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          await screenshotManager.captureAndSendScreenshot();
-        } else if (this.playlistItems.length === 1 || item.displayDuration === 0) {
-          // Ensure periodic screenshots are running for static screens
-          screenshotManager.start();
-        }
+        // Capture a single screenshot after content has loaded
+        // We wait 4 seconds to allow videos to start playing or pages to render
+        setTimeout(async () => {
+            try {
+                await screenshotManager.captureAndSendScreenshot();
+            } catch (e) {
+                logger.warn('Failed to capture navigation screenshot');
+            }
+        }, 4000);
 
         if (item.displayDuration === 0) {
           logger.info(`✅ Displaying content ${item.contentId} (${item.content.name}) permanently (duration: 0)`);

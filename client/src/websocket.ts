@@ -83,7 +83,7 @@
   class WebSocketClient {
     private socket: WebSocket | null = null;
     private reconnectAttempts = 0;
-    private maxReconnectAttempts = 10;
+    private maxReconnectAttempts = 1000000; // Effectively infinite
     private isConnected = false;
 
     // Event callbacks
@@ -138,7 +138,10 @@
         this.isConnected = false;
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
           this.reconnectAttempts++;
-          setTimeout(() => this.connect(), 5000);
+          // Exponential backoff: 5s, 10s, 20s, capped at 60s
+          const delay = Math.min(5000 * Math.pow(2, this.reconnectAttempts - 1), 60000);
+          logger.info(`Reconnecting in ${delay / 1000}s (attempt ${this.reconnectAttempts})...`);
+          setTimeout(() => this.connect(), delay);
         } else {
           logger.error('Max reconnection attempts reached. Stopping...');
         }
