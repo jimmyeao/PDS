@@ -11,7 +11,9 @@
     "deploy": "bash deploy.sh",
     "deploy:win": "powershell -ExecutionPolicy Bypass -File deploy-windows.ps1",
     "deploy:linux": "powershell -ExecutionPolicy Bypass -File deploy-linux.ps1",
-    "gen:types": "openapi-typescript http://localhost:5000/swagger/v1/swagger.json -o src/services/api-types.ts"
+    "gen:types": "openapi-typescript http://localhost:5000/swagger/v1/swagger.json -o src/services/api-types.ts",
+    "build:service": "ts-node src/service-installer.ts",
+    "build:installer": "cd installer && build.bat"
   },
   "keywords": ["kiosk", "digital-signage", "raspberry-pi", "windows", "intel-nuc", "chromium"],
   "author": "",
@@ -22,7 +24,8 @@
     "puppeteer": "^24.15.0",
     "dotenv": "^16.4.7",
     "systeminformation": "^5.23.22",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "node-windows": "^1.0.0-beta.8"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

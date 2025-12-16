@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Kiosk Client Windows Installer
+  WiX Toolset 3.11+ required
+
+  Build: candle Product.wxs ConfigDialog.wxs ClientFiles.wxs NodeModules.wxs NodeJsRuntime.wxs -ext WixUtilExtension -ext WixUIExtension
+  Link: light Product.wixobj ConfigDialog.wixobj ClientFiles.wixobj NodeModules.wixobj NodeJsRuntime.wixobj -ext WixUtilExtension -ext WixUIExtension -out KioskClient.msi
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+
+  <!-- Product Definition -->
+  <Product Id="*"
+           Name="Kiosk Digital Signage Client"
+           Language="1033"
+           Version="1.0.0.0"
+           Manufacturer="Kiosk Client"
+           UpgradeCode="8F5E3D2A-9B7C-4F1E-A3D6-2C9B8E7F4A1B">
+
+    <!-- Package Configuration -->
+    <Package InstallerVersion="200"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Platform="x64"
+             Description="Kiosk Digital Signage Client Installer"
+             Comments="Installs Kiosk client with Node.js runtime and Windows service"
+             Manufacturer="Kiosk Client" />
+
+    <!-- Major Upgrade Configuration (Allow upgrades, prevent downgrades) -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed. Please uninstall the newer version first."
+                  Schedule="afterInstallInitialize"
+                  AllowSameVersionUpgrades="yes" />
+
+    <!-- Media/Cabinet Configuration -->
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <!-- Properties -->
+    <!-- Configuration Properties (from UI or command-line) -->
+    <Property Id="SERVER_URL" Value="http://localhost:5001">
+      <RegistrySearch Id="ServerUrlSearch"
+                      Root="HKLM"
+                      Key="Software\KioskClient"
+                      Name="ServerUrl"
+                      Type="raw" />
+    </Property>
+
+    <Property Id="DEVICE_TOKEN" Secure="yes">
+      <RegistrySearch Id="DeviceTokenSearch"
+                      Root="HKLM"
+                      Key="Software\KioskClient"
+                      Name="DeviceToken"
+                      Type="raw" />
+    </Property>
+
+    <Property Id="DISPLAY_WIDTH" Value="1920">
+      <RegistrySearch Id="DisplayWidthSearch"
+                      Root="HKLM"
+                      Key="Software\KioskClient"
+                      Name="DisplayWidth"
+                      Type="raw" />
+    </Property>
+
+    <Property Id="DISPLAY_HEIGHT" Value="1080">
+      <RegistrySearch Id="DisplayHeightSearch"
+                      Root="HKLM"
+                      Key="Software\KioskClient"
+                      Name="DisplayHeight"
+                      Type="raw" />
+    </Property>
+
+    <Property Id="KIOSK_MODE" Value="true">
+      <RegistrySearch Id="KioskModeSearch"
+                      Root="HKLM"
+                      Key="Software\KioskClient"
+                      Name="KioskMode"
+                      Type="raw" />
+    </Property>
+
+    <Property Id="LOG_LEVEL" Value="info">
+      <RegistrySearch Id="LogLevelSearch"
+                      Root="HKLM"
+                      Key="Software\KioskClient"
+                      Name="LogLevel"
+                      Type="raw" />
+    </Property>
+
+    <!-- System Properties -->
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR" />
+
+    <!-- Prevent installation on 32-bit systems -->
+    <Condition Message="This application requires a 64-bit operating system.">
+      <![CDATA[VersionNT64]]>
+    </Condition>
+
+    <!-- Require Windows 10 or later -->
+    <Condition Message="This application requires Windows 10 or later.">
+      <![CDATA[Installed OR (VersionNT >= 603)]]>
+    </Condition>
+
+    <!-- Directory Structure -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <!-- Program Files -->
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="Kiosk Client">
+          <!-- Node.js Runtime -->
+          <Directory Id="NodeJsDir" Name="nodejs" />
+
+          <!-- Client Application -->
+          <Directory Id="AppDir" Name="app">
+            <Directory Id="DistDir" Name="dist" />
+          </Directory>
+
+          <!-- Logs Directory -->
+          <Directory Id="LogsDir" Name="logs" />
+        </Directory>
+      </Directory>
+
+      <!-- Start Menu -->
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="Kiosk Client" />
+      </Directory>
+    </Directory>
+
+    <!-- Components -->
+    <!-- Main Application Component -->
+    <DirectoryRef Id="AppDir">
+      <Component Id="AppConfig" Guid="1A2B3C4D-5E6F-7A8B-9C0D-1E2F3A4B5C6D" Win64="yes">
+        <!-- .env Configuration File -->
+        <File Id="EnvFile" Name=".env" Source=".env.temp" KeyPath="yes" />
+
+        <!-- Make .env permanent (don't remove on uninstall if modified) -->
+        <util:RemoveFolderEx Property="INSTALLDIR" On="uninstall" />
+
+        <!-- Registry: Store configuration for upgrades -->
+        <RegistryValue Root="HKLM"
+                       Key="Software\KioskClient"
+                       Name="ServerUrl"
+                       Type="string"
+                       Value="[SERVER_URL]"
+                       KeyPath="no" />
+        <RegistryValue Root="HKLM"
+                       Key="Software\KioskClient"
+                       Name="DeviceToken"
+                       Type="string"
+                       Value="[DEVICE_TOKEN]"
+                       KeyPath="no" />
+        <RegistryValue Root="HKLM"
+                       Key="Software\KioskClient"
+                       Name="DisplayWidth"
+                       Type="string"
+                       Value="[DISPLAY_WIDTH]"
+                       KeyPath="no" />
+        <RegistryValue Root="HKLM"
+                       Key="Software\KioskClient"
+                       Name="DisplayHeight"
+                       Type="string"
+                       Value="[DISPLAY_HEIGHT]"
+                       KeyPath="no" />
+        <RegistryValue Root="HKLM"
+                       Key="Software\KioskClient"
+                       Name="KioskMode"
+                       Type="string"
+                       Value="[KIOSK_MODE]"
+                       KeyPath="no" />
+        <RegistryValue Root="HKLM"
+                       Key="Software\KioskClient"
+                       Name="LogLevel"
+                       Type="string"
+                       Value="[LOG_LEVEL]"
+                       KeyPath="no" />
+        <RegistryValue Root="HKLM"
+                       Key="Software\KioskClient"
+                       Name="InstallDir"
+                       Type="string"
+                       Value="[INSTALLDIR]"
+                       KeyPath="no" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- Logs Directory Component -->
+    <DirectoryRef Id="LogsDir">
+      <Component Id="LogsFolder" Guid="2B3C4D5E-6F7A-8B9C-0D1E-2F3A4B5C6D7E" Win64="yes">
+        <CreateFolder />
+        <RemoveFolder Id="RemoveLogsFolder" On="uninstall" />
+        <RegistryValue Root="HKLM"
+                       Key="Software\KioskClient"
+                       Name="LogsDir"
+                       Type="string"
+                       Value="[LogsDir]"
+                       KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- Windows Service Component -->
+    <DirectoryRef Id="AppDir">
+      <Component Id="KioskService" Guid="3C4D5E6F-7A8B-9C0D-1E2F-3A4B5C6D7E8F" Win64="yes">
+        <File Id="ServiceMarker" Name="service.txt" Source="service.txt" KeyPath="yes" />
+
+        <!-- Service Installation -->
+        <ServiceInstall Id="KioskClientService"
+                        Name="KioskClient"
+                        DisplayName="Kiosk Digital Signage Client"
+                        Description="Manages digital signage display, playlist execution, and remote control for kiosk devices"
+                        Type="ownProcess"
+                        Start="auto"
+                        Account="LocalSystem"
+                        ErrorControl="normal"
+                        Arguments='"[NodeJsDir]node.exe" "[AppDir]dist\index.js"'>
+          <!-- Recovery Configuration -->
+          <util:ServiceConfig FirstFailureActionType="restart"
+                              SecondFailureActionType="restart"
+                              ThirdFailureActionType="restart"
+                              RestartServiceDelayInSeconds="60" />
+        </ServiceInstall>
+
+        <!-- Service Control -->
+        <ServiceControl Id="KioskClientServiceControl"
+                        Name="KioskClient"
+                        Start="install"
+                        Stop="both"
+                        Remove="uninstall"
+                        Wait="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- Start Menu Shortcuts -->
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="StartMenuShortcuts" Guid="4D5E6F7A-8B9C-0D1E-2F3A-4B5C6D7E8F9A" Win64="yes">
+        <Shortcut Id="ConfigureShortcut"
+                  Name="Configure Kiosk Client"
+                  Description="Edit Kiosk Client configuration"
+                  Target="notepad.exe"
+                  Arguments='"[AppDir].env"'
+                  WorkingDirectory="AppDir" />
+
+        <Shortcut Id="LogsShortcut"
+                  Name="View Logs"
+                  Description="Open logs directory"
+                  Target="explorer.exe"
+                  Arguments='"[LogsDir]"' />
+
+        <Shortcut Id="UninstallShortcut"
+                  Name="Uninstall Kiosk Client"
+                  Description="Uninstall Kiosk Client"
+                  Target="[SystemFolder]msiexec.exe"
+                  Arguments="/x [ProductCode]" />
+
+        <RemoveFolder Id="RemoveStartMenuFolder" On="uninstall" />
+
+        <RegistryValue Root="HKCU"
+                       Key="Software\KioskClient"
+                       Name="StartMenuShortcuts"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- Features -->
+    <Feature Id="ProductFeature" Title="Kiosk Client" Level="1" ConfigurableDirectory="INSTALLDIR">
+      <ComponentRef Id="AppConfig" />
+      <ComponentRef Id="LogsFolder" />
+      <ComponentRef Id="KioskService" />
+      <ComponentRef Id="StartMenuShortcuts" />
+      <ComponentGroupRef Id="ClientFiles" />
+      <ComponentGroupRef Id="NodeModules" />
+      <ComponentGroupRef Id="NodeJsRuntime" />
+    </Feature>
+
+    <!-- Custom Actions -->
+    <!-- Validate Configuration (runs before install) -->
+    <CustomAction Id="CA_ValidateConfig"
+                  BinaryKey="CustomActionScript"
+                  VBScriptCall="ValidateConfig"
+                  Execute="firstSequence"
+                  Return="check" />
+
+    <!-- Create .env File -->
+    <CustomAction Id="CA_CreateEnv"
+                  BinaryKey="CustomActionScript"
+                  VBScriptCall="CreateEnvFile"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="check" />
+
+    <!-- Run npm install (production) -->
+    <CustomAction Id="CA_NpmInstall_SetProperty"
+                  Property="CA_NpmInstall"
+                  Value='"[NodeJsDir]node.exe" "[NodeJsDir]npm.cmd" install --production --prefix "[AppDir]"'
+                  Execute="immediate"
+                  Return="check" />
+
+    <CustomAction Id="CA_NpmInstall"
+                  BinaryKey="WixCA"
+                  DllEntry="WixQuietExec64"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="check" />
+
+    <!-- Custom Action Script (VBScript embedded) -->
+    <Binary Id="CustomActionScript" SourceFile="CustomActions.vbs" />
+
+    <!-- Install Sequence -->
+    <InstallExecuteSequence>
+      <!-- Validate configuration (silent install only) -->
+      <Custom Action="CA_ValidateConfig" After="CostFinalize">
+        <![CDATA[UILevel = 2 AND NOT Installed]]>
+      </Custom>
+
+      <!-- Create .env file -->
+      <Custom Action="CA_CreateEnv" After="InstallFiles">
+        <![CDATA[NOT Installed AND NOT REMOVE]]>
+      </Custom>
+
+      <!-- Run npm install -->
+      <Custom Action="CA_NpmInstall_SetProperty" After="CA_CreateEnv">
+        <![CDATA[NOT Installed AND NOT REMOVE]]>
+      </Custom>
+      <Custom Action="CA_NpmInstall" After="CA_NpmInstall_SetProperty">
+        <![CDATA[NOT Installed AND NOT REMOVE]]>
+      </Custom>
+    </InstallExecuteSequence>
+
+    <!-- UI Definition -->
+    <!-- Use built-in InstallDir dialog set -->
+    <UIRef Id="WixUI_InstallDir" />
+
+    <!-- Insert custom configuration dialog -->
+    <UIRef Id="ConfigDialog" />
+
+    <!-- License Agreement (optional - remove if not needed) -->
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+
+    <!-- Banner and Dialog Images -->
+    <WixVariable Id="WixUIBannerBmp" Value="banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="dialog.bmp" />
+  </Product>
+</Wix>

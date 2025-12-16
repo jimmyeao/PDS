@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Kiosk Client Configuration Dialog
+  Custom UI dialog for collecting SERVER_URL, DEVICE_TOKEN, and display settings
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <!-- Configuration Dialog -->
+    <UI Id="ConfigDialog">
+      <!-- Custom Dialog Definition -->
+      <Dialog Id="ConfigDlg" Width="370" Height="270" Title="[ProductName] Configuration">
+        <!-- Background -->
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+
+        <!-- Title and Description -->
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes">
+          <Text>{\WixUI_Font_Title}Kiosk Client Configuration</Text>
+        </Control>
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="340" Height="20" Transparent="yes" NoPrefix="yes">
+          <Text>Enter the server connection details and display settings.</Text>
+        </Control>
+
+        <!-- Server URL -->
+        <Control Id="ServerUrlLabel" Type="Text" X="25" Y="60" Width="100" Height="15" NoPrefix="yes" Text="&amp;Server URL:" />
+        <Control Id="ServerUrlEdit" Type="Edit" X="25" Y="75" Width="320" Height="18" Property="SERVER_URL" Indirect="no" />
+        <Control Id="ServerUrlNote" Type="Text" X="25" Y="95" Width="320" Height="12" NoPrefix="yes" Transparent="yes">
+          <Text>{\WixUI_Font_Smaller}Example: http://your-server:5001</Text>
+        </Control>
+
+        <!-- Device Token -->
+        <Control Id="DeviceTokenLabel" Type="Text" X="25" Y="115" Width="100" Height="15" NoPrefix="yes" Text="&amp;Device Token:" />
+        <Control Id="DeviceTokenEdit" Type="Edit" X="25" Y="130" Width="320" Height="18" Property="DEVICE_TOKEN" Indirect="no" Password="yes" />
+        <Control Id="DeviceTokenNote" Type="Text" X="25" Y="150" Width="320" Height="12" NoPrefix="yes" Transparent="yes">
+          <Text>{\WixUI_Font_Smaller}Obtain from the admin dashboard (Devices page)</Text>
+        </Control>
+
+        <!-- Display Settings (Two Column Layout) -->
+        <Control Id="DisplayLabel" Type="Text" X="25" Y="170" Width="320" Height="15" NoPrefix="yes" Text="Display Settings:" />
+
+        <!-- Display Width -->
+        <Control Id="DisplayWidthLabel" Type="Text" X="25" Y="187" Width="60" Height="12" NoPrefix="yes" Text="Width:" />
+        <Control Id="DisplayWidthEdit" Type="Edit" X="90" Y="185" Width="80" Height="18" Property="DISPLAY_WIDTH" Indirect="no" />
+
+        <!-- Display Height -->
+        <Control Id="DisplayHeightLabel" Type="Text" X="185" Y="187" Width="60" Height="12" NoPrefix="yes" Text="Height:" />
+        <Control Id="DisplayHeightEdit" Type="Edit" X="250" Y="185" Width="80" Height="18" Property="DISPLAY_HEIGHT" Indirect="no" />
+
+        <!-- Kiosk Mode Checkbox -->
+        <Control Id="KioskModeCheckbox" Type="CheckBox" X="25" Y="210" Width="200" Height="18" Property="KIOSK_MODE_CHECK" CheckBoxValue="true" Text="Enable fullscreen kiosk mode" />
+
+        <!-- Navigation Buttons -->
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back">
+          <Publish Event="NewDialog" Value="LicenseAgreementDlg">1</Publish>
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="&amp;Next">
+          <!-- Validate required fields before proceeding -->
+          <Publish Property="SERVER_URL" Value="[SERVER_URL]">1</Publish>
+          <Publish Property="DEVICE_TOKEN" Value="[DEVICE_TOKEN]">1</Publish>
+          <Publish Property="KIOSK_MODE" Value="[KIOSK_MODE_CHECK]">1</Publish>
+
+          <!-- Validation: SERVER_URL required and must start with http:// or https:// -->
+          <Publish Event="SpawnDialog" Value="InvalidServerUrlDlg">
+            <![CDATA[SERVER_URL = "" OR (NOT (SERVER_URL << "http://") AND NOT (SERVER_URL << "https://"))]]>
+          </Publish>
+
+          <!-- Validation: DEVICE_TOKEN required -->
+          <Publish Event="SpawnDialog" Value="InvalidDeviceTokenDlg">
+            <![CDATA[DEVICE_TOKEN = ""]]>
+          </Publish>
+
+          <!-- Proceed to next dialog if validation passes -->
+          <Publish Event="NewDialog" Value="VerifyReadyDlg">
+            <![CDATA[SERVER_URL <> "" AND (SERVER_URL << "http://" OR SERVER_URL << "https://") AND DEVICE_TOKEN <> ""]]>
+          </Publish>
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancel">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+      </Dialog>
+
+      <!-- Error Dialog: Invalid Server URL -->
+      <Dialog Id="InvalidServerUrlDlg" Width="260" Height="85" Title="[ProductName]" NoMinimize="yes">
+        <Control Id="Icon" Type="Icon" X="15" Y="15" Width="24" Height="24" ToolTip="Information icon" FixedSize="yes" IconSize="32" Text="[InfoIcon]" />
+        <Control Id="Message" Type="Text" X="48" Y="15" Width="194" Height="50" NoPrefix="yes">
+          <Text>Server URL is required and must start with http:// or https://</Text>
+        </Control>
+        <Control Id="OK" Type="PushButton" X="100" Y="57" Width="56" Height="17" Default="yes" Cancel="yes" Text="OK">
+          <Publish Event="EndDialog" Value="Return">1</Publish>
+        </Control>
+      </Dialog>
+
+      <!-- Error Dialog: Invalid Device Token -->
+      <Dialog Id="InvalidDeviceTokenDlg" Width="260" Height="85" Title="[ProductName]" NoMinimize="yes">
+        <Control Id="Icon" Type="Icon" X="15" Y="15" Width="24" Height="24" ToolTip="Information icon" FixedSize="yes" IconSize="32" Text="[InfoIcon]" />
+        <Control Id="Message" Type="Text" X="48" Y="15" Width="194" Height="50" NoPrefix="yes">
+          <Text>Device Token is required. Please obtain it from the admin dashboard.</Text>
+        </Control>
+        <Control Id="OK" Type="PushButton" X="100" Y="57" Width="56" Height="17" Default="yes" Cancel="yes" Text="OK">
+          <Publish Event="EndDialog" Value="Return">1</Publish>
+        </Control>
+      </Dialog>
+
+      <!-- Property for checkbox binding -->
+      <Property Id="KIOSK_MODE_CHECK" Value="true" />
+    </UI>
+  </Fragment>
+</Wix>

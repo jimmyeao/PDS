@@ -91,7 +91,24 @@
       "Bash(cmd //c \"taskkill /F /IM chrome.exe\")",
       "Bash(cmd //c \"tasklist | findstr dotnet\")",
       "Bash(cmd //c \"tasklist | findstr chrome.exe\")",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(wc:*)",
+      "Bash(where:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File create-placeholder-images.ps1)",
+      "Bash(powershell -Command \"Add-Type -AssemblyName System.Drawing; $img = New-Object System.Drawing.Bitmap(493, 312); $g = [System.Drawing.Graphics]::FromImage($img); $g.Clear([System.Drawing.Color]::FromArgb(0, 120, 215)); $img.Save(''dialog.bmp'', [System.Drawing.Imaging.ImageFormat]::Bmp); $g.Dispose(); $img.Dispose(); Write-Host ''Created dialog.bmp''\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File create-dialog.ps1)",
+      "Bash(build.bat)",
+      "Bash(cmd.exe /c build.bat)",
+      "Bash(\"C:\\Program Files (x86)\\WiX Toolset v3.14\\bin\\heat.exe\" dir \"../dist\" -cg ClientFiles -dr DistDir -var var.DistPath -gg -scom -sreg -sfrag -srd -out ClientFiles.wxs)",
+      "Bash(\"C:\\Program Files (x86)\\WiX Toolset v3.14\\bin\\heat.exe\" dir \"../node_modules\" -cg NodeModules -dr AppDir -var var.NodeModulesPath -gg -scom -sreg -sfrag -srd -out NodeModules.wxs)",
+      "Bash(\"C:\\Program Files (x86)\\WiX Toolset v3.14\\bin\\heat.exe\" dir \"../../node_modules\" -cg NodeModules -dr AppDir -var var.NodeModulesPath -gg -scom -sreg -sfrag -srd -out NodeModules.wxs)",
+      "Bash(\"C:\\Program Files (x86)\\WiX Toolset v3.14\\bin\\heat.exe\" dir \"nodejs\" -cg NodeJsRuntime -dr NodeJsDir -var var.NodeJsPath -gg -scom -sreg -sfrag -srd -out NodeJsRuntime.wxs)",
+      "Bash(\"C:\\Program Files (x86)\\WiX Toolset v3.14\\bin\\candle.exe\" Product.wxs ConfigDialog.wxs ClientFiles.wxs NodeModules.wxs NodeJsRuntime.wxs -dDistPath=\"../dist\" -dNodeModulesPath=\"../../node_modules\" -dNodeJsPath=\"nodejs\" -dVersion=\"1.0.0.0\" -ext WixUtilExtension -ext WixUIExtension -arch x64)",
+      "Bash(\"C:\\Program Files (x86)\\WiX Toolset v3.14\\bin\\light.exe\" Product.wixobj ConfigDialog.wixobj ClientFiles.wixobj NodeModules.wixobj NodeJsRuntime.wixobj -ext WixUtilExtension -ext WixUIExtension -cultures:en-US -loc en-US.wxl -out \"KioskClient-v1.0.0.0.msi\")",
+      "Bash(\"C:\\Program Files (x86)\\WiX Toolset v3.14\\bin\\candle.exe\" ConfigDialog.wxs -ext WixUtilExtension -ext WixUIExtension -arch x64)",
+      "Bash(\"C:\\Program Files (x86)\\WiX Toolset v3.14\\bin\\light.exe\" Product.wixobj ConfigDialog.wixobj ClientFiles.wixobj NodeModules.wixobj NodeJsRuntime.wixobj -ext WixUtilExtension -ext WixUIExtension -cultures:en-US -loc en-US.wxl -out \"KioskClient-v1.0.0.0.msi\" -sval)",
+      "Bash(msiexec:*)",
+      "Bash(powershell.exe:*)"
     ]
   }
 }
