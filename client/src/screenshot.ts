@@ -77,7 +77,7 @@ class ScreenshotManager {
       const screenshot = await this.page.screenshot({
         encoding: 'base64',
         type: 'jpeg',
-        quality: 75,
+        quality: 50, // Reduced quality to save bandwidth
         fullPage: false,
       });
 

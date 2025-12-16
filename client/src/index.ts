@@ -52,9 +52,9 @@ class KioskClient {
 
   private setupWebSocketHandlers(): void {
     // Content update handler
-    websocketClient.onContentUpdate((payload) => {
+    websocketClient.onContentUpdate(async (payload) => {
       logger.info(`Received content update with ${payload.items.length} items`);
-      playlistExecutor.loadPlaylist(payload.items);
+      await playlistExecutor.loadPlaylist(payload.items);
       playlistExecutor.start();
     });
 

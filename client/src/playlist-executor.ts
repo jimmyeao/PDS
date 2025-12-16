@@ -2,6 +2,8 @@
   import { displayController } from './display';
   import { screenshotManager } from './screenshot';
   import { websocketClient } from './websocket';
+  import { contentCacheManager } from './content-cache';
+  import * as path from 'path';
   import type { PlaylistItem, PlaybackStateUpdatePayload } from '@kiosk/shared';
 
   class PlaylistExecutor {
@@ -28,12 +30,19 @@
     // Periodic state emission to keep admin UI in sync
     private stateEmissionIntervalId: NodeJS.Timeout | null = null;
 
-    public loadPlaylist(items: PlaylistItem[], playlistId?: number): void {
+    public async loadPlaylist(items: PlaylistItem[], playlistId?: number): Promise<void> {
       logger.info(`Loading playlist with ${items.length} items`);
 
       // Store playlist ID for state reporting
       if (playlistId !== undefined) {
         this.currentPlaylistId = playlistId;
+      }
+
+      // Sync content to local cache
+      try {
+        await contentCacheManager.syncPlaylist(items);
+      } catch (e: any) {
+        logger.error(`Failed to sync playlist content: ${e.message}`);
       }
 
       // Sort items by orderIndex
@@ -501,7 +510,19 @@
           return;
         }
 
-        const url = item.content.url;
+        let url = item.content.url;
+
+        // Check if we have a local cached version
+        const localPath = contentCacheManager.getLocalPath(url);
+        if (localPath) {
+            // Convert to file URL
+            // On Windows: file:///C:/path/to/file
+            // On Linux: file:///path/to/file
+            // path.resolve ensures absolute path
+            const absolutePath = path.resolve(localPath).replace(/\\/g, '/');
+            url = `file:///${absolutePath}`;
+            logger.info(`Using cached content: ${url}`);
+        }
 
         await displayController.navigateTo(url, item.displayDuration);
 

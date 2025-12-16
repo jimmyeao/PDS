@@ -132,6 +132,10 @@ class DisplayController {
       logger.info('Browser launched successfully');
 
       this.page = await this.browser.newPage();
+      
+      // Explicitly enable cache
+      await this.page.setCacheEnabled(true);
+
       try {
         await this.page.bringToFront();
         await this.page.goto('about:blank');
@@ -694,6 +698,18 @@ class DisplayController {
         logger.error(`Page console error: ${text}`);
       }
     });
+
+    // Log request cache status for debugging
+    this.page.on('requestfinished', (request) => {
+        const response = request.response();
+        if (response && request.resourceType() === 'media') {
+            const fromCache = response.fromCache();
+            const headers = response.headers();
+            const size = headers['content-length'] || 'unknown';
+            const cacheControl = headers['cache-control'] || 'missing';
+            logger.info(`Media request finished: ${request.url().split('/').pop()} - From Cache: ${fromCache} - Size: ${size} - Cache-Control: ${cacheControl}`);
+        }
+    });
   }
 
   public async navigateTo(url: string, duration?: number): Promise<void> {
@@ -703,7 +719,8 @@ class DisplayController {
     }
 
     // Resolve relative URLs against the server URL
-    if (url.startsWith('/')) {
+    // Skip if it's a file:// URL
+    if (url.startsWith('/') && !url.startsWith('file://')) {
       const config = configManager.get();
       // Remove trailing slash from serverUrl if present and leading slash from url
       const baseUrl = config.serverUrl.endsWith('/') ? config.serverUrl.slice(0, -1) : config.serverUrl;
@@ -714,8 +731,8 @@ class DisplayController {
       // Clear previous page state by navigating to about:blank if switching from a video or heavy content
       // This helps prevent memory leaks and ensures a clean slate for the next page
       // Only do this if we are actually switching content types, to avoid unnecessary flashing
-      const isVideo = url.includes('.mp4') || url.includes('/videos/');
-      const wasVideo = this.currentUrl.includes('.mp4') || this.currentUrl.includes('/videos/');
+      const isVideo = url.includes('.mp4') || url.includes('/videos/') || url.startsWith('file://');
+      const wasVideo = this.currentUrl.includes('.mp4') || this.currentUrl.includes('/videos/') || this.currentUrl.startsWith('file://');
       
       // Only use about:blank if we are switching AWAY from a video to a web page
       // Switching TO a video (index.html) is fast enough and handles its own cleanup

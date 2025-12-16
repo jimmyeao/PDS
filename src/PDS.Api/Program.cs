@@ -117,7 +117,7 @@ app.UseStaticFiles(new StaticFileOptions
     {
         // Cache static assets for 1 year (since we use unique GUIDs for folders)
         // This helps video playback significantly by allowing the browser to cache the file
-        ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=31536000");
+        ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=31536000,immutable");
     }
 });
 
