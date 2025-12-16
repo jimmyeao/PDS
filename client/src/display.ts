@@ -82,7 +82,7 @@ class DisplayController {
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
           '--disable-session-crashed-bubble',
-          '--disable-features=TranslateUI,WebAuthentication,WebAuth,ClientSideDetectionModel,AudioServiceOutOfProcess', // Disable WebAuthn and other features
+          '--disable-features=TranslateUI,WebAuthentication,WebAuth,ClientSideDetectionModel', // Removed AudioServiceOutOfProcess to fix sound
           '--disable-blink-features=WebAuthentication', // Disable at Blink level too
           '--new-instance', // Force new instance instead of connecting to existing
           '--user-agent=Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
