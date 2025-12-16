@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -680,7 +681,11 @@ public record LoginDto(string Username, string Password, string? MfaCode);
 public record RefreshDto(string RefreshToken);
 public record ChangePasswordDto(string CurrentPassword, string NewPassword);
 public record MfaSetupResponse(string Secret, string QrCodeUri);
-public record UserDto(int Id, string Username, bool IsMfaEnabled);
+public record UserDto(
+    int Id, 
+    string Username, 
+    [property: JsonPropertyName("isMfaEnabled")] bool IsMfaEnabled
+);
 
 public record CreateDeviceDto(string DeviceId, string Name, string? Description, string? Location);
 public record UpdateDeviceDto(string? Name, string? Description, string? Location, int? DisplayWidth, int? DisplayHeight, bool? KioskMode);
