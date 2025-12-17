@@ -35,10 +35,9 @@ public class WebSocketClient : IDisposable
             await _webSocket.ConnectAsync(uri, cancellationToken);
             _logger.LogInformation("WebSocket connected");
 
-            // Register device
+            // Register device (only send token, backend looks up device by token)
             await SendEventAsync("device:register", new
             {
-                deviceId = _config.DeviceId,
                 token = _config.DeviceToken
             });
 
@@ -68,7 +67,11 @@ public class WebSocketClient : IDisposable
                 payload
             };
 
-            var json = JsonSerializer.Serialize(envelope);
+            var options = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var json = JsonSerializer.Serialize(envelope, options);
             var bytes = Encoding.UTF8.GetBytes(json);
 
             await _webSocket.SendAsync(

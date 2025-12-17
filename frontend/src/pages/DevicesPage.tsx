@@ -211,10 +211,14 @@ export const DevicesPage = () => {
                       </div>
                     </div>
                   )}
-                  <div className="mt-2 flex items-center gap-2">
-                    {deviceStatus.get(device.deviceId) && (<span className="text-xs px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">status: {deviceStatus.get(device.deviceId)}</span>)}
-                    {deviceErrors.get(device.deviceId) && (<span className="text-xs px-2 py-1 rounded bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800" title={deviceErrors.get(device.deviceId) || ''}>last error: {(deviceErrors.get(device.deviceId) || '').slice(0, 60)}{(deviceErrors.get(device.deviceId) || '').length > 60 ? '…' : ''}</span>)}
-                  </div>
+                  {/* Status indicator moved to top right, errors shown if present */}
+                  {deviceErrors.get(device.deviceId) && (
+                    <div className="mt-2">
+                      <span className="text-xs px-2 py-1 rounded bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800" title={deviceErrors.get(device.deviceId) || ''}>
+                        last error: {(deviceErrors.get(device.deviceId) || '').slice(0, 60)}{(deviceErrors.get(device.deviceId) || '').length > 60 ? '…' : ''}
+                      </span>
+                    </div>
+                  )}
                   {/* Active playlist summary moved to front */}
                   {devicePlaylists.get(device.id)?.find(p => p.isActive) && (() => {
                     const active = devicePlaylists.get(device.id)!.find(p => p.isActive)!;

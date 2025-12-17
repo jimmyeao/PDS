@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using System.Text.Json;
 
 namespace KioskClient.Core;
 
@@ -7,9 +8,12 @@ public class BrowserController : IAsyncDisposable
     private readonly KioskConfiguration _config;
     private readonly ILogger _logger;
     private IPlaywright? _playwright;
-    private IBrowser? _browser;
+    private IBrowserContext? _browser;  // Changed to IBrowserContext for persistent context
     private IPage? _page;
     private bool _isInitialized;
+    private bool _isScreencastActive;
+    private Action<string, object>? _onScreencastFrame;
+    private Timer? _screencastTimer;
 
     public BrowserController(KioskConfiguration config, ILogger logger)
     {
@@ -29,36 +33,83 @@ public class BrowserController : IAsyncDisposable
             // Create Playwright instance
             _playwright = await Playwright.CreateAsync();
 
-            // Launch Chromium browser
-            _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            // Set up persistent profile directory (like Node.js client)
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var profileDir = Path.Combine(localAppData, "PDS", "browser-profile");
+
+            // Ensure profile directory exists
+            if (!Directory.Exists(profileDir))
+            {
+                Directory.CreateDirectory(profileDir);
+                _logger.LogInformation($"Created browser profile directory: {profileDir}");
+            }
+            else
+            {
+                _logger.LogInformation($"Using existing browser profile directory: {profileDir}");
+            }
+
+            // Launch Chromium browser with persistent profile
+            _browser = await _playwright.Chromium.LaunchPersistentContextAsync(profileDir, new BrowserTypeLaunchPersistentContextOptions
             {
                 Headless = _config.Headless,
+                ViewportSize = new ViewportSize
+                {
+                    Width = _config.ViewportWidth,
+                    Height = _config.ViewportHeight
+                },
                 Args = new[]
                 {
-                    "--disable-blink-features=AutomationControlled",
+                    "--disable-blink-features=AutomationControlled,WebAuthentication",  // Block automation detection and WebAuthentication at Blink level
                     "--disable-dev-shm-usage",
                     "--no-sandbox",
                     "--disable-gpu",
                     "--disable-software-rasterizer",
                     "--disable-extensions",
                     "--disable-setuid-sandbox",
+                    "--autoplay-policy=no-user-gesture-required",  // Allow video autoplay
+                    "--disable-features=TranslateUI,WebAuthentication,WebAuth,ClientSideDetectionModel",  // Block passkey/credential prompts at feature level
+                    "--use-mock-keychain",  // Use mock keychain to avoid Windows credential prompts
+                    "--password-store=basic",  // Use basic password storage, not OS keychain
                     $"--window-size={_config.ViewportWidth},{_config.ViewportHeight}"
                 }
             });
 
-            _logger.LogInformation("Browser launched");
+            _logger.LogInformation("Browser launched with persistent context");
 
-            // Create new page
-            _page = await _browser.NewPageAsync(new BrowserNewPageOptions
+            // Get the first page from the persistent context (or create new one)
+            var pages = _browser.Pages;
+            if (pages.Count > 0)
             {
-                ViewportSize = new ViewportSize
-                {
-                    Width = _config.ViewportWidth,
-                    Height = _config.ViewportHeight
-                }
-            });
+                _page = pages[0];
+                _logger.LogInformation("Using existing page from persistent context");
+            }
+            else
+            {
+                _page = await _browser.NewPageAsync();
+                _logger.LogInformation("Created new page in persistent context");
+            }
 
-            _logger.LogInformation("Page created");
+            // Use CDP to disable WebAuthn
+            try
+            {
+                var cdpSession = await _page.Context.NewCDPSessionAsync(_page);
+                await cdpSession.SendAsync("WebAuthn.disable");
+                _logger.LogInformation("WebAuthn disabled via CDP");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not disable WebAuthn via CDP");
+            }
+
+            // Add JavaScript to override navigator.credentials
+            await _page.AddInitScriptAsync(@"
+                delete navigator.credentials;
+                Object.defineProperty(navigator, 'credentials', {
+                    get: () => undefined,
+                    configurable: false
+                });
+            ");
+            _logger.LogInformation("navigator.credentials overridden");
 
             _isInitialized = true;
         }
@@ -203,8 +254,103 @@ public class BrowserController : IAsyncDisposable
         return _page?.Url ?? string.Empty;
     }
 
+    public void SetScreencastFrameHandler(Action<string, object> handler)
+    {
+        _onScreencastFrame = handler;
+    }
+
+    public async Task StartScreencastAsync()
+    {
+        if (_page == null)
+        {
+            _logger.LogWarning("Cannot start screencast: page not initialized");
+            return;
+        }
+
+        if (_isScreencastActive)
+        {
+            _logger.LogInformation("Screencast already active");
+            return;
+        }
+
+        try
+        {
+            _logger.LogInformation("Starting screencast (polling mode)...");
+
+            _isScreencastActive = true;
+
+            // Use timer-based polling for now (simpler than CDP)
+            // Capture frame every ~100ms for ~10 FPS
+            _screencastTimer = new Timer(async _ =>
+            {
+                if (_isScreencastActive && _page != null && _onScreencastFrame != null)
+                {
+                    try
+                    {
+                        var screenshot = await _page.ScreenshotAsync(new PageScreenshotOptions
+                        {
+                            Type = ScreenshotType.Jpeg,
+                            Quality = 60,
+                            FullPage = false
+                        });
+
+                        var base64 = Convert.ToBase64String(screenshot);
+                        var metadata = new
+                        {
+                            sessionId = 1,
+                            timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                            width = _config.ViewportWidth,
+                            height = _config.ViewportHeight
+                        };
+
+                        _onScreencastFrame(base64, metadata);
+                    }
+                    catch
+                    {
+                        // Ignore screenshot errors during streaming
+                    }
+                }
+            }, null, TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(100));
+
+            _logger.LogInformation("✅ Screencast started successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start screencast");
+            _isScreencastActive = false;
+        }
+    }
+
+    public async Task StopScreencastAsync()
+    {
+        if (!_isScreencastActive)
+        {
+            return;
+        }
+
+        try
+        {
+            _logger.LogInformation("Stopping screencast...");
+            _screencastTimer?.Dispose();
+            _screencastTimer = null;
+            _isScreencastActive = false;
+            _logger.LogInformation("Screencast stopped");
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error stopping screencast");
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
+        // Stop screencast if active
+        if (_isScreencastActive)
+        {
+            await StopScreencastAsync();
+        }
+
         if (_page != null)
         {
             await _page.CloseAsync();
