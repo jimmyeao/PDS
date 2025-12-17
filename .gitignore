@@ -14,7 +14,7 @@ build/
 .env
 .env.local
 .env.production
-
+nul
 # App Settings with Secrets
 src/PDS.Api/appsettings.json
 src/PDS.Api/appsettings.Development.json
