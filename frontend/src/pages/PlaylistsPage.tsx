@@ -34,7 +34,7 @@ export const PlaylistsPage = () => {
   const [itemFormData, setItemFormData] = useState<Partial<CreatePlaylistItemDto>>({
     playlistId: 0,
     contentId: 0,
-    displayDuration: 30000, // 30 seconds in milliseconds
+    displayDuration: 0, // 0 = play forever (no rotation)
     orderIndex: 0,
     timeWindowStart: '',
     timeWindowEnd: '',
@@ -126,7 +126,7 @@ export const PlaylistsPage = () => {
       setItemFormData({
         playlistId: 0,
         contentId: 0,
-        displayDuration: 30000, // 30 seconds in milliseconds
+        displayDuration: 0, // 0 = play forever (no rotation)
         orderIndex: 0,
         timeWindowStart: '',
         timeWindowEnd: '',
@@ -471,16 +471,17 @@ export const PlaylistsPage = () => {
                 </label>
                 <input
                   type="number"
-                  value={itemFormData.displayDuration ? itemFormData.displayDuration / 1000 : 30}
+                  value={itemFormData.displayDuration !== undefined ? itemFormData.displayDuration / 1000 : 0}
                   onChange={(e) =>
                     setItemFormData({ ...itemFormData, displayDuration: Number(e.target.value) * 1000 })
                   }
                   className="input"
                   min="0"
-                  required
+                  step="1"
+                  placeholder="0"
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  How long to display this content (0 = permanent display, no rotation)
+                  How long to display this content in seconds (0 = play forever, no rotation)
                 </p>
               </div>
 
