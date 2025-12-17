@@ -108,7 +108,8 @@
       "Bash(\"C:\\Program Files (x86)\\WiX Toolset v3.14\\bin\\candle.exe\" ConfigDialog.wxs -ext WixUtilExtension -ext WixUIExtension -arch x64)",
       "Bash(\"C:\\Program Files (x86)\\WiX Toolset v3.14\\bin\\light.exe\" Product.wixobj ConfigDialog.wixobj ClientFiles.wixobj NodeModules.wixobj NodeJsRuntime.wixobj -ext WixUtilExtension -ext WixUIExtension -cultures:en-US -loc en-US.wxl -out \"KioskClient-v1.0.0.0.msi\" -sval)",
       "Bash(msiexec:*)",
-      "Bash(powershell.exe:*)"
+      "Bash(powershell.exe:*)",
+      "Bash(powershell -Command \"Get-EventLog -LogName Application -Source KioskClient -Newest 5 -ErrorAction SilentlyContinue | Format-List TimeGenerated, EntryType, Message\")"
     ]
   }
 }
