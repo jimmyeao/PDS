@@ -163,16 +163,110 @@ $NodeVersion = & $NodeExe --version
 Write-Host "  [OK] Node.js version: $NodeVersion" -ForegroundColor Green
 Write-Host ""
 
-# Step 5.5: Install Puppeteer Chrome browser
-Write-Host "[5.5/9] Installing Puppeteer Chrome browser..." -ForegroundColor Yellow
-$env:PATH = "$NodePath;$env:PATH"
-#& $NodeExe "$NodePath\node_modules\npm\bin\npm-cli.js" --prefix $AppPath install 2>&1 | Out-Null
-#& $NodeExe "$NodePath\node_modules\npm\bin\npx-cli.js" --prefix $AppPath puppeteer browsers install chrome 2>&1 | Out-Null
-Write-Host "  [OK] Puppeteer Chrome installed" -ForegroundColor Green
+# Step 5.5: Check for Chrome/Install Puppeteer Chrome browser
+Write-Host "[5.5/9] Checking for Chrome browser..." -ForegroundColor Yellow
+
+# Check for existing Chrome installation
+$ChromePaths = @(
+    "${env:ProgramFiles}\Google\Chrome\Application\chrome.exe",
+    "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+    "${env:LOCALAPPDATA}\Google\Chrome\Application\chrome.exe"
+)
+
+$ChromeFound = $false
+foreach ($path in $ChromePaths) {
+    if (Test-Path $path) {
+        Write-Host "  [OK] Found existing Chrome: $path" -ForegroundColor Green
+        Write-Host "  [OK] Will use existing Chrome instead of downloading Chromium" -ForegroundColor Green
+        $ChromeFound = $true
+        break
+    }
+}
+
+# Only install Puppeteer Chrome if no existing Chrome found
+if (-not $ChromeFound) {
+    Write-Host "  [!] No Chrome installation found, installing Puppeteer Chrome..." -ForegroundColor Yellow
+
+    # Add Node.js to PATH for this session
+    $env:PATH = "$NodePath;$env:PATH"
+
+    # Verify npm exists
+    $NpmCmd = "$NodePath\npm.cmd"
+    if (-not (Test-Path $NpmCmd)) {
+        Write-Host "  [!] WARNING: npm.cmd not found in Node.js installation" -ForegroundColor Yellow
+        Write-Host "  [!] Cannot install Puppeteer Chrome - service may fail to start" -ForegroundColor Red
+    } else {
+        try {
+            # Change to app directory
+            Push-Location $AppPath
+
+            # Install production dependencies (if needed)
+            Write-Host "  [...] Verifying dependencies..." -ForegroundColor Yellow
+            & $NpmCmd install --production --no-audit --no-fund 2>&1 | Out-Null
+
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  [!] npm install completed with warnings (non-critical)" -ForegroundColor Yellow
+            }
+
+            # Install Puppeteer Chrome browser using npx
+            Write-Host "  [...] Downloading Chromium browser (this may take several minutes)..." -ForegroundColor Yellow
+            $NpxCmd = "$NodePath\npx.cmd"
+
+            if (Test-Path $NpxCmd) {
+                # Use puppeteer CLI to install chrome
+                $npxOutput = & $NpxCmd puppeteer browsers install chrome 2>&1
+                $npxOutput | ForEach-Object {
+                    if ($_ -match "Downloaded to") {
+                        Write-Host "  [OK] $_" -ForegroundColor Green
+                    }
+                }
+
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "  [OK] Puppeteer Chrome installed successfully" -ForegroundColor Green
+                } else {
+                    Write-Host "  [!] ERROR: Puppeteer Chrome installation failed (exit code: $LASTEXITCODE)" -ForegroundColor Red
+                    Write-Host "  [!] Service will fail to start without a browser" -ForegroundColor Red
+                    Write-Host "  [!] Consider installing Google Chrome manually" -ForegroundColor Yellow
+                }
+            } else {
+                Write-Host "  [!] ERROR: npx.cmd not found" -ForegroundColor Red
+                Write-Host "  [!] Cannot install Puppeteer Chrome - service will fail" -ForegroundColor Red
+            }
+
+            Pop-Location
+        } catch {
+            Write-Host "  [!] ERROR during Puppeteer installation: $($_.Exception.Message)" -ForegroundColor Red
+            Pop-Location
+        }
+    }
+}
 Write-Host ""
 
 # Step 6: Create .env configuration
 Write-Host "[6/9] Creating configuration file..." -ForegroundColor Yellow
+
+# Try to detect existing Chrome installation
+$ChromePaths = @(
+    "${env:ProgramFiles}\Google\Chrome\Application\chrome.exe",
+    "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+    "${env:LOCALAPPDATA}\Google\Chrome\Application\chrome.exe"
+)
+
+$ChromeExe = $null
+foreach ($path in $ChromePaths) {
+    if (Test-Path $path) {
+        $ChromeExe = $path
+        Write-Host "  [OK] Found existing Chrome: $ChromeExe" -ForegroundColor Green
+        break
+    }
+}
+
+if (-not $ChromeExe) {
+    Write-Host "  [!] No existing Chrome installation found" -ForegroundColor Yellow
+    Write-Host "  [!] Puppeteer will try to use its bundled Chromium" -ForegroundColor Yellow
+    $ChromeExe = ""
+}
+
 $EnvContent = @"
 # Kiosk Client Configuration
 # Generated: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
@@ -183,7 +277,7 @@ DISPLAY_WIDTH=$DisplayWidth
 DISPLAY_HEIGHT=$DisplayHeight
 KIOSK_MODE=$($KioskMode.ToString().ToLower())
 LOG_LEVEL=$LogLevel
-PUPPETEER_EXECUTABLE_PATH=
+PUPPETEER_EXECUTABLE_PATH=$ChromeExe
 HEALTH_CHECK_INTERVAL=60000
 SCREENSHOT_INTERVAL=300000
 "@
