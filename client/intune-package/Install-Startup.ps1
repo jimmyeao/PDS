@@ -80,42 +80,99 @@ if ($existingService) {
 # For brevity, this would include all the same steps 1-6 from Install.ps1
 # (copying files, installing Node.js, checking Chrome, creating .env)
 
-# NOTE: For now, assuming Install.ps1 was already run
-# This script just converts service → startup
+Write-Host "[1/8] Creating installation directories..." -ForegroundColor Yellow
+@($InstallPath, $AppPath, $NodePath, $LogPath) | ForEach-Object {
+    if (-not (Test-Path $_)) {
+        New-Item -ItemType Directory -Path $_ -Force | Out-Null
+        Write-Host "  [OK] Created: $_" -ForegroundColor Green
+    }
+}
+Write-Host ""
 
-Write-Host "[1/3] Verifying installation..." -ForegroundColor Yellow
-if (-not (Test-Path "$AppPath\dist\index.js")) {
-    Write-Host "[ERROR] Kiosk client not found at $AppPath" -ForegroundColor Red
-    Write-Host "Please run Install.ps1 first to install the client files" -ForegroundColor Yellow
-    exit 1
+# Copy client files
+Write-Host "[2/8] Copying client application files..." -ForegroundColor Yellow
+$ClientSrcPath = Split-Path -Parent $ScriptPath
+
+if (Test-Path "$ClientSrcPath\dist") {
+    Copy-Item "$ClientSrcPath\dist" -Destination $AppPath -Recurse -Force
+    Write-Host "  [OK] Copied dist/ files" -ForegroundColor Green
+} else {
+    throw "Client dist/ folder not found. Please run 'npm run build' first."
+}
+
+Copy-Item "$ClientSrcPath\package.json" -Destination $AppPath -Force
+Write-Host "  [OK] Copied package.json" -ForegroundColor Green
+
+$RootNodeModules = "$ClientSrcPath\..\node_modules"
+if (Test-Path $RootNodeModules) {
+    Write-Host "  [...] Copying node_modules (this may take a few minutes)..." -ForegroundColor Yellow
+    Copy-Item $RootNodeModules -Destination $AppPath -Recurse -Force
+    Write-Host "  [OK] Copied node_modules" -ForegroundColor Green
+} else {
+    throw "node_modules not found at $RootNodeModules"
+}
+Write-Host ""
+
+# Install Node.js
+Write-Host "[3/8] Installing Node.js runtime..." -ForegroundColor Yellow
+$BundledNode = "$ScriptPath\nodejs"
+if (Test-Path $BundledNode) {
+    Write-Host "  [...] Copying bundled Node.js..." -ForegroundColor Yellow
+    Copy-Item "$BundledNode\*" -Destination $NodePath -Recurse -Force
+    Write-Host "  [OK] Node.js installed from bundle" -ForegroundColor Green
+} else {
+    Write-Host "  [...] Downloading Node.js v20.18.1 (~50MB)..." -ForegroundColor Yellow
+    $NodeUrl = "https://nodejs.org/dist/v20.18.1/node-v20.18.1-win-x64.zip"
+    $NodeZip = "$env:TEMP\nodejs.zip"
+
+    Invoke-WebRequest -Uri $NodeUrl -OutFile $NodeZip -UseBasicParsing
+    Expand-Archive -Path $NodeZip -DestinationPath $env:TEMP -Force
+
+    $ExtractedPath = "$env:TEMP\node-v20.18.1-win-x64"
+    Copy-Item "$ExtractedPath\*" -Destination $NodePath -Recurse -Force
+
+    Remove-Item $NodeZip -Force -ErrorAction SilentlyContinue
+    Remove-Item $ExtractedPath -Recurse -Force -ErrorAction SilentlyContinue
+
+    Write-Host "  [OK] Node.js downloaded and installed" -ForegroundColor Green
 }
 
 $NodeExe = "$NodePath\node.exe"
 if (-not (Test-Path $NodeExe)) {
-    Write-Host "[ERROR] Node.js not found at $NodePath" -ForegroundColor Red
-    Write-Host "Please run Install.ps1 first to install Node.js" -ForegroundColor Yellow
-    exit 1
+    throw "Node.js installation failed - node.exe not found"
 }
-Write-Host "  [OK] Installation files found" -ForegroundColor Green
+$NodeVersion = & $NodeExe --version
+Write-Host "  [OK] Node.js version: $NodeVersion" -ForegroundColor Green
 Write-Host ""
 
-# Update .env configuration
-Write-Host "[2/3] Updating configuration..." -ForegroundColor Yellow
+# Check for Chrome
+Write-Host "[4/8] Checking for Chrome browser..." -ForegroundColor Yellow
 
-# Detect Chrome
 $ChromePaths = @(
     "${env:ProgramFiles}\Google\Chrome\Application\chrome.exe",
     "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
     "${env:LOCALAPPDATA}\Google\Chrome\Application\chrome.exe"
 )
 
+$ChromeFound = $false
 $ChromeExe = ""
 foreach ($path in $ChromePaths) {
     if (Test-Path $path) {
+        Write-Host "  [OK] Found existing Chrome: $path" -ForegroundColor Green
         $ChromeExe = $path
+        $ChromeFound = $true
         break
     }
 }
+
+if (-not $ChromeFound) {
+    Write-Host "  [!] No Chrome found - Puppeteer will use bundled Chromium" -ForegroundColor Yellow
+    Write-Host "  [INFO] Consider installing Google Chrome for better compatibility" -ForegroundColor Cyan
+}
+Write-Host ""
+
+# Create .env configuration
+Write-Host "[5/8] Creating configuration file..." -ForegroundColor Yellow
 
 $EnvContent = @"
 # Kiosk Client Configuration
@@ -134,32 +191,47 @@ SCREENSHOT_INTERVAL=300000
 
 $EnvFile = "$AppPath\.env"
 $EnvContent | Out-File -FilePath $EnvFile -Encoding UTF8 -Force
-Write-Host "  [OK] Configuration updated" -ForegroundColor Green
+Write-Host "  [OK] Configuration saved to: $EnvFile" -ForegroundColor Green
 Write-Host ""
 
-# Create startup shortcut
-Write-Host "[3/3] Creating startup shortcut..." -ForegroundColor Yellow
+# Create wrapper batch file
+Write-Host "[6/8] Creating startup wrapper..." -ForegroundColor Yellow
 
-$StartupFolder = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
-$ShortcutPath = "$StartupFolder\Kiosk Client.lnk"
 $WrapperBat = "$InstallPath\start-kiosk.bat"
-
-# Create wrapper batch file if it doesn't exist
-if (-not (Test-Path $WrapperBat)) {
-    $WrapperContent = @"
+$WrapperContent = @"
 @echo off
 cd /d "$AppPath"
 "$NodeExe" "$AppPath\dist\index.js"
 "@
-    $WrapperContent | Out-File -FilePath $WrapperBat -Encoding ASCII
-}
+$WrapperContent | Out-File -FilePath $WrapperBat -Encoding ASCII
+Write-Host "  [OK] Created wrapper: $WrapperBat" -ForegroundColor Green
+Write-Host ""
 
-# Create shortcut
+# Create VBS wrapper (silent, no console window)
+Write-Host "[7/8] Creating silent launcher..." -ForegroundColor Yellow
+$VbsWrapper = "$InstallPath\start-kiosk-silent.vbs"
+$VbsContent = @"
+Set WshShell = CreateObject("WScript.Shell")
+WshShell.Run """$WrapperBat""", 0, False
+Set WshShell = Nothing
+"@
+$VbsContent | Out-File -FilePath $VbsWrapper -Encoding ASCII
+Write-Host "  [OK] Created silent launcher: $VbsWrapper" -ForegroundColor Green
+Write-Host ""
+
+# Create startup shortcut
+Write-Host "[8/8] Creating startup shortcut..." -ForegroundColor Yellow
+
+$StartupFolder = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
+$ShortcutPath = "$StartupFolder\Kiosk Client.lnk"
+
+# Create shortcut using VBS wrapper (silent)
 $WshShell = New-Object -ComObject WScript.Shell
 $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
-$Shortcut.TargetPath = $WrapperBat
+$Shortcut.TargetPath = "wscript.exe"
+$Shortcut.Arguments = """$VbsWrapper"""
 $Shortcut.WorkingDirectory = $AppPath
-$Shortcut.WindowStyle = 7  # Minimized
+$Shortcut.WindowStyle = 1  # Normal window
 $Shortcut.Description = "Kiosk Digital Signage Client"
 $Shortcut.Save()
 
