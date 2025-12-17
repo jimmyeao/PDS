@@ -14,21 +14,85 @@ public class SlideshowService : ISlideshowService
     private readonly PdsDbContext _db;
     private readonly IWebHostEnvironment _env;
     private readonly ILogger<SlideshowService> _logger;
+    private readonly PowerPointConverter _pptConverter;
 
-    public SlideshowService(PdsDbContext db, IWebHostEnvironment env, ILogger<SlideshowService> logger)
+    public SlideshowService(
+        PdsDbContext db,
+        IWebHostEnvironment env,
+        ILogger<SlideshowService> logger,
+        PowerPointConverter pptConverter)
     {
         _db = db;
         _env = env;
         _logger = logger;
+        _pptConverter = pptConverter;
     }
 
     public async Task<ContentItem> ConvertAndCreateAsync(IFormFile file, string name, int durationPerSlide)
+    {
+        var webRoot = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+        var videosDir = Path.Combine(webRoot, "videos");
+        Directory.CreateDirectory(videosDir);
+
+        try
+        {
+            // Convert PowerPoint to MP4 video (preserves transitions and animations!)
+            _logger.LogInformation("Converting PowerPoint to video: {FileName}", file.FileName);
+
+            var durationPerSlideSeconds = durationPerSlide / 1000; // Convert ms to seconds
+            if (durationPerSlideSeconds <= 0) durationPerSlideSeconds = 5; // Default 5 seconds
+
+            // Use 1080p quality (2) for good balance of quality and file size
+            var videoPath = await _pptConverter.ConvertToVideoAsync(
+                file.OpenReadStream(),
+                file.FileName,
+                videosDir,
+                quality: 2,
+                secondsPerSlide: durationPerSlideSeconds);
+
+            _logger.LogInformation("Video created: {VideoPath}", videoPath);
+
+            // Get video file info
+            var videoFile = new FileInfo(videoPath);
+            var videoFileName = videoFile.Name;
+
+            // Calculate video duration (approximate: slides * duration per slide)
+            // We could also use FFmpeg to get exact duration, but this is close enough
+            var videoUrl = $"/videos/{videoFileName}";
+
+            // Create ContentItem
+            var content = new ContentItem
+            {
+                Name = name,
+                Url = videoUrl,
+                DefaultDuration = 0 // 0 means play full video
+            };
+
+            _db.Content.Add(content);
+            await _db.SaveChangesAsync();
+
+            _logger.LogInformation("Content created: {ContentId} -> {Url}", content.Id, content.Url);
+
+            return content;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to convert PowerPoint to video");
+
+            // Fall back to old method (PDF -> Images) if PowerPoint conversion fails
+            _logger.LogWarning("Falling back to PDF/Image conversion (transitions will be lost)");
+            return await ConvertToImagesAsync(file, name, durationPerSlide);
+        }
+    }
+
+    // Fallback method: Original image-based slideshow (no transitions)
+    private async Task<ContentItem> ConvertToImagesAsync(IFormFile file, string name, int durationPerSlide)
     {
         // 1. Save uploaded file to temp
         var tempDir = Path.Combine(Path.GetTempPath(), "pds_uploads", Guid.NewGuid().ToString());
         Directory.CreateDirectory(tempDir);
         var tempFilePath = Path.Combine(tempDir, file.FileName);
-        
+
         using (var stream = new FileStream(tempFilePath, FileMode.Create))
         {
             await file.CopyToAsync(stream);
@@ -45,28 +109,22 @@ public class SlideshowService : ISlideshowService
         }
 
         // 3. Convert PDF -> Images using pdftoppm
-        // Create wwwroot/slideshows/{id} directory
-        // We don't have the ID yet, so we'll use a GUID folder first, then maybe rename or just use GUID.
-        // Let's use a GUID for the storage folder to avoid ID conflicts before insert.
         var storageId = Guid.NewGuid().ToString();
         var webRoot = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
         var outputDir = Path.Combine(webRoot, "slideshows", storageId);
         Directory.CreateDirectory(outputDir);
 
         _logger.LogInformation("Converting PDF to Images: {PdfPath} -> {OutputDir}", pdfPath, outputDir);
-        // pdftoppm -jpeg -r 150 input.pdf output_prefix
         await RunCommandAsync("pdftoppm", $"-jpeg -r 150 \"{pdfPath}\" \"{Path.Combine(outputDir, "slide")}\"");
 
         // 4. Cleanup temp
         try { Directory.Delete(tempDir, true); } catch { /* ignore */ }
 
         // Calculate total duration
-        // Count the generated images
         var slideCount = Directory.GetFiles(outputDir, "*.jpg").Length;
         var totalDurationSeconds = (slideCount * durationPerSlide) / 1000;
 
         // 5. Create ContentItem
-        // The URL will point to the viewer endpoint
         var content = new ContentItem
         {
             Name = name,

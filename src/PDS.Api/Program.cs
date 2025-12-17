@@ -62,6 +62,9 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
 
+// Register PowerPoint converter service
+builder.Services.AddSingleton<PowerPointConverter>();
+
 // CORS for frontend dev server
 builder.Services.AddCors(options =>
 {
