@@ -109,7 +109,21 @@
       "Bash(\"C:\\Program Files (x86)\\WiX Toolset v3.14\\bin\\light.exe\" Product.wixobj ConfigDialog.wixobj ClientFiles.wixobj NodeModules.wixobj NodeJsRuntime.wixobj -ext WixUtilExtension -ext WixUIExtension -cultures:en-US -loc en-US.wxl -out \"KioskClient-v1.0.0.0.msi\" -sval)",
       "Bash(msiexec:*)",
       "Bash(powershell.exe:*)",
-      "Bash(powershell -Command \"Get-EventLog -LogName Application -Source KioskClient -Newest 5 -ErrorAction SilentlyContinue | Format-List TimeGenerated, EntryType, Message\")"
+      "Bash(powershell -Command \"Get-EventLog -LogName Application -Source KioskClient -Newest 5 -ErrorAction SilentlyContinue | Format-List TimeGenerated, EntryType, Message\")",
+      "Bash(dotnet new:*)",
+      "Bash(dotnet sln:*)",
+      "Bash(dotnet sln add:*)",
+      "Bash(dotnet add reference:*)",
+      "Bash(dotnet add:*)",
+      "Bash(pwsh:*)",
+      "Bash(timeout 30 dotnet run:*)",
+      "Bash(dotnet nuget add source:*)",
+      "Bash(dotnet restore:*)",
+      "Bash(taskkill /F /FI \"IMAGENAME eq dotnet.exe\" /FI \"WINDOWTITLE eq *KioskClient*\")",
+      "Bash(powershell:*)",
+      "Bash(dotnet nuget list:*)",
+      "Bash(dotnet nuget:*)",
+      "Bash(timeout 15 dotnet run:*)"
     ]
   }
 }

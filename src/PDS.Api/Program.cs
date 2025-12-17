@@ -1524,7 +1524,9 @@ public static class RealtimeHub
         }
 
         var buffer = new byte[64 * 1024];
-        while (ws.State == System.Net.WebSockets.WebSocketState.Open)
+        try
+        {
+            while (ws.State == System.Net.WebSockets.WebSocketState.Open)
         {
             using var ms = new System.IO.MemoryStream();
             System.Net.WebSockets.WebSocketReceiveResult result;
@@ -1661,6 +1663,35 @@ public static class RealtimeHub
                         metadata = payload.GetProperty("metadata")
                     });
                     break;
+            }
+        }
+        }
+        catch (Exception ex)
+        {
+            // Log the disconnection
+            Serilog.Log.Information(ex, "WebSocket connection closed for {Role} {DeviceId}", role, deviceId ?? "unknown");
+        }
+        finally
+        {
+            // Clean up on disconnect (whether graceful or abrupt)
+            if (role == "device" && !string.IsNullOrEmpty(deviceId))
+            {
+                Devices.TryRemove(deviceId, out _);
+                BroadcastAdmins("admin:device:status", new { deviceId, status = "offline", timestamp = DateTime.UtcNow });
+                Serilog.Log.Information("Device {DeviceId} disconnected and marked offline", deviceId);
+            }
+
+            // Close the WebSocket if still open
+            if (ws.State == System.Net.WebSockets.WebSocketState.Open)
+            {
+                try
+                {
+                    await ws.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, "Connection closed", CancellationToken.None);
+                }
+                catch
+                {
+                    // Ignore errors during close
+                }
             }
         }
     }

@@ -202,7 +202,7 @@ if (-not $ChromeFound) {
 
             # Install production dependencies (if needed)
             Write-Host "  [...] Verifying dependencies..." -ForegroundColor Yellow
-            & $NpmCmd install --production --no-audit --no-fund 2>&1 | Out-Null
+            & $NpmCmd install --omit=dev --no-audit --no-fund 2>&1 | Out-Null
 
             if ($LASTEXITCODE -ne 0) {
                 Write-Host "  [!] npm install completed with warnings (non-critical)" -ForegroundColor Yellow
