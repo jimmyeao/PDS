@@ -14,7 +14,7 @@ import type { Playlist } from '@kiosk/shared';
 export const DevicesPage = () => {
   const { devices, fetchDevices, createDevice, updateDevice, deleteDevice, isLoading } = useDeviceStore();
   const { getDeviceToken } = useDeviceStore();
-  const { connectedDevices, deviceStatus, deviceErrors, devicePlaybackState } = useWebSocketStore();
+  const { connectedDevices, deviceErrors, devicePlaybackState } = useWebSocketStore();
   const { playlists, fetchPlaylists, assignPlaylistToDevice, unassignPlaylistFromDevice } = usePlaylistStore();
   const [showModal, setShowModal] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
