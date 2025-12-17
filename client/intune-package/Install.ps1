@@ -166,8 +166,8 @@ Write-Host ""
 # Step 5.5: Install Puppeteer Chrome browser
 Write-Host "[5.5/9] Installing Puppeteer Chrome browser..." -ForegroundColor Yellow
 $env:PATH = "$NodePath;$env:PATH"
-& $NodeExe "$NodePath\node_modules\npm\bin\npm-cli.js" --prefix $AppPath install 2>&1 | Out-Null
-& $NodeExe "$NodePath\node_modules\npm\bin\npx-cli.js" --prefix $AppPath puppeteer browsers install chrome 2>&1 | Out-Null
+#& $NodeExe "$NodePath\node_modules\npm\bin\npm-cli.js" --prefix $AppPath install 2>&1 | Out-Null
+#& $NodeExe "$NodePath\node_modules\npm\bin\npx-cli.js" --prefix $AppPath puppeteer browsers install chrome 2>&1 | Out-Null
 Write-Host "  [OK] Puppeteer Chrome installed" -ForegroundColor Green
 Write-Host ""
 
