@@ -102,3 +102,85 @@ Without Chrome:
   [...] Downloading Chromium browser (this may take several minutes)...
   [OK] Puppeteer Chrome installed successfully
 ```
+
+---
+
+## New Issue: Browser Not Visible (Session 0 Isolation)
+
+### Problem:
+- ✅ Service installs and runs successfully
+- ✅ Client connects to backend
+- ✅ Remote control works through admin dashboard
+- ❌ Browser window is not visible on the physical screen
+
+### Root Cause:
+Windows services run in **Session 0** (isolated system session), not in the interactive desktop session (Session 1+). This is a Windows security feature that prevents services from displaying UI on the user's desktop.
+
+The browser IS running, but in Session 0, so:
+- Screenshots work (captured from Puppeteer)
+- Remote control works (commands sent to Puppeteer)
+- Browser is NOT visible on the physical screen
+
+### Solutions:
+
+#### Option 1: Use Remote Control (Recommended for Remote Kiosks)
+**Best for:** Headless kiosks, remote displays, or when physical visibility isn't required
+
+- Browser runs in Session 0
+- Use admin dashboard remote control to interact
+- Live streaming and visual remote control work perfectly
+- No changes needed
+
+#### Option 2: Enable Desktop Interaction (Updated Install.ps1)
+**Best for:** Local testing, single-user kiosks
+
+The updated Install.ps1 now configures `SERVICE_INTERACTIVE_PROCESS` to allow desktop interaction.
+
+**Note:** This feature is deprecated in Windows 10/11 and may not work reliably.
+
+**To apply to existing installation:**
+```powershell
+.\Fix-ServiceDisplay.ps1
+```
+
+#### Option 3: Install as Startup Program (NEW: Install-Startup.ps1)
+**Best for:** Kiosks that need visible browser window, single-user systems
+
+Installs as a startup program instead of a Windows service:
+
+```powershell
+# If service version is installed, uninstall it first
+.\Uninstall.ps1
+
+# Install as startup program
+.\Install-Startup.ps1 -ServerUrl "http://192.168.0.57:5001" -DeviceToken "your-token"
+
+# Or convert existing service installation
+.\Install-Startup.ps1 -ServerUrl "http://192.168.0.57:5001" -DeviceToken "your-token"
+# (will prompt to remove service automatically)
+```
+
+**Startup Program Benefits:**
+- ✅ Browser window visible on desktop
+- ✅ Runs in user session (Session 1+)
+- ✅ Starts automatically on user login
+- ✅ Easy to manage (stop/start from task manager)
+
+**Startup Program Considerations:**
+- ⚠️ Requires user to be logged in
+- ⚠️ Won't start until user logs in
+- ⚠️ User can close the window (use kiosk mode to prevent)
+
+### Recommendation by Use Case:
+
+| Use Case | Recommended Solution |
+|----------|---------------------|
+| Remote/headless kiosk | **Option 1** - Use remote control |
+| Public kiosk (24/7 display) | **Option 3** - Startup program with auto-login |
+| Testing/development | **Option 3** - Startup program |
+| Multiple concurrent users | **Option 2** - Service (with remote control) |
+| Single dedicated kiosk user | **Option 3** - Startup program |
+
+### Files Added:
+1. **Fix-ServiceDisplay.ps1** - Attempts to enable desktop interaction for existing service
+2. **Install-Startup.ps1** - Alternative installer that creates startup program instead of service

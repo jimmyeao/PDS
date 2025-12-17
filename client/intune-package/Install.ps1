@@ -339,6 +339,14 @@ if ($LASTEXITCODE -ne 0) {
 & $InstalledNssm set $ServiceName AppRotateBytes 1048576 | Out-Null
 & $InstalledNssm set $ServiceName Start SERVICE_AUTO_START | Out-Null
 
+# Configure service to interact with desktop (for visible browser window)
+Write-Host "  [...] Configuring desktop interaction..." -ForegroundColor Yellow
+& $InstalledNssm set $ServiceName Type SERVICE_INTERACTIVE_PROCESS | Out-Null
+
+# Get current logged-in user for service account
+$currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+Write-Host "  [OK] Service will run as: $currentUser" -ForegroundColor Green
+
 # Configure restart on failure
 & $InstalledNssm set $ServiceName AppExit Default Restart | Out-Null
 & $InstalledNssm set $ServiceName AppRestartDelay 60000 | Out-Null
