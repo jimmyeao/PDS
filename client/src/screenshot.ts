@@ -48,7 +48,28 @@ class ScreenshotManager {
     }
 
     try {
+      // Check if page is in a valid state before attempting screenshot
       const currentUrl = this.page.url();
+
+      // Skip if page is closed, about:blank, or in invalid state
+      if (!currentUrl || currentUrl === 'about:blank') {
+        logger.debug('Skipping screenshot: page not loaded or in about:blank state');
+        return;
+      }
+
+      // Check if page is still open by trying to access it
+      let isPageOpen = false;
+      try {
+        isPageOpen = !this.page.isClosed();
+      } catch (e) {
+        logger.warn('Page state check failed, assuming closed');
+        return;
+      }
+
+      if (!isPageOpen) {
+        logger.warn('Skipping screenshot: page is closed');
+        return;
+      }
 
       // Change-triggered capture: if URL changed since last capture, send immediately
       const urlChanged = this.lastUrl !== currentUrl;
@@ -74,12 +95,31 @@ class ScreenshotManager {
       this.lastSentAt = now;
       logger.info(`Screenshot captured and sent (${urlChanged ? 'url change' : 'periodic'})`);
     } catch (error: any) {
-      logger.error('Failed to capture screenshot:', error.message);
-      websocketClient.sendErrorReport(
-        'Screenshot capture failed',
-        error.stack,
-        { url: this.page.url() }
+      // Check if it's a "session closed" error - this is expected during navigation
+      const isSessionClosed = error.message && (
+        error.message.includes('Session closed') ||
+        error.message.includes('Target closed') ||
+        error.message.includes('Page has been closed')
       );
+
+      if (isSessionClosed) {
+        logger.debug('Screenshot skipped: page session closed (likely during navigation)');
+        return; // Don't report this as an error - it's expected during transitions
+      }
+
+      // For other errors, log and report
+      logger.error('Failed to capture screenshot:', error.message);
+
+      try {
+        websocketClient.sendErrorReport(
+          'Screenshot capture failed',
+          error.stack,
+          { url: this.page?.url() || 'unknown' }
+        );
+      } catch (reportError) {
+        // Ignore errors when trying to report errors
+        logger.warn('Could not send error report:', reportError);
+      }
     }
   }
 

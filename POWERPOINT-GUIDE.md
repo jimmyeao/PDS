@@ -1,329 +1,201 @@
-# PowerPoint Upload & Auto-Conversion Guide
+# PowerPoint to Video Guide
 
-## 🎬 Overview
+## 🎬 Simple Approach: Manual Conversion
 
-Your kiosk system now **automatically converts PowerPoint presentations to video** when you upload them, preserving all transitions, animations, and effects!
+The easiest and most reliable way to display PowerPoint presentations with transitions is to convert them to MP4 video **before uploading**.
 
-## ✨ Features
+## ✅ Why This Works Better
 
-- ✅ **Automatic conversion** - Upload `.pptx`, get video instantly
-- ✅ **Preserves transitions** - All animations and effects work perfectly
-- ✅ **1080p quality** - High-definition output
-- ✅ **Configurable timing** - Set seconds per slide
-- ✅ **Fallback support** - Falls back to image slideshow if PowerPoint unavailable
+- ✅ **No server dependencies** - No PowerPoint required on server
+- ✅ **Preview before upload** - See exactly what will display
+- ✅ **Better quality control** - Adjust settings per presentation
+- ✅ **Faster uploads** - No server-side conversion delay
+- ✅ **Cross-platform** - Works on any OS
 
-## 📤 How to Upload PowerPoint
+## 📹 How to Convert PowerPoint to Video
 
-### Option 1: Via Admin Dashboard (Recommended)
+### Method 1: PowerPoint Built-in (Recommended)
 
-1. **Go to Content page** in admin dashboard
-2. **Click "Upload PowerPoint"** button
-3. **Select your .pptx file**
-4. **Enter name** for the content
-5. **Set duration per slide** (e.g., 5000 = 5 seconds)
-6. **Click Upload**
-7. Wait for conversion (usually 1-2 minutes)
-8. **Video automatically created** and ready to use!
+**In PowerPoint:**
+1. Open your presentation
+2. Go to **File** → **Export** → **Create a Video**
+3. Choose quality:
+   - **Ultra HD (4K)** - 3840 x 2160 (best for large displays)
+   - **Full HD (1080p)** - 1920 x 1080 (recommended)
+   - **HD (720p)** - 1280 x 720 (smaller file)
+4. Set timing:
+   - **Use Recorded Timings and Narrations** (if you have them)
+   - **Don't Use Recorded Timings** → Set seconds per slide (e.g., 5 seconds)
+5. Click **Create Video**
+6. Save as `.mp4`
 
-### Option 2: Via API (For Developers)
+**Result:** Perfect MP4 with all transitions and animations preserved!
 
-**Endpoint:** `POST /content/upload/pptx`
+### Method 2: Batch Convert Multiple Files
 
-**Request:**
-```bash
-curl -X POST http://your-server:5001/content/upload/pptx \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -F "file=@presentation.pptx" \
-  -F "name=My Presentation" \
-  -F "durationPerSlide=5000"
-```
-
-**Parameters:**
-- `file` (required): PowerPoint file (.pptx)
-- `name` (required): Content name
-- `durationPerSlide` (optional): Milliseconds per slide (default: 10000 = 10s)
-
-**Response:**
-```json
-{
-  "id": 123,
-  "name": "My Presentation",
-  "url": "/videos/My Presentation.mp4",
-  "defaultDuration": 0,
-  "createdAt": "2025-12-17T12:00:00Z"
-}
-```
-
-## 🎯 How It Works
-
-```
-PowerPoint Upload (.pptx)
-        ↓
-Backend Server
-        ↓
-PowerPoint COM Automation
-        ↓
-MP4 Video (1080p)
-        ↓
-Saved to wwwroot/videos/
-        ↓
-Content Created with Video URL
-        ↓
-Add to Playlist
-        ↓
-Kiosk Displays Video in Browser
-```
-
-## ⚙️ Configuration
-
-### Conversion Settings
-
-Edit `SlideshowService.cs` to change default settings:
-
-```csharp
-var videoPath = await _pptConverter.ConvertToVideoAsync(
-    file.OpenReadStream(),
-    file.FileName,
-    videosDir,
-    quality: 2,              // 1=720p, 2=1080p, 3=4K
-    secondsPerSlide: 5);     // Seconds per slide
-```
-
-### Video Storage
-
-Videos are stored in: `wwwroot/videos/`
-URL format: `http://your-server:5001/videos/filename.mp4`
-
-## 📋 Requirements
-
-### Server Requirements
-
-**Windows Server:**
-- ✅ **Microsoft PowerPoint** must be installed
-- ✅ PowerPoint must be licensed
-- ✅ .NET 8.0 Runtime
-
-**Linux Server:**
-- ❌ PowerPoint COM not available
-- ✅ Falls back to image slideshow (PDF → Images)
-- ❌ Transitions lost in fallback mode
-
-### PowerPoint Compatibility
-
-- ✅ `.pptx` files (PowerPoint 2007+)
-- ✅ `.ppt` files (PowerPoint 97-2003) - may have compatibility issues
-- ✅ Embedded videos - included in output
-- ✅ Animations - preserved
-- ✅ Transitions - preserved
-- ✅ Audio - preserved (if enabled)
-
-## 🚀 Quick Start
-
-### 1. Install Backend Updates
-
-```bash
-cd src/PDS.Api
-
-# Restore NuGet packages (includes Microsoft.Office.Interop.PowerPoint)
-dotnet restore
-
-# Build
-dotnet build
-
-# Run
-dotnet run
-```
-
-### 2. Create Videos Directory
-
-```bash
-# Backend will create this automatically, but you can pre-create it:
-mkdir -p src/PDS.Api/wwwroot/videos
-```
-
-### 3. Upload Your First PowerPoint
-
-1. Open admin dashboard: `http://your-server:5001`
-2. Login
-3. Navigate to **Content**
-4. Click **Upload PowerPoint**
-5. Select your `.pptx` file
-6. Enter name and duration
-7. Upload!
-
-### 4. Add to Playlist
-
-1. Go to **Playlists**
-2. Create new playlist or edit existing
-3. **Add content** → Select your video
-4. Set display duration (0 = play full video)
-5. **Assign to device**
-
-## 🎥 Video Examples
-
-### Example 1: Simple Presentation (10 slides, 5 seconds each)
-
-```
-Input:  presentation.pptx (5 MB)
-Output: presentation.mp4 (25 MB, 1920x1080, 50 seconds)
-Time:   ~1 minute to convert
-```
-
-### Example 2: Complex Presentation (50 slides, animations)
-
-```
-Input:  marketing.pptx (15 MB)
-Output: marketing.mp4 (120 MB, 1920x1080, 4 minutes)
-Time:   ~3-5 minutes to convert
-```
-
-## 🔧 Troubleshooting
-
-### "PowerPoint conversion failed"
-
-**Cause:** PowerPoint not installed or not accessible
-
-**Solutions:**
-1. Install Microsoft PowerPoint on server
-2. Ensure PowerPoint is activated/licensed
-3. Run backend as user with PowerPoint access
-4. Check server logs for detailed error
-
-**Fallback:** System will use image slideshow (no transitions)
-
-### "Conversion timed out"
-
-**Cause:** Large presentation or slow server
-
-**Solutions:**
-1. Reduce slide count
-2. Remove large embedded videos/images
-3. Increase timeout in `PowerPointConverter.cs`:
-   ```csharp
-   var timeout = TimeSpan.FromMinutes(60); // Increase to 60 minutes
-   ```
-
-### "COM Exception"
-
-**Cause:** PowerPoint COM automation issue
-
-**Solutions:**
-1. Close all PowerPoint instances on server
-2. Restart server
-3. Check DCOM permissions
-4. Run as interactive user (not SYSTEM)
-
-### Video Not Playing
-
-**Causes:**
-- Browser doesn't support MP4/H.264
-- File permissions incorrect
-- URL path wrong
-
-**Solutions:**
-1. Check browser console for errors
-2. Verify video file exists: `wwwroot/videos/filename.mp4`
-3. Test video URL directly: `http://server:5001/videos/filename.mp4`
-4. Check file permissions (IIS user needs read access)
-
-## 📊 Performance Tips
-
-### Optimize Presentation Before Upload
-
-1. **Compress images** - Reduce file size
-2. **Limit embedded videos** - Use external video URLs instead
-3. **Simplify animations** - Fewer animations = faster conversion
-4. **Remove hidden slides** - They still get converted
-
-### Server Optimization
-
-1. **Use SSD storage** - Faster I/O for video encoding
-2. **More RAM** - PowerPoint uses significant memory
-3. **Dedicate CPU cores** - Conversion is CPU-intensive
-
-## 🔒 Security Considerations
-
-### File Upload Security
-
-- ✅ **Authentication required** - Only authenticated admins can upload
-- ✅ **File type validation** - Only `.pptx` and `.ppt` allowed
-- ✅ **Size limits** - 2.5GB max (configurable)
-- ✅ **Virus scanning** - Consider adding antivirus scan before conversion
-
-### COM Security
-
-- ⚠️ **PowerPoint COM runs with server privileges**
-- ⚠️ **Malicious macros** could execute
-- 🔧 **Recommendation:** Disable macros in PowerPoint trust center
-- 🔧 **Recommendation:** Use separate conversion server
-
-## 📈 Advanced Usage
-
-### Batch Conversion Script
-
-Use the provided PowerShell script for batch local conversion:
+Use the PowerShell script I created earlier:
 
 ```powershell
-.\scripts\Convert-PowerPointToVideo.ps1 `
+cd "C:\Users\Jimmy.White\source\VSCODE Projects\kiosk\scripts"
+
+.\Convert-PowerPointToVideo.ps1 `
     -InputFolder "C:\Presentations" `
+    -OutputFolder "C:\Videos" `
     -Quality 2 `
     -SecondsPerSlide 5
 ```
 
-### Custom Video Settings
+This will convert all `.pptx` files in a folder to MP4.
 
-Modify `PowerPointConverter.cs` for custom settings:
+### Method 3: Online Converters (Quick & Easy)
 
-```csharp
-presentation.CreateVideo(
-    outputPath,
-    UseTimingsAndNarrations: true,    // Use recorded timings
-    VertResolution: 3,                // 4K quality
-    FramesPerSecond: 60,              // Smooth 60fps
-    DefaultSlideDuration: 10,         // 10 seconds per slide
-    Quality: 100);                    // Maximum quality
+If you don't have PowerPoint installed:
+- **CloudConvert** - https://cloudconvert.com/pptx-to-mp4
+- **Zamzar** - https://www.zamzar.com/convert/pptx-to-mp4/
+- **FreeConvert** - https://www.freeconvert.com/pptx-to-mp4
+
+## 📤 Upload Video to Kiosk
+
+### Option 1: Via Admin Dashboard
+
+1. **Convert your PowerPoint** to MP4 (see above)
+2. **Go to Content page** in admin dashboard
+3. **Click "Upload Video"** or create new content
+4. **Enter URL** or upload video file
+5. **Add to playlist**
+6. **Assign to device**
+
+### Option 2: Via Direct Upload API
+
+```bash
+curl -X POST http://your-server:5001/content/upload/video \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -F "file=@presentation.mp4" \
+  -F "name=My Presentation"
 ```
 
-## 📝 API Reference
+### Option 3: Host on Server
 
-### Upload Endpoint
+1. Copy MP4 to server: `wwwroot/videos/presentation.mp4`
+2. Create content with URL: `http://your-server:5001/videos/presentation.mp4`
+3. Add to playlist
+4. Assign to device
+
+## 🎯 Best Practices
+
+### Video Settings (PowerPoint Export)
+
+**For best results:**
+- **Quality:** 1080p (good balance of quality and file size)
+- **Duration:** 5-10 seconds per slide (adjust to content)
+- **Format:** MP4 (H.264 codec)
+- **Audio:** Enable if you have narration
+
+### File Size Optimization
+
+**Large presentations?**
+1. Compress images before adding to PowerPoint
+2. Remove unnecessary slides
+3. Use 720p instead of 1080p if file too large
+4. Keep videos under 200MB for smooth streaming
+
+### Presentation Design Tips
+
+**For digital signage:**
+- Use high contrast (easy to read from distance)
+- Large fonts (minimum 24pt)
+- Simple transitions (avoid overcomplicating)
+- Test on actual display before deploying
+
+## 📊 Video Playback in Kiosk
+
+Your kiosk browser supports:
+- ✅ MP4 (H.264)
+- ✅ WebM
+- ✅ Looping (set duration to 0)
+- ✅ Autoplay
+- ✅ Full-screen display
+
+## 🔧 Troubleshooting
+
+### Video Not Playing
+
+**Check:**
+1. File format (must be MP4/WebM)
+2. Video codec (H.264 recommended)
+3. File permissions (readable by web server)
+4. URL is correct and accessible
+5. Browser console for errors
+
+### Video Quality Issues
+
+**Solutions:**
+1. Re-export at higher resolution
+2. Use H.264 codec (best browser support)
+3. Increase bitrate in export settings
+4. Check display resolution settings
+
+### Large File Size
+
+**Optimize:**
+1. Re-export at 720p instead of 1080p
+2. Reduce seconds per slide (shorter video)
+3. Compress images in PowerPoint before export
+4. Use video compression tools (HandBrake, FFmpeg)
+
+## 📋 Quick Reference
+
+### PowerPoint → Kiosk Workflow
 
 ```
-POST /content/upload/pptx
-Authorization: Bearer {token}
-Content-Type: multipart/form-data
-
-Form Fields:
-  - file: PowerPoint file
-  - name: Content name
-  - durationPerSlide: Milliseconds per slide (default: 10000)
-
-Response:
-  - 200 OK: Content created with video URL
-  - 400 Bad Request: Invalid file or parameters
-  - 401 Unauthorized: Missing or invalid token
-  - 500 Internal Server Error: Conversion failed
+1. Design presentation in PowerPoint
+   ↓
+2. File → Export → Create Video
+   ↓
+3. Choose 1080p, 5 seconds per slide
+   ↓
+4. Save as presentation.mp4
+   ↓
+5. Upload to kiosk via admin dashboard
+   ↓
+6. Add to playlist
+   ↓
+7. Assign to device
+   ↓
+8. Video displays with all transitions!
 ```
 
-## 🎉 Success Checklist
+## 🎉 Example
 
-- [x] PowerPoint installed on server
-- [x] NuGet packages restored
-- [x] Backend running
-- [x] Admin dashboard accessible
-- [x] Test upload successful
-- [x] Video plays in browser
-- [x] Content added to playlist
-- [x] Kiosk displays video correctly
+**Scenario:** Marketing presentation with 20 slides, 5 seconds each
 
-## 📞 Support
+**Steps:**
+1. Open `marketing.pptx` in PowerPoint
+2. File → Export → Create Video
+3. Select "Full HD (1080p)"
+4. Set "5 seconds" per slide
+5. Click "Create Video" → Save as `marketing.mp4`
+6. Upload to kiosk: Admin Dashboard → Content → Upload Video
+7. Add to playlist: "Marketing Loop"
+8. Assign to device: "Lobby Display"
 
-**Issues?**
-- Check backend logs: `src/PDS.Api/logs/`
-- Check browser console for video playback errors
-- Verify PowerPoint installation: `Get-Package -Name "Microsoft Office*"`
+**Result:** 100-second video with all transitions, playing in loop on lobby display!
 
-**Need Help?**
-- See `CLAUDE.md` for general system documentation
-- See `bug.md` for troubleshooting installer issues
-- Check server logs for detailed error messages
+## 💡 Pro Tips
+
+1. **Preview first** - Always watch the exported video before uploading
+2. **Name consistently** - Use descriptive names (e.g., "Jan2025-Sales-Deck.mp4")
+3. **Version control** - Keep original .pptx files for future edits
+4. **Test loop** - Ensure smooth transition from end to beginning
+5. **Update regularly** - Refresh content weekly/monthly to keep engaging
+
+## 📞 Need Help?
+
+- PowerPoint export not working? Check Microsoft Office version (2013+)
+- Video upload failing? Check file size limits (2.5GB max)
+- Video not displaying? Check browser console for errors
+- Quality issues? Try different export settings
+
+---
+
+**Note:** The server also has a `/content/upload/pptx` endpoint that converts PowerPoint to static images (no transitions). Use the video approach above if you need transitions!

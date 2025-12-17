@@ -472,13 +472,31 @@ class DisplayController {
       // Start screencast with optimized settings
       // everyNthFrame: 2 captures every other frame to reduce CPU/bandwidth load
       // On-demand mode prevents backpressure since we only stream when admin is watching
-      await client.send('Page.startScreencast', {
-        format: 'jpeg',
-        quality: 60, // Reduced from 80 to improve performance
-        maxWidth: config.displayWidth,
-        maxHeight: config.displayHeight,
-        everyNthFrame: 2, // Capture every 2nd frame (30fps max) to reduce load
-      });
+
+      // Ensure dimensions are valid integers (fix "int32 value expected" error)
+      const maxWidth = Math.floor(config.displayWidth || 1920);
+      const maxHeight = Math.floor(config.displayHeight || 1080);
+
+      // Validate dimensions are within reasonable bounds (int32 range)
+      const safeMaxWidth = Math.max(1, Math.min(maxWidth, 4096));
+      const safeMaxHeight = Math.max(1, Math.min(maxHeight, 4096));
+
+      try {
+        await client.send('Page.startScreencast', {
+          format: 'jpeg',
+          quality: 60, // Reduced from 80 to improve performance
+          maxWidth: safeMaxWidth,
+          maxHeight: safeMaxHeight,
+          everyNthFrame: 2, // Capture every 2nd frame (30fps max) to reduce load
+        });
+      } catch (e: any) {
+        logger.error('Failed to start screencast with params:', {
+          maxWidth: safeMaxWidth,
+          maxHeight: safeMaxHeight,
+          error: e?.message || e
+        });
+        throw e; // Re-throw to be caught by outer try-catch
+      }
 
       let firstFrameReceived = false;
 
@@ -586,9 +604,31 @@ class DisplayController {
       logger.info('CDP screencast session created, waiting for frames...');
     } catch (error: any) {
       logger.error('Failed to start screencast:', error.message);
-      websocketClient.sendErrorReport('Screencast start failed', error.stack);
+
+      // Only send error report if it's not a parameter validation error (which we've now fixed)
+      const isParamError = error.message && error.message.includes('Invalid parameters');
+      if (!isParamError) {
+        try {
+          websocketClient.sendErrorReport('Screencast start failed', error.stack);
+        } catch (reportError) {
+          logger.warn('Could not send error report:', reportError);
+        }
+      }
+
       this.isScreencastActive = false;
       this.isRestartingScreencast = false;
+
+      // Retry after a delay (exponential backoff)
+      const retryDelay = 5000; // 5 seconds
+      logger.info(`Will retry screencast start in ${retryDelay}ms...`);
+      setTimeout(async () => {
+        if (!this.isScreencastActive && !this.isRestartingScreencast) {
+          logger.info('Attempting screencast recovery...');
+          await this.startScreencast().catch(e => {
+            logger.error('Screencast recovery failed:', e.message);
+          });
+        }
+      }, retryDelay);
     }
   }
 
