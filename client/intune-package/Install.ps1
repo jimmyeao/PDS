@@ -163,6 +163,14 @@ $NodeVersion = & $NodeExe --version
 Write-Host "  [OK] Node.js version: $NodeVersion" -ForegroundColor Green
 Write-Host ""
 
+# Step 5.5: Install Puppeteer Chrome browser
+Write-Host "[5.5/9] Installing Puppeteer Chrome browser..." -ForegroundColor Yellow
+$env:PATH = "$NodePath;$env:PATH"
+& $NodeExe "$NodePath\node_modules\npm\bin\npm-cli.js" --prefix $AppPath install 2>&1 | Out-Null
+& $NodeExe "$NodePath\node_modules\npm\bin\npx-cli.js" --prefix $AppPath puppeteer browsers install chrome 2>&1 | Out-Null
+Write-Host "  [OK] Puppeteer Chrome installed" -ForegroundColor Green
+Write-Host ""
+
 # Step 6: Create .env configuration
 Write-Host "[6/9] Creating configuration file..." -ForegroundColor Yellow
 $EnvContent = @"
@@ -213,15 +221,21 @@ Write-Host ""
 Write-Host "[8/9] Installing Windows service..." -ForegroundColor Yellow
 $ServiceScript = "$AppPath\dist\index.js"
 
-# Install service using the NSSM from installation directory
-& $InstalledNssm install $ServiceName "$NodeExe" "$ServiceScript" 2>&1 | Out-Null
+# Create wrapper batch file to handle path quoting
+$WrapperBat = @"
+@echo off
+cd /d "$AppPath"
+"$NodeExe" "$ServiceScript"
+"@
+$WrapperPath = "$InstallPath\start-kiosk.bat"
+$WrapperBat | Out-File -FilePath $WrapperPath -Encoding ASCII
+Write-Host "  [OK] Created service wrapper" -ForegroundColor Green
+
+# Install service using wrapper batch file (avoids NSSM quoting issues)
+& $InstalledNssm install $ServiceName $WrapperPath 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) {
     throw "Failed to install service"
 }
-
-# Verify and set configuration explicitly
-& $InstalledNssm set $ServiceName Application "$NodeExe" | Out-Null
-& $InstalledNssm set $ServiceName AppParameters "`"$ServiceScript`"" | Out-Null
 & $InstalledNssm set $ServiceName DisplayName "$ServiceDisplayName" | Out-Null
 & $InstalledNssm set $ServiceName Description "$ServiceDescription" | Out-Null
 & $InstalledNssm set $ServiceName AppDirectory "$AppPath" | Out-Null
