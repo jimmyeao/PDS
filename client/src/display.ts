@@ -487,7 +487,8 @@ class DisplayController {
           quality: 60, // Reduced from 80 to improve performance
           maxWidth: safeMaxWidth,
           maxHeight: safeMaxHeight,
-          everyNthFrame: 2, // Capture every 2nd frame (30fps max) to reduce load
+          // REMOVED everyNthFrame to capture ALL frames (critical for static pages with repaint-forcer)
+          // The repaint-forcer generates ~10fps, so we need to capture every frame
         });
       } catch (e: any) {
         logger.error('Failed to start screencast with params:', {
@@ -591,8 +592,11 @@ class DisplayController {
           // This ensures repaints even if CSS animation is paused or blocked
           let toggle = 0;
           setInterval(() => {
-            toggle = (toggle + 0.01) % 0.1;
-            div.style.transform = `translateZ(${toggle}px)`;
+            toggle = toggle === 0 ? 1 : 0;
+            // Use larger transform value and alternate to ensure browser detects change
+            div.style.transform = `translate3d(0, 0, ${toggle}px)`;
+            // Also force a style recalculation
+            void div.offsetHeight;
           }, 100); // Every 100ms = 10fps minimum frame generation
         });
         logger.info('Injected CSS+JS repaint-forcer for static page screencast');
