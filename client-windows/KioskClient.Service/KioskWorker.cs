@@ -254,8 +254,8 @@ public class KioskWorker : BackgroundService
                     break;
 
                 case "config:update":
-                    // TODO: Implement config updates
                     _logger.LogInformation("Received config update");
+                    await HandleConfigUpdateAsync(payload);
                     break;
 
                 case "screencast:start":
@@ -360,6 +360,157 @@ public class KioskWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send screenshot");
+        }
+    }
+
+    private async Task HandleConfigUpdateAsync(JsonElement payload)
+    {
+        try
+        {
+            bool displayConfigChanged = false;
+
+            // Check for display width changes
+            if (payload.TryGetProperty("displayWidth", out var widthElement) && widthElement.ValueKind != JsonValueKind.Null)
+            {
+                var newWidth = widthElement.GetInt32();
+                if (newWidth != _config.ViewportWidth)
+                {
+                    _logger.LogInformation("Display width changed from {OldWidth} to {NewWidth}", _config.ViewportWidth, newWidth);
+                    _config.ViewportWidth = newWidth;
+                    displayConfigChanged = true;
+                }
+            }
+
+            // Check for display height changes
+            if (payload.TryGetProperty("displayHeight", out var heightElement) && heightElement.ValueKind != JsonValueKind.Null)
+            {
+                var newHeight = heightElement.GetInt32();
+                if (newHeight != _config.ViewportHeight)
+                {
+                    _logger.LogInformation("Display height changed from {OldHeight} to {NewHeight}", _config.ViewportHeight, newHeight);
+                    _config.ViewportHeight = newHeight;
+                    displayConfigChanged = true;
+                }
+            }
+
+            // Check for kiosk mode changes
+            if (payload.TryGetProperty("kioskMode", out var kioskElement) && kioskElement.ValueKind != JsonValueKind.Null)
+            {
+                var newKioskMode = kioskElement.GetBoolean();
+                if (newKioskMode != _config.KioskMode)
+                {
+                    _logger.LogInformation("Kiosk mode changed from {OldMode} to {NewMode}", _config.KioskMode, newKioskMode);
+                    _config.KioskMode = newKioskMode;
+                    displayConfigChanged = true;
+                }
+            }
+
+            // Restart browser if display configuration changed
+            if (displayConfigChanged && _browser != null)
+            {
+                _logger.LogInformation("Display configuration changed, restarting browser...");
+
+                // Save current playlist state
+                var wasRunning = _playlistExecutor != null;
+                var currentPlaylistId = 0;
+                var currentPlaylistItems = new List<Core.PlaylistItem>();
+
+                if (_playlistExecutor != null)
+                {
+                    // Save playlist state before disposing
+                    currentPlaylistId = _playlistExecutor.GetType().GetField("_currentPlaylistId", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(_playlistExecutor) as int? ?? 0;
+                    currentPlaylistItems = _playlistExecutor.GetType().GetField("_playlistItems", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(_playlistExecutor) as List<Core.PlaylistItem> ?? new List<Core.PlaylistItem>();
+
+                    _playlistExecutor.Stop();
+                    _playlistExecutor.Dispose();
+                }
+
+                // Dispose old browser
+                await _browser.DisposeAsync();
+
+                // Reinitialize browser with new config
+                _browser = new BrowserController(_config, new LoggerAdapter(_logger));
+                await _browser.InitializeAsync();
+
+                // Re-setup screencast handler
+                _browser.SetScreencastFrameHandler((frameData, metadata) =>
+                {
+                    if (_wsClient != null)
+                    {
+                        _wsClient.SendEventAsync("screencast:frame", new
+                        {
+                            data = frameData,
+                            metadata = metadata
+                        }).Wait();
+                    }
+                });
+
+                _logger.LogInformation("Browser restarted with new configuration");
+
+                // Recreate playlist executor with new browser
+                _playlistExecutor = new PlaylistExecutor(new LoggerAdapter(_logger), _browser, _config.ServerUrl);
+
+                // Re-setup screenshot handler
+                _playlistExecutor.OnScreenshotReady += async (screenshot, currentUrl) =>
+                {
+                    try
+                    {
+                        if (_wsClient != null)
+                        {
+                            await _wsClient.SendEventAsync("screenshot:upload", new
+                            {
+                                image = screenshot,
+                                currentUrl
+                            });
+                            _logger.LogInformation("Screenshot sent after playlist item change ({Length} bytes)", screenshot.Length);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to send screenshot after item change");
+                    }
+                };
+
+                // Re-setup playback state handler
+                _playlistExecutor.SetStateUpdateHandler(state =>
+                {
+                    if (_wsClient != null)
+                    {
+                        try
+                        {
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    await _wsClient.SendEventAsync("playback:state:update", state);
+                                    var stateJson = System.Text.Json.JsonSerializer.Serialize(state);
+                                    _logger.LogInformation("Playback state sent: {State}", stateJson);
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogError(ex, "Failed to send playback state update");
+                                }
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to queue playback state update");
+                        }
+                    }
+                });
+
+                // Reload playlist if it was running
+                if (wasRunning && currentPlaylistItems.Any())
+                {
+                    _playlistExecutor.LoadPlaylist(currentPlaylistId, currentPlaylistItems);
+                    _playlistExecutor.Start();
+                    _logger.LogInformation("Playlist restarted after display config change");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to handle config update");
         }
     }
 

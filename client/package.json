@@ -15,21 +15,28 @@
     "build:service": "ts-node src/service-installer.ts",
     "build:installer": "cd installer && build.bat"
   },
-  "keywords": ["kiosk", "digital-signage", "raspberry-pi", "windows", "intel-nuc", "chromium"],
+  "keywords": [
+    "kiosk",
+    "digital-signage",
+    "raspberry-pi",
+    "windows",
+    "intel-nuc",
+    "chromium"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "@kiosk/shared": "^1.0.0",
-    "puppeteer": "^24.15.0",
     "dotenv": "^16.4.7",
+    "puppeteer": "^24.15.0",
     "systeminformation": "^5.23.22",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
-    "typescript": "^5.7.2",
-    "ts-node": "^10.9.2",
+    "@types/ws": "^8.18.1",
     "openapi-typescript": "^7.5.1",
-    "@types/ws": "^8.5.12"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
   }
 }

@@ -48,31 +48,54 @@ public class BrowserController : IAsyncDisposable
                 _logger.LogInformation($"Using existing browser profile directory: {profileDir}");
             }
 
+            // Build browser args list
+            var args = new List<string>
+            {
+                "--disable-blink-features=AutomationControlled,WebAuthentication",  // Block automation detection and WebAuthentication at Blink level
+                "--disable-dev-shm-usage",
+                "--no-sandbox",
+                "--disable-gpu",
+                "--disable-software-rasterizer",
+                "--disable-extensions",
+                "--disable-setuid-sandbox",
+                "--autoplay-policy=no-user-gesture-required",  // Allow video autoplay
+                "--disable-features=TranslateUI,WebAuthentication,WebAuth,ClientSideDetectionModel",  // Block passkey/credential prompts at feature level
+                "--use-mock-keychain",  // Use mock keychain to avoid Windows credential prompts
+                "--password-store=basic",  // Use basic password storage, not OS keychain
+                $"--window-size={_config.ViewportWidth},{_config.ViewportHeight}"
+            };
+
+            // Add kiosk/fullscreen mode flags if enabled
+            if (_config.KioskMode)
+            {
+                args.Add("--kiosk");
+                args.Add("--start-fullscreen");
+                args.Add("--start-maximized");
+            }
+
             // Launch Chromium browser with persistent profile
-            _browser = await _playwright.Chromium.LaunchPersistentContextAsync(profileDir, new BrowserTypeLaunchPersistentContextOptions
+            var launchOptions = new BrowserTypeLaunchPersistentContextOptions
             {
                 Headless = _config.Headless,
-                ViewportSize = new ViewportSize
+                Args = args.ToArray()
+            };
+
+            // Set viewport size only if not in kiosk mode (kiosk mode uses full screen)
+            if (!_config.KioskMode)
+            {
+                launchOptions.ViewportSize = new ViewportSize
                 {
                     Width = _config.ViewportWidth,
                     Height = _config.ViewportHeight
-                },
-                Args = new[]
-                {
-                    "--disable-blink-features=AutomationControlled,WebAuthentication",  // Block automation detection and WebAuthentication at Blink level
-                    "--disable-dev-shm-usage",
-                    "--no-sandbox",
-                    "--disable-gpu",
-                    "--disable-software-rasterizer",
-                    "--disable-extensions",
-                    "--disable-setuid-sandbox",
-                    "--autoplay-policy=no-user-gesture-required",  // Allow video autoplay
-                    "--disable-features=TranslateUI,WebAuthentication,WebAuth,ClientSideDetectionModel",  // Block passkey/credential prompts at feature level
-                    "--use-mock-keychain",  // Use mock keychain to avoid Windows credential prompts
-                    "--password-store=basic",  // Use basic password storage, not OS keychain
-                    $"--window-size={_config.ViewportWidth},{_config.ViewportHeight}"
-                }
-            });
+                };
+            }
+            else
+            {
+                // In kiosk mode, set viewport to null to use full screen
+                launchOptions.ViewportSize = ViewportSize.NoViewport;
+            }
+
+            _browser = await _playwright.Chromium.LaunchPersistentContextAsync(profileDir, launchOptions);
 
             _logger.LogInformation("Browser launched with persistent context");
 

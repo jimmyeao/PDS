@@ -555,6 +555,37 @@ class DisplayController {
       this.isScreencastActive = true;
       this.isRestartingScreencast = false;
 
+      // Force periodic repaints for static pages to ensure CDP screencast generates frames
+      // This solves the issue where completely static pages don't generate any frames
+      try {
+        await this.page.evaluate(() => {
+          // Remove any existing force-repaint element
+          const existingElement = document.getElementById('__screencast_force_repaint__');
+          if (existingElement) {
+            existingElement.remove();
+          }
+
+          // Create invisible element with CSS animation to force continuous repaints
+          const div = document.createElement('div');
+          div.id = '__screencast_force_repaint__';
+          div.style.cssText = 'position:fixed;top:-1px;left:-1px;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:-9999;';
+          document.body.appendChild(div);
+
+          // Animate opacity to force repaints (requestAnimationFrame loop)
+          let opacity = 0.01;
+          const animate = () => {
+            opacity = opacity === 0.01 ? 0.02 : 0.01;
+            div.style.opacity = opacity.toString();
+            requestAnimationFrame(animate);
+          };
+          animate();
+        });
+        logger.info('Injected repaint-forcer for static page screencast');
+      } catch (e: any) {
+        logger.warn('Could not inject repaint-forcer:', e.message);
+        // Not critical, continue anyway
+      }
+
       // If no frame arrives within 10 seconds, restart once
       this.firstFrameTimeoutId = setTimeout(async () => {
         if (!firstFrameReceived && this.isScreencastActive) {
@@ -570,9 +601,10 @@ class DisplayController {
         this.screencastWatchdogId = setInterval(async () => {
           const now = Date.now();
 
-          // Only restart if we're stalled for more than 15 seconds
-          if (this.isScreencastActive && this.lastScreencastFrameAt && now - this.lastScreencastFrameAt > 15000) {
-            logger.warn('Screencast stalled (no frames >15s). Restarting...');
+          // Only restart if we're stalled for more than 30 seconds (increased from 15s)
+          // With the repaint-forcer, we should get frames regularly even on static pages
+          if (this.isScreencastActive && this.lastScreencastFrameAt && now - this.lastScreencastFrameAt > 30000) {
+            logger.warn('Screencast stalled (no frames >30s). Restarting...');
             this.isScreencastActive = false;
             this.isRestartingScreencast = false;
             await this.startScreencast();
