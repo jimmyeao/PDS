@@ -33,9 +33,10 @@ public class BrowserController : IAsyncDisposable
             // Create Playwright instance
             _playwright = await Playwright.CreateAsync();
 
-            // Set up persistent profile directory (like Node.js client)
-            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var profileDir = Path.Combine(localAppData, "PDS", "browser-profile");
+            // Set up persistent profile directory in ProgramData (system-wide, not user-specific)
+            // This ensures it works when running as a Windows Service under SYSTEM account
+            var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+            var profileDir = Path.Combine(programData, "PDS", "browser-profile");
 
             // Ensure profile directory exists
             if (!Directory.Exists(profileDir))
@@ -151,12 +152,28 @@ public class BrowserController : IAsyncDisposable
         try
         {
             _logger.LogInformation("Navigating to: {Url}", url);
-            await _page.GotoAsync(url, new PageGotoOptions
+
+            // Try with NetworkIdle first (best for complete page loads)
+            try
             {
-                Timeout = 30000,
-                WaitUntil = WaitUntilState.NetworkIdle
-            });
-            _logger.LogInformation("Navigation completed");
+                await _page.GotoAsync(url, new PageGotoOptions
+                {
+                    Timeout = 30000,
+                    WaitUntil = WaitUntilState.NetworkIdle
+                });
+                _logger.LogInformation("Navigation completed (networkidle)");
+            }
+            catch (TimeoutException)
+            {
+                // Fallback to DomContentLoaded if NetworkIdle times out
+                _logger.LogWarning("NetworkIdle timeout, falling back to DomContentLoaded");
+                await _page.GotoAsync(url, new PageGotoOptions
+                {
+                    Timeout = 30000,
+                    WaitUntil = WaitUntilState.DOMContentLoaded
+                });
+                _logger.LogInformation("Navigation completed (domcontentloaded)");
+            }
         }
         catch (Exception ex)
         {

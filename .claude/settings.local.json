@@ -124,7 +124,14 @@
       "Bash(dotnet nuget list:*)",
       "Bash(dotnet nuget:*)",
       "Bash(timeout 15 dotnet run:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(dir node.exe)",
+      "Bash(if exist PDSKioskClient-Setup.exe del /F PDSKioskClient-Setup.exe)",
+      "Bash(sc.exe qc:*)",
+      "Bash(sc.exe stop:*)",
+      "Bash(Get-ScheduledTask -TaskName \"PDSKioskClient-AutoStart\" -ErrorAction SilentlyContinue)",
+      "Bash(schtasks:*)",
+      "Bash(cmd //c 'schtasks /Create /TN \"\"PDSKioskClient-AutoStart\"\" /TR \"\"\\\"\"C:\\Program Files (x86)\\PDS\\KioskClient\\KioskClient.Service.exe\\\"\"\"\" /SC ONLOGON /RL HIGHEST /F')"
     ]
   }
 }

@@ -1,97 +1,189 @@
-# Kiosk Client - Windows (.NET C#)
+# PDS Kiosk Client - Windows .NET
 
-**Alternative Windows implementation** using .NET C# and Playwright instead of Node.js.
+Windows service client for PDS (Playlist Display System) built with .NET 10 and Playwright.
 
 ## ✨ Why This Version?
 
-- **10x Simpler Installation**: Single `.exe` file, no Node.js, no npm install
 - **Native Windows Service**: Built-in Windows service support, no NSSM needed
-- **Smaller Package**: ~15-20 MB vs 300+ MB for Node.js version
+- **Simpler Installation**: Automated PowerShell installer with command-line configuration
 - **Better Integration**: Native Windows APIs for health monitoring
 - **Lower Resources**: Less memory, faster startup
+- **Full Feature Parity**: All features from Node.js client now implemented
 
-## 📦 Architecture
+## Requirements
 
+- Windows 10/11 or Windows Server 2019+
+- .NET 8.0 SDK or later
+- Administrator privileges
+- PowerShell 5.1 or later
+
+## Quick Install
+
+### Option 1: Setup.exe Installer (Recommended)
+
+#### 1. Download or Build Installer
+
+**Download:** Get `PDSKioskClient-Setup.exe` from releases
+
+**Or Build It Yourself:**
+```powershell
+# Install Inno Setup from https://jrsoftware.org/isdl.php
+# Then run:
+cd path\to\client-windows
+.\BuildInstaller.ps1
 ```
-client-windows/
-├── KioskClient.Core/         # Core library (Playwright, WebSocket, Health)
-└── KioskClient.Service/      # Windows Service executable
+
+#### 2. Obtain Device Token
+
+Before installing, get a device token from the PDS admin interface:
+1. Log into PDS admin UI (e.g., http://your-server:5173)
+2. Go to **Devices** page
+3. Create or select your device
+4. Copy the **Device Token**
+
+#### 3. Run Installer
+
+**Interactive Installation (GUI):**
+```powershell
+PDSKioskClient-Setup.exe
+```
+The installer will prompt for Server URL, Device ID, and Token.
+
+**Silent Installation (for scripting/remote deployment):**
+```powershell
+PDSKioskClient-Setup.exe /VERYSILENT /ServerUrl=http://192.168.0.57:5001 /DeviceId=office-kiosk /DeviceToken=abc123
 ```
 
-## 🚀 Quick Start
-
-### 1. Install Playwright Browsers (One-Time)
+### Option 2: PowerShell Installer Script
 
 ```powershell
-cd KioskClient.Service\bin\Release\net10.0
-pwsh bin/Debug/playwright.ps1 install chromium
+cd path\to\client-windows
+.\Install.ps1 -ServerUrl "http://192.168.0.57:5001" -DeviceId "lobby-display" -DeviceToken "abc123"
 ```
 
-### 2. Configure
+## Remote Deployment
 
-Edit `appsettings.json`:
+### Using Setup.exe (Recommended)
+
+```powershell
+# Copy installer to remote machine
+Copy-Item PDSKioskClient-Setup.exe \\REMOTE-PC\C$\Temp\
+
+# Execute silent installation remotely
+Invoke-Command -ComputerName REMOTE-PC -ScriptBlock {
+    C:\Temp\PDSKioskClient-Setup.exe /VERYSILENT /ServerUrl=http://192.168.0.57:5001 /DeviceId=remote-kiosk /DeviceToken=abc123
+}
+```
+
+### Using PowerShell Script
+
+```powershell
+# Copy source to remote machine
+Copy-Item -Path ".\client-windows" -Destination "\\REMOTE-PC\C$\Temp\" -Recurse
+
+# Execute installer remotely
+Invoke-Command -ComputerName REMOTE-PC -ScriptBlock {
+    Set-Location "C:\Temp\client-windows"
+    .\Install.ps1 -ServerUrl "http://192.168.0.57:5001" -DeviceId "remote-kiosk" -DeviceToken "token-here"
+}
+```
+
+## Service Management
+
+### Check Service Status
+
+```powershell
+Get-Service -Name PDSKioskClient
+```
+
+### Start/Stop Service
+
+```powershell
+Stop-Service -Name PDSKioskClient
+Start-Service -Name PDSKioskClient
+Restart-Service -Name PDSKioskClient
+```
+
+### View Logs
+
+```powershell
+Get-EventLog -LogName Application -Source KioskClient -Newest 50
+```
+
+## Uninstall
+
+```powershell
+# Remove service only
+.\Uninstall.ps1
+
+# Remove service and files
+.\Uninstall.ps1 -RemoveFiles
+```
+
+## ✅ Features (Complete Feature Parity)
+
+- ✅ Windows Service with auto-start
+- ✅ Real-time WebSocket communication
+- ✅ Playlist execution with content rotation
+- ✅ Auto-authentication for protected sites
+- ✅ Remote browser control (click, type, keyboard, scroll)
+- ✅ Live CDP screencast streaming
+- ✅ Health monitoring (CPU, memory, disk)
+- ✅ Automatic screenshot capture
+- ✅ Dynamic display configuration updates
+- ✅ Persistent browser profile (retains sessions/cookies)
+- ✅ WebAuthn/passkey popup blocking
+- ✅ Kiosk mode support (fullscreen)
+- ✅ Play/pause/next/previous playlist controls
+- ✅ Config updates (resolution, kiosk mode) without restart
+
+## Configuration
+
+Configuration is stored in `C:\Program Files\PDS\KioskClient\appsettings.json`:
 
 ```json
 {
   "Kiosk": {
-    "ServerUrl": "http://localhost:5001",
-    "DeviceId": "YOUR-DEVICE-ID",
-    "DeviceToken": "YOUR-DEVICE-TOKEN",
+    "ServerUrl": "http://192.168.0.57:5001",
+    "DeviceId": "office-kiosk",
+    "DeviceToken": "your-token-here",
+    "HealthReportIntervalMs": 60000,
+    "ScreenshotIntervalMs": 300000,
     "Headless": false,
+    "KioskMode": false,
     "ViewportWidth": 1920,
     "ViewportHeight": 1080
   }
 }
 ```
 
-### 3. Run
+After editing configuration, restart the service:
 
-**As Console App (Testing)**:
 ```powershell
-dotnet run --project KioskClient.Service
+Restart-Service -Name PDSKioskClient
 ```
-
-**As Windows Service**:
-```powershell
-# Publish self-contained
-dotnet publish KioskClient.Service -c Release -r win-x64 --self-contained
-
-# Install service
-sc.exe create KioskClient binPath="C:\path\to\KioskClient.Service.exe" start=auto
-sc.exe start KioskClient
-```
-
-## ✅ Features Implemented
-
-- ✅ WebSocket client (matches Node.js protocol)
-- ✅ Browser automation (Playwright)
-- ✅ Health monitoring (native Windows APIs)
-- ✅ Screenshot capture
-- ✅ Remote control (click, type, keyboard, scroll)
-- ✅ Navigate, refresh commands
-- ⏳ Playlist execution (TODO)
-- ⏳ Live streaming (CDP screencast) (TODO)
-- ⏳ Auto-authentication (TODO)
 
 ## 🆚 vs Node.js Client
 
 | Feature | Node.js Client | .NET Client |
 |---------|---------------|-------------|
 | **Runtime** | Node.js 20+ | Self-contained .exe |
-| **Package Size** | 300+ MB | ~15-20 MB |
-| **Installation** | npm install (complex) | Copy files (simple) |
-| **Service Manager** | NSSM (external) | Native Windows Service |
+| **Installation** | npm install | PowerShell installer |
+| **Service Manager** | PM2/systemd | Native Windows Service |
 | **Health Monitor** | systeminformation | Native WMI/PerfCounters |
 | **Browser** | Puppeteer + Chromium | Playwright + Chromium |
 | **Platform** | Cross-platform | **Windows only** |
+| **Features** | ✅ All | ✅ All (Full Parity) |
 
-## 📝 Next Steps
+## 📦 Architecture
 
-1. Test basic functionality
-2. Implement playlist execution
-3. Add live streaming support
-4. Create installer (MSI or PowerShell)
-5. Deploy to test machine
+```
+client-windows/
+├── Install.ps1               # Automated installer
+├── Uninstall.ps1             # Uninstaller
+├── KioskClient.Core/         # Core library (Playwright, WebSocket, Health)
+└── KioskClient.Service/      # Windows Service executable
+```
 
 ## 🔧 Development
 
@@ -99,16 +191,24 @@ sc.exe start KioskClient
 # Build
 dotnet build
 
-# Run
+# Run (console mode for testing)
 dotnet run --project KioskClient.Service
 
 # Publish
-dotnet publish -c Release -r win-x64 --self-contained
+dotnet publish KioskClient.Service -c Release
 ```
+
+## Troubleshooting
+
+See the full README for troubleshooting steps including:
+- Service won't start
+- Browser issues
+- Network issues
+- Log viewing
 
 ## 📖 Notes
 
 - **Keep Node.js version**: This is for Windows only, Node.js version still needed for Raspberry Pi
-- **Both versions supported**: Can deploy either version
+- **Both versions supported**: Can deploy either version to Windows
 - **Same backend**: Both connect to the same .NET backend server
 
