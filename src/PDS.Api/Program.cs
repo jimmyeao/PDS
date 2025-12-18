@@ -1482,6 +1482,7 @@ public static class RealtimeHub
         {
             Devices[deviceId] = ws;
             // Notify admins that device is online
+            BroadcastAdmins("admin:device:connected", new { deviceId, timestamp = DateTime.UtcNow });
             BroadcastAdmins("admin:device:status", new { deviceId, status = "online", timestamp = DateTime.UtcNow });
 
             // On connect, push current assigned playlist content to the device
@@ -1541,6 +1542,7 @@ public static class RealtimeHub
                     // Notify admins that device is offline
                     if (role == "device" && !string.IsNullOrEmpty(deviceId))
                     {
+                        BroadcastAdmins("admin:device:disconnected", new { deviceId, timestamp = DateTime.UtcNow });
                         BroadcastAdmins("admin:device:status", new { deviceId, status = "offline", timestamp = DateTime.UtcNow });
                         Devices.TryRemove(deviceId, out _);
                     }
@@ -1559,6 +1561,7 @@ public static class RealtimeHub
             {
                 case "device:register":
                     // When a device registers, confirm online status to admins
+                    BroadcastAdmins("admin:device:connected", new { deviceId, timestamp = DateTime.UtcNow });
                     BroadcastAdmins("admin:device:status", new { deviceId, status = "online", timestamp = DateTime.UtcNow });
 
                     try
@@ -1677,6 +1680,7 @@ public static class RealtimeHub
             if (role == "device" && !string.IsNullOrEmpty(deviceId))
             {
                 Devices.TryRemove(deviceId, out _);
+                BroadcastAdmins("admin:device:disconnected", new { deviceId, timestamp = DateTime.UtcNow });
                 BroadcastAdmins("admin:device:status", new { deviceId, status = "offline", timestamp = DateTime.UtcNow });
                 Serilog.Log.Information("Device {DeviceId} disconnected and marked offline", deviceId);
             }
