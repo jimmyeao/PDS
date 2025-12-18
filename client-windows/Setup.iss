@@ -7,11 +7,15 @@
 ; 4. Compile this script with Inno Setup to create Setup.exe
 ; 5. Distribute Setup.exe
 ;
+; Runtime Requirements:
+; - .NET 10 Runtime (automatically downloaded and installed by this installer if missing)
+; - Windows 10 or later
+;
 ; Installation with parameters:
 ;   Setup.exe /VERYSILENT /ServerUrl=http://server:5001 /DeviceId=office-kiosk /DeviceToken=abc123
 ;
 ; Installation with GUI:
-;   Setup.exe (will prompt for parameters)
+;   Setup.exe (will prompt for parameters and install .NET 10 if needed)
 
 #define MyAppName "PDS Kiosk Client"
 #define MyAppVersion "1.0.0"
@@ -63,6 +67,108 @@ var
   DeviceIdPage: TInputQueryWizardPage;
   DeviceTokenPage: TInputQueryWizardPage;
   ServerUrl, DeviceId, DeviceToken: String;
+  DotNetInstallNeeded: Boolean;
+
+function IsDotNet10Installed(): Boolean;
+var
+  InstallPath: String;
+  FindRec: TFindRec;
+  DotNetPath: String;
+  MajorVersion: Integer;
+begin
+  Result := False;
+
+  // Check for .NET 10 Runtime in registry
+  // Desktop Runtime includes ASP.NET Core Runtime
+  if RegQueryStringValue(HKLM, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedhost', 'Version', InstallPath) then
+  begin
+    // Extract major version number
+    if Length(InstallPath) >= 2 then
+    begin
+      MajorVersion := StrToIntDef(Copy(InstallPath, 1, Pos('.', InstallPath) - 1), 0);
+      if MajorVersion >= 10 then
+      begin
+        Result := True;
+        Exit;
+      end;
+    end;
+  end;
+
+  // Also check the runtime folder directly for any 10.x version
+  DotNetPath := ExpandConstant('{commonpf}\dotnet\shared\Microsoft.NETCore.App');
+  if DirExists(DotNetPath) then
+  begin
+    if FindFirst(DotNetPath + '\10.*', FindRec) then
+    begin
+      try
+        repeat
+          if FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0 then
+          begin
+            Result := True;
+            Exit;
+          end;
+        until not FindNext(FindRec);
+      finally
+        FindClose(FindRec);
+      end;
+    end;
+  end;
+end;
+
+function DownloadAndInstallDotNet(): Boolean;
+var
+  ResultCode: Integer;
+  DotNetInstallerPath: String;
+  DownloadPage: TDownloadWizardPage;
+begin
+  Result := True;
+  DotNetInstallerPath := ExpandConstant('{tmp}\dotnet-runtime-installer.exe');
+
+  // Create download page
+  DownloadPage := CreateDownloadPage('Downloading .NET Runtime', 'Downloading required .NET 10 Runtime...', nil);
+  DownloadPage.Clear;
+
+  // Add .NET 10 Desktop Runtime (includes ASP.NET Core)
+  // NOTE: If this URL becomes outdated, get the latest download URL from:
+  // https://dotnet.microsoft.com/download/dotnet/10.0
+  // Look for "Windows Desktop Runtime x64" direct download link
+  DownloadPage.Add('https://download.visualstudio.microsoft.com/download/pr/0a1b3cbd-b4af-4d0d-9ed7-0054f0e200b6/4bcc533c66379caaa91770236667aacb/windowsdesktop-runtime-10.0.0-win-x64.exe',
+                   'dotnet-runtime-installer.exe', '');
+
+  try
+    DownloadPage.Show;
+    try
+      DownloadPage.Download;
+      Result := True;
+    except
+      MsgBox('Failed to download .NET 10 Runtime. Please download and install it manually from:' + #13#10 +
+             'https://dotnet.microsoft.com/download/dotnet/10.0' + #13#10 + #13#10 +
+             'Then run this installer again.', mbError, MB_OK);
+      Result := False;
+      Exit;
+    finally
+      DownloadPage.Hide;
+    end;
+  finally
+    DownloadPage.Free;
+  end;
+
+  if Result then
+  begin
+    // Install .NET Runtime silently
+    if not Exec(DotNetInstallerPath, '/install /quiet /norestart', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    begin
+      MsgBox('Failed to execute .NET installer. Please install .NET 10 Runtime manually.', mbError, MB_OK);
+      Result := False;
+    end
+    else if ResultCode <> 0 then
+    begin
+      MsgBox('Failed to install .NET 10 Runtime. Error code: ' + IntToStr(ResultCode) + #13#10 +
+             'Please install it manually from: https://dotnet.microsoft.com/download/dotnet/10.0', mbError, MB_OK);
+      Result := False;
+    end;
+  end;
+end;
 
 function GetActualLoggedInUser(): String;
 var
@@ -139,6 +245,15 @@ procedure InitializeWizard;
 var
   ExistingServerUrl, ExistingDeviceId, ExistingDeviceToken: String;
 begin
+  // Check if .NET 10 is installed
+  DotNetInstallNeeded := not IsDotNet10Installed();
+
+  if DotNetInstallNeeded then
+  begin
+    MsgBox('.NET 10 Runtime is required but not installed.' + #13#10 +
+           'The installer will download and install it automatically.', mbInformation, MB_OK);
+  end;
+
   // Check for command-line parameters first
   ServerUrl := ExpandConstant('{param:ServerUrl|}');
   DeviceId := ExpandConstant('{param:DeviceId|}');
@@ -256,6 +371,31 @@ begin
       Result := False;
       Exit;
     end;
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  NeedsRestart := False;
+
+  // Install .NET 10 if needed
+  if DotNetInstallNeeded then
+  begin
+    if not DownloadAndInstallDotNet() then
+    begin
+      Result := 'Failed to install .NET 10 Runtime. Please install it manually and run the installer again.';
+      Exit;
+    end;
+
+    // Check again if .NET was successfully installed
+    if not IsDotNet10Installed() then
+    begin
+      Result := '.NET 10 Runtime installation failed. Please install it manually from https://dotnet.microsoft.com/download/dotnet/10.0';
+      Exit;
+    end;
+
+    DotNetInstallNeeded := False;
   end;
 end;
 
