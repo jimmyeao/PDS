@@ -559,28 +559,43 @@ class DisplayController {
       // This solves the issue where completely static pages don't generate any frames
       try {
         await this.page.evaluate(() => {
-          // Remove any existing force-repaint element
+          // Remove any existing force-repaint elements
           const existingElement = document.getElementById('__screencast_force_repaint__');
           if (existingElement) {
             existingElement.remove();
           }
+          const existingStyle = document.getElementById('__screencast_force_repaint_style__');
+          if (existingStyle) {
+            existingStyle.remove();
+          }
 
-          // Create invisible element with CSS animation to force continuous repaints
+          // Inject CSS animation keyframes
+          const style = document.createElement('style');
+          style.id = '__screencast_force_repaint_style__';
+          style.textContent = `
+            @keyframes __screencast_pulse__ {
+              0% { transform: translateZ(0); }
+              50% { transform: translateZ(0.1px); }
+              100% { transform: translateZ(0); }
+            }
+          `;
+          document.head.appendChild(style);
+
+          // Create invisible element with CSS animation
           const div = document.createElement('div');
           div.id = '__screencast_force_repaint__';
-          div.style.cssText = 'position:fixed;top:-1px;left:-1px;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:-9999;';
+          div.style.cssText = 'position:fixed;top:-1px;left:-1px;width:1px;height:1px;opacity:0;pointer-events:none;z-index:-9999;animation:__screencast_pulse__ 1s infinite;will-change:transform;';
           document.body.appendChild(div);
 
-          // Animate opacity to force repaints (requestAnimationFrame loop)
-          let opacity = 0.01;
-          const animate = () => {
-            opacity = opacity === 0.01 ? 0.02 : 0.01;
-            div.style.opacity = opacity.toString();
-            requestAnimationFrame(animate);
-          };
-          animate();
+          // Additional fallback: Use setInterval to force repaints by modifying transform
+          // This ensures repaints even if CSS animation is paused or blocked
+          let toggle = 0;
+          setInterval(() => {
+            toggle = (toggle + 0.01) % 0.1;
+            div.style.transform = `translateZ(${toggle}px)`;
+          }, 100); // Every 100ms = 10fps minimum frame generation
         });
-        logger.info('Injected repaint-forcer for static page screencast');
+        logger.info('Injected CSS+JS repaint-forcer for static page screencast');
       } catch (e: any) {
         logger.warn('Could not inject repaint-forcer:', e.message);
         // Not critical, continue anyway
