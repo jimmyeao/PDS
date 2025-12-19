@@ -147,10 +147,21 @@ public class KioskWorker : BackgroundService
             });
         }, null, TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(_config.HealthReportIntervalMs));
 
-        // Screenshots are now sent 3 seconds after playlist item changes (handled by PlaylistExecutor)
-        // No periodic screenshot timer needed
+        // Set up periodic screenshot timer (especially important for single-item playlists)
+        var screenshotInterval = _config.ScreenshotIntervalMs > 0 ? _config.ScreenshotIntervalMs : 30000; // Default 30 seconds
+        _screenshotTimer = new Timer(async _ =>
+        {
+            try
+            {
+                await SendScreenshotAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in screenshot timer");
+            }
+        }, null, TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(screenshotInterval));
 
-        _logger.LogInformation("Kiosk Client initialized successfully");
+        _logger.LogInformation("Kiosk Client initialized successfully (Screenshot interval: {Interval}ms)", screenshotInterval);
     }
 
     private async Task HandleWebSocketMessage(string eventName, JsonElement payload)

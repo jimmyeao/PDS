@@ -43,7 +43,7 @@ echo "✅ Prerequisites installed"
 echo ""
 
 # Clone or update repository
-INSTALL_DIR="$HOME/kiosk-client"
+INSTALL_DIR="$HOME/pds-client"
 REPO_URL="${REPO_URL:-https://github.com/jimmyeao/PDS.git}"  # User can override with environment variable
 
 if [ -d "$INSTALL_DIR/.git" ]; then
@@ -92,12 +92,12 @@ cat > "$INSTALL_DIR/update.sh" << 'UPDATEEOF'
 set -e
 echo "🔄 Updating Kiosk Client..."
 
-cd ~/kiosk-client
+cd ~/pds-client
 
 # Stop service if running
-if systemctl is-active --quiet kiosk-client; then
+if systemctl is-active --quiet pds-client; then
     echo "⏸️  Stopping service..."
-    sudo systemctl stop kiosk-client
+    sudo systemctl stop pds-client
 fi
 
 # Pull latest changes
@@ -118,21 +118,21 @@ npm run build
 
 # Restart service
 echo "▶️  Starting service..."
-sudo systemctl start kiosk-client
+sudo systemctl start pds-client
 
 echo "✅ Update complete!"
 echo "📊 Checking status..."
-sudo systemctl status kiosk-client --no-pager
+sudo systemctl status pds-client --no-pager
 
 echo ""
-echo "📝 To view logs: sudo journalctl -u kiosk-client -f"
+echo "📝 To view logs: sudo journalctl -u pds-client -f"
 UPDATEEOF
 
 chmod +x "$INSTALL_DIR/update.sh"
 
 # Create systemd service
 echo "📝 Creating systemd service..."
-sudo tee /etc/systemd/system/kiosk-client.service > /dev/null << SERVICEEOF
+sudo tee /etc/systemd/system/pds-client.service > /dev/null << SERVICEEOF
 [Unit]
 Description=Kiosk Digital Signage Client
 After=network.target
@@ -158,8 +158,8 @@ SERVICEEOF
 # Enable and start service
 echo "▶️  Enabling and starting service..."
 sudo systemctl daemon-reload
-sudo systemctl enable kiosk-client
-sudo systemctl start kiosk-client
+sudo systemctl enable pds-client
+sudo systemctl start pds-client
 
 echo ""
 echo "================================"
@@ -168,11 +168,11 @@ echo "================================"
 echo ""
 echo "📁 Installation directory: $INSTALL_DIR"
 echo "🔄 Update command: $INSTALL_DIR/update.sh"
-echo "📊 Service status: sudo systemctl status kiosk-client"
-echo "📝 View logs: sudo journalctl -u kiosk-client -f"
+echo "📊 Service status: sudo systemctl status pds-client"
+echo "📝 View logs: sudo journalctl -u pds-client -f"
 echo ""
 echo "🎯 Next steps:"
 echo "1. Edit $INSTALL_DIR/raspberrypi-client/.env with your server URL and device token"
-echo "2. Restart: sudo systemctl restart kiosk-client"
-echo "3. Check logs: sudo journalctl -u kiosk-client -f"
+echo "2. Restart: sudo systemctl restart pds-client"
+echo "3. Check logs: sudo journalctl -u pds-client -f"
 echo ""

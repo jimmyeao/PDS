@@ -25,11 +25,18 @@ class ScreenshotManager {
       return;
     }
 
-    logger.info('Starting screenshot manager (on-demand mode)');
+    const interval = config.screenshotInterval || 30000; // Default 30 seconds
+    logger.info(`Starting screenshot manager with ${interval}ms interval`);
     this.isRunning = true;
-    
-    // We no longer run a periodic interval to save bandwidth/CPU on the Pi.
-    // Screenshots are triggered explicitly by the playlist executor on content change.
+
+    // Send periodic screenshots for monitoring
+    // Especially important for single-item playlists that never change
+    this.intervalId = setInterval(() => {
+      this.captureAndSendScreenshot();
+    }, interval);
+
+    // Send initial screenshot
+    this.captureAndSendScreenshot();
   }
 
   public stop(): void {
