@@ -81,6 +81,10 @@ ExecStart=${NODE_PATH} dist/index.js
 Restart=always
 RestartSec=10
 Environment=NODE_ENV=production
+# Ensure all child processes (Chromium) are killed when service stops
+KillMode=control-group
+KillSignal=SIGTERM
+TimeoutStopSec=10
 
 [Install]
 WantedBy=multi-user.target
