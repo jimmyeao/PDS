@@ -1,6 +1,6 @@
 # PDS - Digital Signage Solution
 
-A web-based digital signage solution with central management of display devices, featuring remote viewing capability, content scheduling, playlist control, and interactive page support. Supports Windows, Linux, and Raspberry Pi clients.
+A web-based digital signage solution with central management of display devices, featuring remote viewing capability, content scheduling, playlist control, and interactive page support. Supports Windows and Raspberry Pi clients.
 
 ## Features
 
@@ -13,17 +13,17 @@ A web-based digital signage solution with central management of display devices,
 - **Remote Browser Control**: Remotely interact with displayed pages (click, type, navigate)
 - **Interactive Page Support**: Handle authentication and MFA prompts without interruption
 - **Real-time Updates**: WebSocket-based communication for instant configuration changes
-- **Health Monitoring**: Track device status, CPU, memory, temperature, and connection health
-- **Cross-Platform Clients**: Supports Windows (Intel NUCs, PCs), Linux, and Raspberry Pi
+- **Health Monitoring**: Track device status, CPU, memory, disk usage, and connection health
+- **Cross-Platform Clients**: Supports Windows (Intel NUCs, PCs) and Raspberry Pi (Linux)
 
 ## Architecture
 
 - **Backend**: ASP.NET Core 8 (C#) with PostgreSQL database
-- **Frontend**: React + Vite with TypeScript
-- **Raspberry Pi Client**: Node.js + Puppeteer + Chromium (kiosk mode) for Raspberry Pi/Linux devices
-- **Windows Client**: .NET 10 Service + Playwright + Chromium for Windows PCs
-- **Real-time**: WebSocket communication for instant updates
-- **Authentication**: JWT tokens
+- **Frontend**: React 19 + Vite with TypeScript
+- **Raspberry Pi Client**: Node.js + Puppeteer + Chromium for Raspberry Pi OS/Debian Linux
+- **Windows Client**: .NET 10 Service + Playwright + Chromium for Windows 10/11
+- **Real-time**: Native WebSocket communication for instant updates
+- **Authentication**: JWT tokens (admin) + persistent device tokens
 
 ## Project Structure
 
@@ -157,7 +157,9 @@ For Windows development, use the convenience script:
 .\start-everything.ps1
 ```
 
-This starts backend, frontend, and a local test client in separate windows.
+This starts backend and frontend in separate windows.
+
+**Note**: Client applications (Windows or Raspberry Pi) should be started separately as services or standalone processes.
 
 ## Deployment
 
@@ -392,7 +394,7 @@ Before deploying clients, register each device in the admin UI:
 
 ## Client Installation
 
-The client application runs on display devices (Windows, Linux, or Raspberry Pi) to show content in kiosk mode.
+The client application runs on display devices (Windows or Raspberry Pi) to show content in kiosk mode.
 
 ### Raspberry Pi - Quick Setup (Recommended)
 
@@ -449,7 +451,9 @@ cd client-windows
 
 📖 **For detailed Windows client instructions**, see [client-windows/README.md](client-windows/README.md)
 
-### Linux - Manual Setup
+### Raspberry Pi - Manual Setup (Alternative)
+
+If you prefer manual installation instead of using the automated installer:
 
 1. **Install Node.js** (if not already installed):
    ```bash
@@ -731,29 +735,37 @@ Configured via installer parameters or `appsettings.json`:
 - JWT authentication
 - Health checks and monitoring endpoints
 
-### Frontend (React + Vite)
-- Modern React with TypeScript
+### Frontend (React 19 + Vite)
+- React 19 with TypeScript
 - Tailwind CSS for styling
-- WebSocket integration for live updates
-- Device management dashboard
-- Playlist and schedule management
-- Real-time device monitoring
+- Zustand for state management
+- Native WebSocket integration for live updates
+- Device management dashboard with flip card UI
+- Playlist and content management
+- Real-time device monitoring with live streaming
+- Remote browser control interface
 
 ### Raspberry Pi Client (Node.js + Puppeteer)
-- Lightweight client for Raspberry Pi and Linux devices
-- Headless Chromium browser control
-- WebSocket client for server communication
-- Automatic content rotation with scheduling
-- Health monitoring and reporting
-- Screenshot capture and upload
-- Remote control capabilities
+- Lightweight client for Raspberry Pi OS (Debian-based Linux)
+- Puppeteer + Chromium browser automation
+- Native WebSocket client for server communication
+- Automatic content rotation with playlist execution
+- Health monitoring and reporting (CPU, memory, disk)
+- Periodic screenshot capture and upload (30-second intervals)
+- Remote control capabilities (click, type, keyboard, scroll)
+- Chrome DevTools Protocol (CDP) screencast for live streaming
+- Persistent browser profile for session retention
 
-### Windows Client (.NET Service + Playwright)
-- Windows service for PCs and Intel NUCs
+### Windows Client (.NET 10 Service + Playwright)
+- Windows service for Windows 10/11 PCs and Intel NUCs
 - Playwright + Chromium browser automation
 - Same WebSocket protocol and features as Pi client
 - Windows Service auto-start capability
-- Automated MSI installer with silent deployment
+- Inno Setup installer (.exe) with silent deployment support
+- Periodic screenshot capture (30-second intervals)
+- Health monitoring (CPU, memory, disk)
+- CDP screencast for live streaming
+- Remote control capabilities
 
 ## Contributing
 
