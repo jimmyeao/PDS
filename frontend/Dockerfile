@@ -4,10 +4,9 @@ WORKDIR /app
 # Copy root package files
 COPY package.json package-lock.json* ./
 
-# Copy workspace packages
+# Copy workspace packages (frontend only needs shared and frontend)
 COPY shared/package.json ./shared/
 COPY frontend/package.json ./frontend/
-COPY client/package.json ./client/
 
 # Install dependencies
 RUN npm install
