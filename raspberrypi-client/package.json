@@ -24,7 +24,7 @@
     "chromium"
   ],
   "author": "",
-  "license": "MIT",
+  "license": "AGPL-3.0",
   "dependencies": {
     "@kiosk/shared": "^1.0.0",
     "dotenv": "^16.4.7",

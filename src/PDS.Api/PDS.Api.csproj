@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>PDS.Api</RootNamespace>
     <AssemblyName>PDS.Api</AssemblyName>
+    <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.11" />
