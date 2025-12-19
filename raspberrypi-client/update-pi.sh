@@ -2,7 +2,7 @@
 
 # Update script to run ON the Raspberry Pi
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/jimmyeao/PDS/<branch>/client/update-pi.sh | bash -s -- <install_dir> <branch>
+#   curl -fsSL https://raw.githubusercontent.com/jimmyeao/PDS/<branch>/raspberrypi-client/update-pi.sh | bash -s -- <install_dir> <branch>
 # Defaults:
 #   install_dir = $HOME/kiosk
 #   branch = main
@@ -19,7 +19,7 @@ echo "Branch: $BRANCH"
 if [ ! -d "$INSTALL_DIR" ]; then
   echo "❌ Install directory not found: $INSTALL_DIR"
   echo "Run setup first:"
-  echo "  curl -fsSL https://raw.githubusercontent.com/jimmyeao/PDS/$BRANCH/client/setup-on-pi.sh | bash -s -- https://github.com/jimmyeao/PDS.git \"$INSTALL_DIR\""
+  echo "  curl -fsSL https://raw.githubusercontent.com/jimmyeao/PDS/$BRANCH/raspberrypi-client/setup-on-pi.sh | bash -s -- https://github.com/jimmyeao/PDS.git \"$INSTALL_DIR\""
   exit 1
 fi
 
@@ -43,8 +43,8 @@ cd shared
 npm install --legacy-peer-deps
 npm run build
 
-echo "📦 Rebuilding client..."
-cd ../client
+echo "📦 Rebuilding Raspberry Pi client..."
+cd ../raspberrypi-client
 npm install --legacy-peer-deps
 npm run build
 
@@ -64,7 +64,7 @@ After=network.target
 [Service]
 Type=simple
 User=${CURRENT_USER}
-WorkingDirectory=${INSTALL_DIR}/client
+WorkingDirectory=${INSTALL_DIR}/raspberrypi-client
 ExecStart=${NODE_PATH} dist/index.js
 Restart=always
 RestartSec=10

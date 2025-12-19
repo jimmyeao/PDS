@@ -38,11 +38,11 @@ echo "🔧 Building shared package..."
 npm run build
 cd ..
 
-# Install and build client (which will link to local shared package)
-echo "📦 Installing client dependencies..."
-cd client
+# Install and build Raspberry Pi client (which will link to local shared package)
+echo "📦 Installing Raspberry Pi client dependencies..."
+cd raspberrypi-client
 npm install --legacy-peer-deps
-echo "🔧 Building client..."
+echo "🔧 Building Raspberry Pi client..."
 npm run build
 
 # Create .env if it doesn't exist
@@ -51,7 +51,7 @@ if [ ! -f .env ]; then
   cp .env.example .env
   echo ""
   echo "⚠️  IMPORTANT: Edit the .env file with your configuration:"
-  echo "   nano $INSTALL_DIR/client/.env"
+  echo "   nano $INSTALL_DIR/raspberrypi-client/.env"
   echo ""
 fi
 
@@ -71,7 +71,7 @@ After=network.target
 [Service]
 Type=simple
 User=${CURRENT_USER}
-WorkingDirectory=${INSTALL_DIR}/client
+WorkingDirectory=${INSTALL_DIR}/raspberrypi-client
 ExecStart=${NODE_PATH} dist/index.js
 Restart=always
 RestartSec=10
@@ -91,7 +91,8 @@ echo ""
 echo "✅ Setup complete!"
 echo ""
 echo "Next steps:"
-echo "1. Edit configuration: nano $INSTALL_DIR/client/.env"
+echo "1. Edit configuration: nano $INSTALL_DIR/raspberrypi-client/.env"
 echo "2. Start service: sudo systemctl start $SERVICE_NAME"
 echo ""
-echo "To update in the future, run the update script."
+echo "To update in the future, run:"
+echo "  curl -fsSL https://raw.githubusercontent.com/jimmyeao/PDS/main/raspberrypi-client/update-pi.sh | bash -s -- \"$INSTALL_DIR\" main"

@@ -20,7 +20,8 @@ A web-based digital signage solution with central management of display devices,
 
 - **Backend**: ASP.NET Core 8 (C#) with PostgreSQL database
 - **Frontend**: React + Vite with TypeScript
-- **Client**: Node.js + Puppeteer + Chromium/Chrome/Edge (kiosk mode) for display devices
+- **Raspberry Pi Client**: Node.js + Puppeteer + Chromium (kiosk mode) for Raspberry Pi/Linux devices
+- **Windows Client**: .NET 10 Service + Playwright + Chromium for Windows PCs
 - **Real-time**: WebSocket communication for instant updates
 - **Authentication**: JWT tokens
 
@@ -181,21 +182,33 @@ This automated installer will:
 
 📖 **For detailed Raspberry Pi instructions**, see [README-PI-INSTALL.md](README-PI-INSTALL.md)
 
-### Windows - Deployment
+### Windows - Installer
 
-For Windows PCs or Intel NUCs:
+For Windows PCs or Intel NUCs, use the automated installer:
 
 ```powershell
-# From your development machine
-cd client
-npm run deploy:win
+# Build the installer (from project root)
+cd client-windows
+.\BuildInstaller.ps1
 ```
 
-This creates a `deploy` folder with everything needed. Copy it to your Windows machine and:
+This creates `PDSKioskClient-Setup.exe` installer. Copy it to your Windows machine and:
 
-1. Copy `.env.example` to `.env` and configure
-2. Run `start.bat` for manual start
-3. Or install as Windows Service using NSSM
+**Interactive Installation:**
+```powershell
+PDSKioskClient-Setup.exe
+```
+
+**Silent Installation with Configuration:**
+```powershell
+PDSKioskClient-Setup.exe /VERYSILENT /ServerUrl=http://server:5001 /DeviceId=kiosk1 /DeviceToken=abc123
+```
+
+The installer will:
+- Install the .NET service
+- Install Playwright/Chromium browser
+- Configure Windows Service to auto-start
+- Set up application settings
 
 📖 **For detailed Windows client instructions**, see [client-windows/README.md](client-windows/README.md)
 
@@ -218,24 +231,24 @@ This creates a `deploy` folder with everything needed. Copy it to your Windows m
    cd ~/kiosk-client
    ```
 
-4. **Deploy the client**:
+4. **Build the client**:
    ```bash
-   # Option A: Using deployment script
-   cd client
-   npm run deploy
-   cd deploy
-   
-   # Option B: Manual build
+   # Build shared package first
    cd shared
    npm install
    npm run build
-   cd ../client
+   cd ..
+
+   # Build Raspberry Pi client
+   cd raspberrypi-client
    npm install
    npm run build
+   cd ..
    ```
 
 5. **Configure the client**:
    ```bash
+   cd raspberrypi-client
    cp .env.example .env
    nano .env
    ```
@@ -243,6 +256,7 @@ This creates a `deploy` folder with everything needed. Copy it to your Windows m
    Update the following variables in `.env`:
    ```env
    SERVER_URL=http://your-server-ip:5001
+   DEVICE_ID=your-device-id          # Unique identifier for this device
    DEVICE_TOKEN=your-device-token    # Token from admin UI when creating device
    DISPLAY_WIDTH=1920
    DISPLAY_HEIGHT=1080
@@ -252,11 +266,8 @@ This creates a `deploy` folder with everything needed. Copy it to your Windows m
 
 6. **Start the client**:
    ```bash
-   # If using deployment build
-   node dist/index.js
-   
-   # If using manual build
    npm start
+   # Or directly: node dist/index.js
    ```
 
 ### Getting Device Credentials
@@ -440,18 +451,31 @@ ASPNETCORE_URLS=http://localhost:5001
 ConnectionStrings__Default=Host=postgres;Port=5432;Database=pds;Username=postgres;Password=...
 ```
 
-### Client (.env in client directory)
+### Raspberry Pi Client (.env in raspberrypi-client directory)
 ```env
 SERVER_URL=http://your-server-ip:5001
-DEVICE_TOKEN=your-jwt-token
+DEVICE_ID=your-device-id
+DEVICE_TOKEN=your-device-token
 DISPLAY_WIDTH=1920
 DISPLAY_HEIGHT=1080
 KIOSK_MODE=true
-PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser  # Linux/Pi
-# PUPPETEER_EXECUTABLE_PATH=C:\Program Files\Google\Chrome\Application\chrome.exe  # Windows
-HEALTH_CHECK_INTERVAL=60000
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser  # Linux/Pi path
+HEALTH_REPORT_INTERVAL=60000
 SCREENSHOT_INTERVAL=300000
 LOG_LEVEL=info
+```
+
+### Windows Client (appsettings.json in client-windows)
+Configured via installer parameters or `appsettings.json`:
+```json
+{
+  "ServerUrl": "http://your-server-ip:5001",
+  "DeviceId": "your-device-id",
+  "DeviceToken": "your-device-token",
+  "KioskMode": true,
+  "DisplayWidth": 1920,
+  "DisplayHeight": 1080
+}
 ```
 
 ## Architecture Details
@@ -471,14 +495,21 @@ LOG_LEVEL=info
 - Playlist and schedule management
 - Real-time device monitoring
 
-### Client (Node.js + Puppeteer)
-- Cross-platform support (Windows, Linux, Raspberry Pi)
-- Headless Chromium/Chrome/Edge browser control
+### Raspberry Pi Client (Node.js + Puppeteer)
+- Lightweight client for Raspberry Pi and Linux devices
+- Headless Chromium browser control
 - WebSocket client for server communication
 - Automatic content rotation with scheduling
 - Health monitoring and reporting
 - Screenshot capture and upload
 - Remote control capabilities
+
+### Windows Client (.NET Service + Playwright)
+- Windows service for PCs and Intel NUCs
+- Playwright + Chromium browser automation
+- Same WebSocket protocol and features as Pi client
+- Windows Service auto-start capability
+- Automated MSI installer with silent deployment
 
 ## Contributing
 
