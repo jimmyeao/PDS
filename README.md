@@ -1,7 +1,7 @@
 # PDS - Professional Digital Signage Solution 
 
 [![Version](https://img.shields.io/badge/version-1.0-blue.svg)](https://github.com/jimmyeao/PDS/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/)
 [![React](https://img.shields.io/badge/React-19-blue.svg)](https://reactjs.org/)
 
@@ -280,7 +280,17 @@ foreach($device in $devices) {
 
 ## 📄 License
 
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** - see the [LICENSE](LICENSE) file for details.
+
+### What does AGPL v3 mean?
+
+- ✅ **Free to use** for personal and non-commercial purposes
+- ✅ **Modify and distribute** - you can change the code and share it
+- ✅ **Open source** - all modifications must be open-sourced under AGPL v3
+- ⚠️ **Network use = Distribution** - if you run a modified version as a service, you must share the source code
+- 💼 **Commercial use** - contact us for commercial licensing options for businesses requiring >4 screens
+
+For commercial licensing inquiries, please contact: [commercial@yourwebsite.com](mailto:commercial@yourwebsite.com)
 
 ## 🆘 Support & Troubleshooting
 
