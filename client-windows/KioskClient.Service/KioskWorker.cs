@@ -9,6 +9,7 @@ public class KioskWorker : BackgroundService
 {
     private readonly ILogger<KioskWorker> _logger;
     private readonly KioskConfiguration _config;
+    private readonly SemaphoreSlim _configUpdateLock = new SemaphoreSlim(1, 1);
     private WebSocketClient? _wsClient;
     private BrowserController? _browser;
     private HealthMonitor? _healthMonitor;
@@ -376,6 +377,13 @@ public class KioskWorker : BackgroundService
 
     private async Task HandleConfigUpdateAsync(JsonElement payload)
     {
+        // Prevent concurrent config updates
+        if (!await _configUpdateLock.WaitAsync(0))
+        {
+            _logger.LogWarning("Config update already in progress, skipping this update");
+            return;
+        }
+
         try
         {
             bool displayConfigChanged = false;
@@ -421,6 +429,14 @@ public class KioskWorker : BackgroundService
             {
                 _logger.LogInformation("Display configuration changed, restarting browser...");
 
+                // CRITICAL: Stop all timers first to prevent concurrent operations
+                _logger.LogInformation("Stopping timers before browser restart...");
+                _healthTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+                _screenshotTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+
+                // Wait a moment to ensure any in-flight operations complete
+                await Task.Delay(1000);
+
                 // Save current playlist state
                 var wasRunning = _playlistExecutor != null;
                 var currentPlaylistId = 0;
@@ -432,14 +448,29 @@ public class KioskWorker : BackgroundService
                     currentPlaylistId = _playlistExecutor.GetType().GetField("_currentPlaylistId", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(_playlistExecutor) as int? ?? 0;
                     currentPlaylistItems = _playlistExecutor.GetType().GetField("_playlistItems", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(_playlistExecutor) as List<Core.PlaylistItem> ?? new List<Core.PlaylistItem>();
 
+                    _logger.LogInformation("Stopping playlist executor...");
                     _playlistExecutor.Stop();
                     _playlistExecutor.Dispose();
+                    _playlistExecutor = null;
                 }
 
                 // Dispose old browser
-                await _browser.DisposeAsync();
+                _logger.LogInformation("Disposing old browser...");
+                try
+                {
+                    await _browser.DisposeAsync();
+                    _browser = null;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error disposing old browser (may already be closed)");
+                }
+
+                // Wait for complete disposal
+                await Task.Delay(2000);
 
                 // Reinitialize browser with new config
+                _logger.LogInformation("Initializing new browser with updated config...");
                 _browser = new BrowserController(_config, new LoggerAdapter(_logger));
                 await _browser.InitializeAsync();
 
@@ -517,11 +548,28 @@ public class KioskWorker : BackgroundService
                     _playlistExecutor.Start();
                     _logger.LogInformation("Playlist restarted after display config change");
                 }
+
+                // Restart timers
+                _logger.LogInformation("Restarting timers after browser restart...");
+
+                // Restart health timer
+                var healthInterval = _config.HealthReportIntervalMs > 0 ? _config.HealthReportIntervalMs : 60000;
+                _healthTimer?.Change(TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(healthInterval));
+
+                // Restart screenshot timer
+                var screenshotInterval = _config.ScreenshotIntervalMs > 0 ? _config.ScreenshotIntervalMs : 30000;
+                _screenshotTimer?.Change(TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(screenshotInterval));
+
+                _logger.LogInformation("Browser restart complete - all systems operational");
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to handle config update");
+        }
+        finally
+        {
+            _configUpdateLock.Release();
         }
     }
 
@@ -546,6 +594,7 @@ public class KioskWorker : BackgroundService
         }
 
         _healthMonitor?.Dispose();
+        _configUpdateLock?.Dispose();
 
         await base.StopAsync(cancellationToken);
     }
