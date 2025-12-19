@@ -51,16 +51,16 @@ After installation, run this script again.
     exit 1
 }
 
-Write-Host "  [OK] Found Inno Setup: $ISCC" -ForegroundColor Green
+Write-Host "  ✓ Found Inno Setup: $ISCC" -ForegroundColor Green
 Write-Host ""
 
 # Clean previous publish
 Write-Host "[2/5] Cleaning previous build..." -ForegroundColor Yellow
 if (Test-Path $PublishDir) {
     Remove-Item -Path $PublishDir -Recurse -Force
-    Write-Host "  [OK] Cleaned publish directory" -ForegroundColor Green
+    Write-Host "  ✓ Cleaned publish directory" -ForegroundColor Green
 } else {
-    Write-Host "  [OK] No previous build found" -ForegroundColor Green
+    Write-Host "  ✓ No previous build found" -ForegroundColor Green
 }
 Write-Host ""
 
@@ -74,7 +74,7 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "Publish failed with exit code $LASTEXITCODE"
     }
-    Write-Host "  [OK] Project published successfully" -ForegroundColor Green
+    Write-Host "  ✓ Project published successfully" -ForegroundColor Green
 } catch {
     Write-Error "Publish failed: $_"
     Pop-Location
@@ -91,7 +91,7 @@ try {
     $env:PLAYWRIGHT_BROWSERS_PATH = $PublishDir
     & ".\playwright.ps1" install chromium
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "  [OK] Playwright browsers installed to: $PublishDir\ms-playwright" -ForegroundColor Green
+        Write-Host "  ✓ Playwright browsers installed to: $PublishDir\ms-playwright" -ForegroundColor Green
     } else {
         Write-Warning "  Playwright installation completed with warnings (code: $LASTEXITCODE)"
         Write-Host "  Continuing with build..." -ForegroundColor Gray
@@ -118,7 +118,7 @@ try {
         throw "Inno Setup compilation failed with exit code $LASTEXITCODE"
     }
 
-    Write-Host "  [OK] Installer compiled successfully" -ForegroundColor Green
+    Write-Host "  ✓ Installer compiled successfully" -ForegroundColor Green
 } catch {
     Write-Error "Installer compilation failed: $_"
     exit 1
