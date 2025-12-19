@@ -159,6 +159,237 @@ For Windows development, use the convenience script:
 
 This starts backend, frontend, and a local test client in separate windows.
 
+## Deployment
+
+This section covers production deployment of the PDS system.
+
+### Backend + Frontend Deployment
+
+#### Option 1: Docker Deployment (Recommended)
+
+The easiest way to deploy the backend and frontend together:
+
+```bash
+# Clone the repository
+git clone https://github.com/jimmyeao/PDS.git
+cd PDS
+
+# Configure environment variables
+cp .env.example .env
+nano .env  # Update with your production settings
+
+# Start services
+docker-compose up -d
+```
+
+Services will be available at:
+- **Frontend**: http://your-server-ip:5173
+- **Backend API**: http://your-server-ip:5001
+- **PostgreSQL**: localhost:5432
+
+**Important**: Update the following in your `.env` file:
+- `POSTGRES_PASSWORD` - Set a secure database password
+- `JWT_SECRET` - Set a long random secret (minimum 32 characters)
+- Change default admin password after first login
+
+#### Option 2: Manual Deployment
+
+**Backend (.NET)**:
+
+1. **Build the backend**:
+   ```bash
+   cd src/PDS.Api
+   dotnet publish -c Release -o publish
+   ```
+
+2. **Set up PostgreSQL database**:
+   ```bash
+   # Create database
+   createdb pds
+   ```
+
+3. **Configure appsettings.json**:
+   ```json
+   {
+     "ConnectionStrings": {
+       "Default": "Host=localhost;Port=5432;Database=pds;Username=postgres;Password=your-password"
+     },
+     "Jwt": {
+       "Secret": "your-long-random-secret-minimum-32-characters",
+       "Issuer": "pds",
+       "Audience": "pds-clients"
+     }
+   }
+   ```
+
+4. **Run the backend**:
+   ```bash
+   cd publish
+   dotnet PDS.Api.dll
+   ```
+
+   Or set up as a systemd service on Linux:
+   ```bash
+   sudo nano /etc/systemd/system/pds-api.service
+   ```
+
+   ```ini
+   [Unit]
+   Description=PDS Digital Signage API
+   After=network.target postgresql.service
+
+   [Service]
+   Type=notify
+   WorkingDirectory=/opt/pds/api
+   ExecStart=/usr/bin/dotnet /opt/pds/api/PDS.Api.dll
+   Restart=always
+   RestartSec=10
+   User=pds
+   Environment=ASPNETCORE_ENVIRONMENT=Production
+   Environment=ASPNETCORE_URLS=http://0.0.0.0:5001
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+**Frontend (React)**:
+
+1. **Build the frontend**:
+   ```bash
+   cd frontend
+   npm install
+   npm run build
+   ```
+
+2. **Deploy the build** to a web server:
+
+   **Using Nginx**:
+   ```nginx
+   server {
+       listen 80;
+       server_name your-domain.com;
+       root /var/www/pds/frontend;
+       index index.html;
+
+       location / {
+           try_files $uri $uri/ /index.html;
+       }
+
+       # Proxy API requests to backend
+       location /api/ {
+           proxy_pass http://localhost:5001/;
+           proxy_http_version 1.1;
+           proxy_set_header Upgrade $http_upgrade;
+           proxy_set_header Connection 'upgrade';
+           proxy_set_header Host $host;
+           proxy_cache_bypass $http_upgrade;
+       }
+
+       # WebSocket support
+       location /ws {
+           proxy_pass http://localhost:5001/ws;
+           proxy_http_version 1.1;
+           proxy_set_header Upgrade $http_upgrade;
+           proxy_set_header Connection "Upgrade";
+           proxy_set_header Host $host;
+       }
+   }
+   ```
+
+3. **Copy build files**:
+   ```bash
+   sudo mkdir -p /var/www/pds
+   sudo cp -r dist/* /var/www/pds/frontend/
+   sudo chown -R www-data:www-data /var/www/pds
+   ```
+
+4. **Update frontend configuration**:
+
+   Create `frontend/.env.production`:
+   ```env
+   VITE_API_URL=http://your-server-ip:5001
+   ```
+
+   Then rebuild: `npm run build`
+
+### Raspberry Pi Client Deployment
+
+Use the automated one-line installer on each Raspberry Pi device:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/jimmyeao/PDS/main/install-pi.sh | bash
+```
+
+This will:
+- Install all dependencies (Node.js, Chromium)
+- Clone the repository to `~/pds-client`
+- Build the client application
+- Create systemd service for auto-start
+- Generate update script
+
+**After installation**:
+1. Edit configuration: `nano ~/pds-client/raspberrypi-client/.env`
+2. Set `SERVER_URL`, `DEVICE_TOKEN` (from admin UI)
+3. Restart service: `sudo systemctl restart pds-client`
+
+**To update**: Run `~/pds-client/update-pi.sh`
+
+📖 **Detailed instructions**: [README-PI-INSTALL.md](README-PI-INSTALL.md)
+
+### Windows Client Deployment
+
+Download the latest installer from GitHub releases and deploy to Windows devices:
+
+**Quick Download**:
+```powershell
+# Download latest release
+Invoke-WebRequest -Uri "https://github.com/jimmyeao/PDS/releases/latest/download/PDSKioskClient-Setup.exe" -OutFile "PDSKioskClient-Setup.exe"
+```
+
+**Interactive Installation**:
+```powershell
+.\PDSKioskClient-Setup.exe
+```
+
+**Silent Installation** (for mass deployment):
+```powershell
+.\PDSKioskClient-Setup.exe /VERYSILENT /ServerUrl=http://your-server-ip:5001 /DeviceId=kiosk1 /DeviceToken=your-token-here
+```
+
+**Installation Parameters**:
+- `/VERYSILENT` - No UI, fully automated
+- `/ServerUrl=` - Backend API URL
+- `/DeviceId=` - Unique device identifier
+- `/DeviceToken=` - Device authentication token (from admin UI)
+- `/DIR="C:\CustomPath"` - Custom installation directory (optional)
+
+The installer will:
+- Install .NET runtime if needed
+- Install Playwright + Chromium browser
+- Create Windows Service (auto-start on boot)
+- Configure application settings
+
+**Post-Installation**:
+- Service starts automatically
+- Check status: `Get-Service PDSKioskClient`
+- View logs: Event Viewer → Windows Logs → Application
+
+**To update**: Download and run the latest installer - it will upgrade in place.
+
+📖 **Detailed instructions**: [client-windows/README.md](client-windows/README.md)
+
+### Getting Device Tokens
+
+Before deploying clients, register each device in the admin UI:
+
+1. Access admin UI: `http://your-server-ip:5173`
+2. Login with admin credentials
+3. Navigate to **Devices** page
+4. Click **Add Device**
+5. Enter device name and details
+6. **Copy the device token** (shown only once!)
+7. Use this token when configuring the client
+
 ## Client Installation
 
 The client application runs on display devices (Windows, Linux, or Raspberry Pi) to show content in kiosk mode.
@@ -184,24 +415,24 @@ This automated installer will:
 
 ### Windows - Installer
 
-For Windows PCs or Intel NUCs, use the automated installer:
+For Windows PCs or Intel NUCs, download the latest installer from GitHub releases:
 
+**Download Latest Release:**
 ```powershell
-# Build the installer (from project root)
-cd client-windows
-.\BuildInstaller.ps1
+# Download from GitHub releases (recommended)
+Invoke-WebRequest -Uri "https://github.com/jimmyeao/PDS/releases/latest/download/PDSKioskClient-Setup.exe" -OutFile "PDSKioskClient-Setup.exe"
 ```
 
-This creates `PDSKioskClient-Setup.exe` installer. Copy it to your Windows machine and:
+Or manually download from: https://github.com/jimmyeao/PDS/releases/latest
 
 **Interactive Installation:**
 ```powershell
-PDSKioskClient-Setup.exe
+.\PDSKioskClient-Setup.exe
 ```
 
 **Silent Installation with Configuration:**
 ```powershell
-PDSKioskClient-Setup.exe /VERYSILENT /ServerUrl=http://server:5001 /DeviceId=kiosk1 /DeviceToken=abc123
+.\PDSKioskClient-Setup.exe /VERYSILENT /ServerUrl=http://server:5001 /DeviceId=kiosk1 /DeviceToken=abc123
 ```
 
 The installer will:
@@ -209,6 +440,12 @@ The installer will:
 - Install Playwright/Chromium browser
 - Configure Windows Service to auto-start
 - Set up application settings
+
+**Building from source** (optional):
+```powershell
+cd client-windows
+.\BuildInstaller.ps1
+```
 
 📖 **For detailed Windows client instructions**, see [client-windows/README.md](client-windows/README.md)
 
@@ -227,8 +464,8 @@ The installer will:
 
 3. **Clone the repository**:
    ```bash
-   git clone https://github.com/jimmyeao/PDS.git ~/kiosk-client
-   cd ~/kiosk-client
+   git clone https://github.com/jimmyeao/PDS.git ~/pds-client
+   cd ~/pds-client
    ```
 
 4. **Build the client**:
@@ -261,7 +498,7 @@ The installer will:
    DISPLAY_WIDTH=1920
    DISPLAY_HEIGHT=1080
    KIOSK_MODE=true
-   PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+   PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
    ```
 
 6. **Start the client**:
@@ -288,7 +525,7 @@ To run the client automatically on boot:
 
 1. Create a systemd service:
    ```bash
-   sudo nano /etc/systemd/system/kiosk-client.service
+   sudo nano /etc/systemd/system/pds-client.service
    ```
 
 2. Add the following content:
@@ -300,11 +537,16 @@ To run the client automatically on boot:
    [Service]
    Type=simple
    User=pi
-   WorkingDirectory=/home/pi/kiosk-client/raspberrypi-client
+   WorkingDirectory=/home/pi/pds-client/raspberrypi-client
    ExecStart=/usr/bin/node dist/index.js
    Restart=always
    RestartSec=10
    Environment=NODE_ENV=production
+   Environment=DISPLAY=:0
+   # Ensure all child processes (Chromium) are killed when service stops
+   KillMode=control-group
+   KillSignal=SIGTERM
+   TimeoutStopSec=10
 
    [Install]
    WantedBy=multi-user.target
@@ -313,14 +555,14 @@ To run the client automatically on boot:
 3. Enable and start the service:
    ```bash
    sudo systemctl daemon-reload
-   sudo systemctl enable kiosk-client
-   sudo systemctl start kiosk-client
+   sudo systemctl enable pds-client
+   sudo systemctl start pds-client
    ```
 
 4. Check status and view logs:
    ```bash
-   sudo systemctl status kiosk-client
-   sudo journalctl -u kiosk-client -f
+   sudo systemctl status pds-client
+   sudo journalctl -u pds-client -f
    ```
 
 **Note**: The automated Raspberry Pi installer (`install-pi.sh`) sets this up automatically.
@@ -331,10 +573,10 @@ To update to the latest version:
 
 ```bash
 # If you used the automated installer, use the update script
-~/kiosk-client/update.sh
+~/pds-client/update-pi.sh
 
 # Or manually:
-cd ~/kiosk-client
+cd ~/pds-client
 git pull
 
 # Rebuild shared package
@@ -350,7 +592,7 @@ npm run build
 cd ..
 
 # Restart the service
-sudo systemctl restart kiosk-client
+sudo systemctl restart pds-client
 ```
 
 ### Troubleshooting
@@ -363,11 +605,12 @@ sudo systemctl restart kiosk-client
 - Verify `DEVICE_TOKEN` is correct (from admin UI)
 - Check firewall settings on backend server (port 5001)
 - Test backend health: `curl http://your-server-ip:5001/healthz`
-- Check client logs: `sudo journalctl -u kiosk-client -f`
+- Check client logs: `sudo journalctl -u pds-client -f`
 
 **Issue**: Chromium not found
-- Install Chromium: `sudo apt-get install chromium-browser chromium-codecs-ffmpeg`
-- Update `PUPPETEER_EXECUTABLE_PATH` in `.env` to `/usr/bin/chromium-browser`
+- Modern Raspberry Pi OS: `sudo apt-get install chromium chromium-codecs-ffmpeg`
+- Update `PUPPETEER_EXECUTABLE_PATH` in `.env` to `/usr/bin/chromium`
+- Older systems: Use `/usr/bin/chromium-browser` instead
 
 **Issue**: Client shows as offline after refresh
 - This is normal behavior - reconnection happens automatically
@@ -459,9 +702,10 @@ DEVICE_TOKEN=your-device-token
 DISPLAY_WIDTH=1920
 DISPLAY_HEIGHT=1080
 KIOSK_MODE=true
-PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser  # Linux/Pi path
-HEALTH_REPORT_INTERVAL=60000
-SCREENSHOT_INTERVAL=300000
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium  # Modern Raspberry Pi OS
+# PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser  # Older systems
+HEALTH_CHECK_INTERVAL=60000
+SCREENSHOT_INTERVAL=30000
 LOG_LEVEL=info
 ```
 
