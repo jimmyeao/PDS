@@ -27,6 +27,9 @@ class DisplayController {
     try {
       logger.info('Initializing display controller...');
 
+      // Kill any existing Chromium processes to prevent "Opening in existing browser session" error
+      await this.killExistingChromiumProcesses();
+
       // Get latest configuration (may have been updated remotely)
       const config = configManager.get();
       logger.info(`Display configuration: ${config.displayWidth}x${config.displayHeight}, Kiosk: ${config.kioskMode}`);
@@ -1059,6 +1062,43 @@ class DisplayController {
 
   public getPage(): Page | null {
     return this.page;
+  }
+
+  private async killExistingChromiumProcesses(): Promise<void> {
+    try {
+      const { execSync } = await import('child_process');
+
+      if (process.platform === 'win32') {
+        // Windows: kill chrome, chromium, msedge processes
+        try {
+          execSync('taskkill /F /IM chrome.exe /T', { stdio: 'ignore' });
+        } catch {}
+        try {
+          execSync('taskkill /F /IM chromium.exe /T', { stdio: 'ignore' });
+        } catch {}
+        try {
+          execSync('taskkill /F /IM msedge.exe /T', { stdio: 'ignore' });
+        } catch {}
+      } else {
+        // Linux/Mac: kill chromium, chrome processes
+        try {
+          execSync('pkill -9 chromium', { stdio: 'ignore' });
+        } catch {}
+        try {
+          execSync('pkill -9 chromium-browser', { stdio: 'ignore' });
+        } catch {}
+        try {
+          execSync('pkill -9 chrome', { stdio: 'ignore' });
+        } catch {}
+      }
+
+      logger.info('Killed any existing Chromium processes');
+
+      // Wait a moment for processes to fully terminate
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (error: any) {
+      logger.warn('Error killing existing processes (may not exist):', error.message);
+    }
   }
 
   public async restart(): Promise<void> {
