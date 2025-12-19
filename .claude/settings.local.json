@@ -131,7 +131,8 @@
       "Bash(sc.exe stop:*)",
       "Bash(Get-ScheduledTask -TaskName \"PDSKioskClient-AutoStart\" -ErrorAction SilentlyContinue)",
       "Bash(schtasks:*)",
-      "Bash(cmd //c 'schtasks /Create /TN \"\"PDSKioskClient-AutoStart\"\" /TR \"\"\\\"\"C:\\Program Files (x86)\\PDS\\KioskClient\\KioskClient.Service.exe\\\"\"\"\" /SC ONLOGON /RL HIGHEST /F')"
+      "Bash(cmd //c 'schtasks /Create /TN \"\"PDSKioskClient-AutoStart\"\" /TR \"\"\\\"\"C:\\Program Files (x86)\\PDS\\KioskClient\\KioskClient.Service.exe\\\"\"\"\" /SC ONLOGON /RL HIGHEST /F')",
+      "WebSearch"
     ]
   }
 }
