@@ -4,23 +4,19 @@
   "description": "Digital signage solution with central management of Raspberry Pi displays",
   "private": true,
   "workspaces": [
-    "backend",
     "frontend",
-    "client",
+    "raspberrypi-client",
     "shared"
   ],
   "scripts": {
     "dev": "powershell -ExecutionPolicy Bypass -File start-dev.ps1",
     "dev:single": "powershell -ExecutionPolicy Bypass -File start-dev-single.ps1",
-    "backend:dev": "npm run start:dev --workspace=backend",
-    "backend:build": "npm run build --workspace=backend",
-    "backend:start": "npm run start:prod --workspace=backend",
     "frontend:dev": "npm run dev --workspace=frontend",
     "frontend:build": "npm run build --workspace=frontend",
-    "client:dev": "npm run dev --workspace=client",
-    "client:build": "npm run build --workspace=client",
+    "client:dev": "npm run dev --workspace=raspberrypi-client",
+    "client:build": "npm run build --workspace=raspberrypi-client",
     "install:all": "npm install",
-    "clean": "rm -rf node_modules backend/node_modules frontend/node_modules client/node_modules shared/node_modules"
+    "clean": "rm -rf node_modules frontend/node_modules raspberrypi-client/node_modules shared/node_modules"
   },
   "keywords": [
     "digital-signage",

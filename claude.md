@@ -13,7 +13,7 @@ A sophisticated web-based digital signage solution with central management of Ra
 - **Client:** Node.js + Puppeteer + Chromium (for Raspberry Pi and other devices)
 - **Real-time:** Native WebSockets (ASP.NET Core)
 - **Authentication:** JWT tokens (admin) + persistent device tokens
-- **Shared Types:** TypeScript package (`@kiosk/shared`) for type safety across client/frontend
+- **Shared Types:** TypeScript package (`@kiosk/shared`) for type safety across raspberrypi-client/frontend
 - **Live Streaming:** Chrome DevTools Protocol (CDP) screencast
 
 ---
@@ -627,7 +627,7 @@ C:\Users\jimmy\source\repos\PDS\PDS\
 │   │   └── store\                    # Zustand stores (auth, device, content, playlist, websocket, theme)
 │   ├── package.json
 │   └── vite.config.ts
-├── client\
+├── raspberrypi-client\
 │   ├── src\
 │   │   ├── index.ts                  # Main orchestration (213 lines)
 │   │   ├── websocket.ts              # WebSocket client (286 lines)
@@ -796,7 +796,7 @@ C:\Users\jimmy\source\repos\PDS\PDS\
 VITE_API_URL=http://localhost:5001
 ```
 
-### Client (`client/.env`)
+### Raspberry Pi Client (`raspberrypi-client/.env`)
 ```env
 SERVER_URL=http://your-server:5001
 DEVICE_ID=your-device-id
@@ -828,9 +828,9 @@ npm run build      # Production build
 npm run preview    # Preview production build
 ```
 
-### Client (Raspberry Pi/Device)
+### Raspberry Pi Client
 ```bash
-cd client
+cd raspberrypi-client
 npm install
 npm run build      # Build TypeScript
 npm start          # Run client
@@ -883,7 +883,7 @@ pm2 save
 
 ### Retained Components
 - `frontend/` - React/Vite frontend (updated API calls, WebSocket protocol)
-- `client/` - Raspberry Pi/device client (updated WebSocket, API integration)
+- `raspberrypi-client/` - Raspberry Pi/device client (updated WebSocket, API integration)
 - `shared/` - TypeScript types package (still used by client and frontend)
 
 ---
@@ -938,12 +938,12 @@ pm2 save
    ```
    Frontend runs on http://localhost:5173
 
-3. **Configure Client:**
-   - Edit `client/.env` with SERVER_URL, DEVICE_ID, and obtain DEVICE_TOKEN from admin UI
+3. **Configure Raspberry Pi Client:**
+   - Edit `raspberrypi-client/.env` with SERVER_URL, DEVICE_ID, and obtain DEVICE_TOKEN from admin UI
 
-4. **Start Client:**
+4. **Start Raspberry Pi Client:**
    ```bash
-   cd client
+   cd raspberrypi-client
    npm start
    ```
 

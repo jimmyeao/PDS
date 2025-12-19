@@ -1,2 +1,0 @@
-This file is a marker for the Windows service component.
-The actual service is configured via ServiceInstall element in Product.wxs.

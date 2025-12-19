@@ -32,15 +32,15 @@ PDS/
 │   ├── PDS.Api/         # ASP.NET Core 8 API server (.NET/C#)
 │   └── PDS.sln          # Visual Studio solution file
 ├── frontend/            # React admin UI (Node.js workspace)
-├── client/              # Display client app (Node.js workspace)
+├── raspberrypi-client/  # Raspberry Pi display client (Node.js + Puppeteer)
+├── client-windows/      # Windows display client (.NET service + Playwright)
 ├── shared/              # Shared TypeScript types (Node.js workspace)
 ├── scripts/             # Deployment and utility scripts
-├── installer/           # Windows installer resources
 ├── docker-compose.yml   # Docker deployment configuration
 └── *.ps1                # PowerShell convenience scripts
 ```
 
-**Note**: The project uses npm workspaces for frontend, client, and shared packages. The backend is a separate .NET project not managed by npm.
+**Note**: The project uses npm workspaces for frontend, raspberrypi-client, and shared packages. The backend and Windows client are separate .NET projects not managed by npm.
 
 ## Getting Started
 
@@ -197,7 +197,7 @@ This creates a `deploy` folder with everything needed. Copy it to your Windows m
 2. Run `start.bat` for manual start
 3. Or install as Windows Service using NSSM
 
-📖 **For detailed Windows instructions**, see [client/README-WINDOWS.md](client/README-WINDOWS.md)
+📖 **For detailed Windows client instructions**, see [client-windows/README.md](client-windows/README.md)
 
 ### Linux - Manual Setup
 
@@ -289,7 +289,7 @@ To run the client automatically on boot:
    [Service]
    Type=simple
    User=pi
-   WorkingDirectory=/home/pi/kiosk-client/client
+   WorkingDirectory=/home/pi/kiosk-client/raspberrypi-client
    ExecStart=/usr/bin/node dist/index.js
    Restart=always
    RestartSec=10
@@ -332,8 +332,8 @@ npm install
 npm run build
 cd ..
 
-# Rebuild client
-cd client
+# Rebuild Raspberry Pi client
+cd raspberrypi-client
 npm install
 npm run build
 cd ..
