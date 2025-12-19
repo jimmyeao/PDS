@@ -1064,12 +1064,21 @@ class DisplayController {
   public async restart(): Promise<void> {
     logger.warn('Restarting display controller...');
 
+    // Save current URL to restore after restart
+    const urlToRestore = this.currentUrl;
+
     await this.shutdown();
 
     // Wait a bit before reinitializing
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     await this.initialize();
+
+    // Restore the previous URL if there was one
+    if (urlToRestore) {
+      logger.info(`Restoring previous URL after restart: ${urlToRestore}`);
+      await this.navigateTo(urlToRestore);
+    }
 
     logger.info('✅ Display controller restarted');
   }
