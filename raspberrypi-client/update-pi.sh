@@ -38,6 +38,18 @@ echo "📥 Checking out branch: $BRANCH"
 git checkout "$BRANCH"
 git pull --ff-only origin "$BRANCH"
 
+# Handle migration from old 'client' folder to 'raspberrypi-client'
+if [ -d "client" ] && [ ! -d "raspberrypi-client" ]; then
+  echo "🔄 Migrating from old 'client' folder structure..."
+  echo "   Copying .env file if it exists..."
+  if [ -f "client/.env" ]; then
+    mkdir -p raspberrypi-client
+    cp client/.env raspberrypi-client/.env
+    echo "   ✓ .env file preserved"
+  fi
+  echo "   Note: Old 'client' folder found. Please remove it after verifying the new setup works."
+fi
+
 echo "📦 Rebuilding shared package..."
 cd shared
 npm install --legacy-peer-deps
