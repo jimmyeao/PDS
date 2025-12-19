@@ -62,9 +62,9 @@ cd "$INSTALL_DIR/shared"
 npm install --include=dev --legacy-peer-deps
 npm run build
 
-# Install and build client
-echo "📦 Building client..."
-cd "$INSTALL_DIR/client"
+# Install and build Raspberry Pi client
+echo "📦 Building Raspberry Pi client..."
+cd "$INSTALL_DIR/raspberrypi-client"
 npm install --include=dev --legacy-peer-deps
 npm run build
 
@@ -110,9 +110,9 @@ cd shared
 npm install --include=dev --legacy-peer-deps
 npm run build
 
-# Build client
-echo "📦 Building client..."
-cd ../client
+# Build Raspberry Pi client
+echo "📦 Building Raspberry Pi client..."
+cd ../raspberrypi-client
 npm install --include=dev --legacy-peer-deps
 npm run build
 
@@ -140,7 +140,7 @@ After=network.target
 [Service]
 Type=simple
 User=$USER
-WorkingDirectory=$INSTALL_DIR/client
+WorkingDirectory=$INSTALL_DIR/raspberrypi-client
 ExecStart=/usr/bin/node dist/index.js
 Restart=always
 RestartSec=10
