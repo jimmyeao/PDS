@@ -47,7 +47,8 @@ DisableWelcomePage=no
 DisableDirPage=no
 DisableFinishedPage=no
 DisableReadyPage=no
-
+ArchitecturesInstallIn64BitMode=x64
+ArchitecturesAllowed=x64
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
@@ -71,31 +72,43 @@ var
 
 function IsDotNet10Installed(): Boolean;
 var
-  InstallPath: String;
+  VersionString: String;
   FindRec: TFindRec;
   DotNetPath: String;
   MajorVersion: Integer;
+  DotPos: Integer;
 begin
   Result := False;
 
   // Check for .NET 10 Runtime in registry
-  // Desktop Runtime includes ASP.NET Core Runtime
-  if RegQueryStringValue(HKLM, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedhost', 'Version', InstallPath) then
+  if RegQueryStringValue(HKLM, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedhost', 'Version', VersionString) then
   begin
-    // Extract major version number
-    if Length(InstallPath) >= 2 then
+    MsgBox('Found version in registry: ' + VersionString, mbInformation, MB_OK);
+    
+    // Extract major version number (e.g., "10.0.1" -> 10)
+    DotPos := Pos('.', VersionString);
+    if DotPos > 0 then
     begin
-      MajorVersion := StrToIntDef(Copy(InstallPath, 1, Pos('.', InstallPath) - 1), 0);
+      MajorVersion := StrToIntDef(Copy(VersionString, 1, DotPos - 1), 0);
+      MsgBox('Major version extracted: ' + IntToStr(MajorVersion), mbInformation, MB_OK);
+      
       if MajorVersion >= 10 then
       begin
+        MsgBox('.NET 10+ detected!', mbInformation, MB_OK);
         Result := True;
         Exit;
       end;
-    end;
-  end;
+    end
+    else
+      MsgBox('No dot found in version string', mbError, MB_OK);
+  end
+  else
+    MsgBox('Registry key not found', mbError, MB_OK);
 
   // Also check the runtime folder directly for any 10.x version
   DotNetPath := ExpandConstant('{commonpf}\dotnet\shared\Microsoft.NETCore.App');
+  MsgBox('Checking folder: ' + DotNetPath, mbInformation, MB_OK);
+  
   if DirExists(DotNetPath) then
   begin
     if FindFirst(DotNetPath + '\10.*', FindRec) then
@@ -104,6 +117,7 @@ begin
         repeat
           if FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0 then
           begin
+            MsgBox('Found .NET 10 folder: ' + FindRec.Name, mbInformation, MB_OK);
             Result := True;
             Exit;
           end;
@@ -111,10 +125,13 @@ begin
       finally
         FindClose(FindRec);
       end;
-    end;
-  end;
+    end
+    else
+      MsgBox('No 10.* folders found', mbError, MB_OK);
+  end
+  else
+    MsgBox('DotNet path does not exist', mbError, MB_OK);
 end;
-
 function DownloadAndInstallDotNet(): Boolean;
 var
   ResultCode: Integer;
@@ -132,7 +149,7 @@ begin
   // NOTE: If this URL becomes outdated, get the latest download URL from:
   // https://dotnet.microsoft.com/download/dotnet/10.0
   // Look for "Windows Desktop Runtime x64" direct download link
-  DownloadPage.Add('https://download.visualstudio.microsoft.com/download/pr/0a1b3cbd-b4af-4d0d-9ed7-0054f0e200b6/4bcc533c66379caaa91770236667aacb/windowsdesktop-runtime-10.0.0-win-x64.exe',
+  DownloadPage.Add('https://builds.dotnet.microsoft.com/dotnet/Runtime/10.0.1/dotnet-runtime-10.0.1-win-x64.exe',
                    'dotnet-runtime-installer.exe', '');
 
   try
