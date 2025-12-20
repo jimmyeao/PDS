@@ -26,11 +26,25 @@ export const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
-      <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-orange-400 via-brand-orange-500 to-orange-600 dark:from-brand-orange-700 dark:via-brand-orange-800 dark:to-gray-900">
+      <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-2xl w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Kiosk Manager</h1>
-          <p className="text-gray-600 mt-2">Digital Signage Administration</p>
+          <div className="flex justify-center mb-4">
+            <div className="relative">
+              <img
+                src="/logo.png"
+                alt="TheiaCast"
+                className="h-20 w-20 drop-shadow-2xl"
+              />
+              <div className="absolute inset-0 bg-brand-orange-500/20 blur-xl rounded-full animate-pulse"></div>
+            </div>
+          </div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-brand-orange-500 via-brand-orange-600 to-orange-600 bg-clip-text text-transparent mb-2">
+            TheiaCast
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Digital Signage Administration
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">

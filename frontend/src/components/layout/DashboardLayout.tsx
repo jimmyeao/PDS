@@ -18,10 +18,10 @@ export const DashboardLayout = () => {
   };
 
   const navLinkClass = (path: string) => {
-    const base = 'block px-4 py-2 rounded-lg transition-colors';
+    const base = 'block px-4 py-2 rounded-lg transition-all duration-200 font-medium';
     return isActive(path)
-      ? `${base} bg-blue-600 text-white dark:bg-blue-500`
-      : `${base} text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700`;
+      ? `${base} bg-gradient-to-r from-brand-orange-500 to-brand-orange-600 text-white dark:from-brand-orange-400 dark:to-brand-orange-500 dark:text-gray-900 shadow-brand`
+      : `${base} text-gray-700 hover:bg-brand-orange-50 dark:text-gray-300 dark:hover:bg-gray-700 hover:text-brand-orange-600 dark:hover:text-brand-orange-400`;
   };
 
   return (
@@ -31,9 +31,21 @@ export const DashboardLayout = () => {
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                Kiosk Manager
-              </h1>
+              <div className="flex items-center space-x-3">
+                <img
+                  src="/logo.png"
+                  alt="TheiaCast Logo"
+                  className="h-8 w-8 transition-transform hover:scale-105"
+                />
+                <div className="flex flex-col">
+                  <h1 className="text-xl font-bold bg-gradient-to-r from-brand-orange-500 to-brand-orange-600 bg-clip-text text-transparent dark:from-brand-orange-400 dark:to-brand-orange-500">
+                    TheiaCast
+                  </h1>
+                  <span className="text-[10px] text-gray-500 dark:text-gray-400 -mt-1">
+                    Digital Signage
+                  </span>
+                </div>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
               {/* Dark Mode Toggle */}
@@ -90,7 +102,7 @@ export const DashboardLayout = () => {
         </aside>
 
         {/* Main Content - Scrollable */}
-        <main className="flex-1 overflow-y-auto p-8 bg-gray-50 dark:bg-gray-900">
+        <main className="flex-1 overflow-y-auto p-8 bg-gray-50 dark:bg-gray-900 animate-fade-in">
           <Outlet />
         </main>
       </div>

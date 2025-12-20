@@ -171,8 +171,8 @@ export const LiveRemoteControl = ({ deviceId, deviceName, onClose }: LiveRemoteC
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="card-glass w-full max-w-7xl max-h-[95vh] overflow-hidden flex flex-col animate-scale-in">
         {/* Header */}
         <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900">
           <div>
@@ -217,7 +217,7 @@ export const LiveRemoteControl = ({ deviceId, deviceName, onClose }: LiveRemoteC
                 tabIndex={0}
                 className={`max-w-full h-auto rounded shadow-2xl cursor-crosshair border-2 ${
                   isCanvasFocused
-                    ? 'border-blue-500 dark:border-blue-400 ring-4 ring-blue-500/50'
+                    ? 'border-brand-orange-500 dark:border-brand-orange-400 ring-4 ring-brand-orange-500/50'
                     : 'border-gray-300 dark:border-gray-700'
                 }`}
                 style={{ imageRendering: 'auto', outline: 'none' }}

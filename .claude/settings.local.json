@@ -149,7 +149,10 @@
       "Bash(wsl -d Ubuntu-24.04 -u jimmy -- docker:*)",
       "Bash(wsl -d Ubuntu-24.04 -u jimmy --:*)",
       "Bash(cmd //c \"schtasks /Query /FO LIST | findstr /C:TaskName | findstr /i kiosk\")",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(xcopy:*)",
+      "Bash(cmd //c copy:*)",
+      "Bash(python3:*)"
     ]
   }
 }

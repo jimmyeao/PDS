@@ -320,15 +320,10 @@ public class BrowserController : IAsyncDisposable
             }
             catch (TimeoutException)
             {
-                // Fallback to DomContentLoaded if NetworkIdle times out
-                _logger.LogWarning("NetworkIdle timeout, falling back to DomContentLoaded");
-                await _page.GotoAsync(url, new PageGotoOptions
-                {
-                    Timeout = 30000,
-                    WaitUntil = WaitUntilState.DOMContentLoaded
-                });
-                _logger.LogInformation("Navigation completed (domcontentloaded)");
-                _crashCount = 0; // Reset crash count on successful navigation
+                // NetworkIdle timeout is normal for streaming content (videos keep network active)
+                // The page is already loaded and functional, just accept it
+                _logger.LogInformation("NetworkIdle timeout (normal for streaming content) - page already loaded");
+                _crashCount = 0; // Reset crash count - this is not a failure
             }
         }
         catch (PlaywrightException ex) when (ex.Message.Contains("Page crashed") || ex.Message.Contains("Target crashed"))

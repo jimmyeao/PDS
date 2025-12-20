@@ -1111,9 +1111,53 @@ public class PlaylistService : IPlaylistService
 
     public async Task<IEnumerable<object>> GetPlaylistsAsync()
     {
-        return await _db.Playlists.OrderBy(p => p.Id)
-            .Select(p => new { id = p.Id, name = p.Name, isActive = p.IsActive })
-            .ToListAsync();
+        var playlists = await _db.Playlists.OrderBy(p => p.Id).ToListAsync();
+
+        var result = new List<object>();
+        foreach (var p in playlists)
+        {
+            // Get items with content info
+            var items = await (from i in _db.PlaylistItems
+                              where i.PlaylistId == p.Id
+                              join c in _db.Content on i.ContentId equals c.Id into contentGroup
+                              from c in contentGroup.DefaultIfEmpty()
+                              orderby i.OrderIndex ?? i.Id
+                              select new
+                              {
+                                  id = i.Id,
+                                  playlistId = i.PlaylistId,
+                                  contentId = i.ContentId,
+                                  url = i.Url,
+                                  displayDuration = i.DurationSeconds,
+                                  orderIndex = i.OrderIndex ?? 0,
+                                  timeWindowStart = i.TimeWindowStart,
+                                  timeWindowEnd = i.TimeWindowEnd,
+                                  daysOfWeek = i.DaysOfWeek,
+                                  content = c == null ? null : new { id = c.Id, name = c.Name, url = c.Url }
+                              }).ToListAsync();
+
+            // Get device assignments
+            var devicePlaylists = await _db.DevicePlaylists
+                .Where(dp => dp.PlaylistId == p.Id)
+                .Join(_db.Devices, dp => dp.DeviceId, d => d.Id, (dp, d) => new
+                {
+                    id = dp.Id,
+                    deviceId = d.Id,
+                    playlistId = p.Id
+                })
+                .ToListAsync();
+
+            result.Add(new
+            {
+                id = p.Id,
+                name = p.Name,
+                isActive = p.IsActive,
+                items,
+                devicePlaylists
+            });
+        }
+
+        return result;
     }
 
     public async Task<object?> GetPlaylistAsync(int id)
@@ -1139,9 +1183,21 @@ public class PlaylistService : IPlaylistService
                         daysOfWeek = i.DaysOfWeek,
                         content = c == null ? null : new { id = c.Id, name = c.Name, url = c.Url, requiresInteraction = false }
                     };
-        
+
         var items = await itemsQuery.ToListAsync();
-        return new { id = p.Id, name = p.Name, isActive = p.IsActive, items };
+
+        // Get device assignments
+        var devicePlaylists = await _db.DevicePlaylists
+            .Where(dp => dp.PlaylistId == id)
+            .Join(_db.Devices, dp => dp.DeviceId, d => d.Id, (dp, d) => new
+            {
+                id = dp.Id,
+                deviceId = d.Id,
+                playlistId = id
+            })
+            .ToListAsync();
+
+        return new { id = p.Id, name = p.Name, isActive = p.IsActive, items, devicePlaylists };
     }
 
     public async Task<object> UpdatePlaylistAsync(int id, UpdatePlaylistDto dto)

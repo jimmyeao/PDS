@@ -13,8 +13,8 @@ services:
     restart: unless-stopped
 
   backend:
-    # Use the TheiaCast image from GitHub Container Registry
-    image: ghcr.io/jimmyeao/theiacast-backend:latest
+    # Use the local TheiaCast image (built from source)
+    image: theiacast-backend:local
     container_name: theiacast-backend
     environment:
       - ConnectionStrings__Default=Host=postgres;Port=5432;Database=theiacast;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}

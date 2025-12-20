@@ -143,8 +143,8 @@ export const VisualRemoteControl = ({ deviceId, deviceName, onClose }: VisualRem
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="card-glass w-full max-w-7xl max-h-[95vh] overflow-hidden flex flex-col animate-scale-in">
         {/* Header */}
         <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900">
           <div>
