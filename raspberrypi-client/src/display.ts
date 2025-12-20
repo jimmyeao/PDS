@@ -414,6 +414,12 @@ class DisplayController {
       return;
     }
 
+    // Check if page is closed (can happen after backend restart)
+    if (this.page.isClosed()) {
+      logger.warn('Page is closed, cannot start screencast. Browser may need to be reinitialized.');
+      return;
+    }
+
     // Prevent concurrent restarts
     if (this.isRestartingScreencast) {
       logger.warn('Screencast restart already in progress, skipping...');
@@ -450,6 +456,11 @@ class DisplayController {
           // Ignore cleanup errors
         }
         this.screencastClient = null;
+      }
+
+      // Verify page is still valid before creating CDP session
+      if (this.page.isClosed()) {
+        throw new Error('Page was closed during screencast initialization');
       }
 
       // Get NEW CDP session (recreating fixes disconnection issues)
