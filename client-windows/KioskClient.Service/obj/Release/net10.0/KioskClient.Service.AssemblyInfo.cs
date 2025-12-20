@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("KioskClient.Service")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+32e369b87328b1d1639e19df5048250d6fadb35e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+99cfaf3d0821f81933c39d33db0fbe085ea01db8")]
 [assembly: System.Reflection.AssemblyProductAttribute("KioskClient.Service")]
 [assembly: System.Reflection.AssemblyTitleAttribute("KioskClient.Service")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

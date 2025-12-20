@@ -36,10 +36,27 @@ public class BrowserController : IAsyncDisposable
             // Set up persistent profile directory in ProgramData (system-wide, not user-specific)
             // This ensures it works when running as a Windows Service under SYSTEM account
             var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-            var profileDir = Path.Combine(programData, "PDS", "browser-profile");
+            var profileDir = Path.Combine(programData, "TheiaCast", "browser-profile");
+            var oldProfileDir = Path.Combine(programData, "PDS", "browser-profile");
 
-            // Ensure profile directory exists
-            if (!Directory.Exists(profileDir))
+            // Migrate old PDS profile to TheiaCast if it exists
+            if (!Directory.Exists(profileDir) && Directory.Exists(oldProfileDir))
+            {
+                try
+                {
+                    _logger.LogInformation($"Migrating browser profile from PDS to TheiaCast...");
+                    var newParentDir = Path.Combine(programData, "TheiaCast");
+                    Directory.CreateDirectory(newParentDir);
+                    Directory.Move(oldProfileDir, profileDir);
+                    _logger.LogInformation($"Browser profile migrated successfully");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"Could not migrate old profile: {ex.Message}. Creating new profile.");
+                    Directory.CreateDirectory(profileDir);
+                }
+            }
+            else if (!Directory.Exists(profileDir))
             {
                 Directory.CreateDirectory(profileDir);
                 _logger.LogInformation($"Created browser profile directory: {profileDir}");
@@ -55,14 +72,17 @@ public class BrowserController : IAsyncDisposable
                 "--disable-blink-features=AutomationControlled,WebAuthentication",  // Block automation detection and WebAuthentication at Blink level
                 "--disable-dev-shm-usage",
                 "--no-sandbox",
-                "--disable-gpu",
-                "--disable-software-rasterizer",
+                // GPU acceleration is ENABLED (not disabled) to prevent crashes at high resolutions
+                "--enable-gpu-rasterization",  // Enable GPU rasterization for better performance
+                "--disable-gpu-sandbox",  // Disable GPU sandbox to prevent STATUS_BREAKPOINT errors
+                "--disable-features=TranslateUI,WebAuthentication,WebAuth,ClientSideDetectionModel,RendererCodeIntegrity",  // Disable code integrity to prevent access violations
                 "--disable-extensions",
                 "--disable-setuid-sandbox",
                 "--autoplay-policy=no-user-gesture-required",  // Allow video autoplay
-                "--disable-features=TranslateUI,WebAuthentication,WebAuth,ClientSideDetectionModel",  // Block passkey/credential prompts at feature level
                 "--use-mock-keychain",  // Use mock keychain to avoid Windows credential prompts
                 "--password-store=basic",  // Use basic password storage, not OS keychain
+                "--no-zygote",  // Prevent zygote process crashes on Windows
+                "--disable-breakpad",  // Disable crash reporting which can cause STATUS_BREAKPOINT
                 $"--window-size={_config.ViewportWidth},{_config.ViewportHeight}"
             };
 
