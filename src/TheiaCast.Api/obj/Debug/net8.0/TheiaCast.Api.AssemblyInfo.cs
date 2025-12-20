@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TheiaCast.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b42d9e5b40300c09528480c458ce778812d4062a")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b281fba3505c8f5382a4bfd0fbae050fba2e7102")]
 [assembly: System.Reflection.AssemblyProductAttribute("TheiaCast.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TheiaCast.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

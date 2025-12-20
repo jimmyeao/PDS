@@ -132,7 +132,12 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:api.github.com)",
       "WebFetch(domain:www.gnu.org)",
-      "Bash(git remote set-url:*)"
+      "Bash(git remote set-url:*)",
+      "Bash(else echo \"No .env file found in root\")",
+      "Bash(sc.exe query:*)",
+      "Bash(cmd //c \"taskkill /F /PID 8536\")",
+      "Bash(docker run:*)",
+      "Bash(PGPASSWORD='Cc061mjw0!' psql:*)"
     ]
   }
 }
