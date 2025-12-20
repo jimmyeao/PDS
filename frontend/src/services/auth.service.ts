@@ -1,5 +1,5 @@
 import api from './api';
-import type { AuthResponse, LoginDto, RegisterDto, User, ChangePasswordDto, MfaSetupResponse } from '@kiosk/shared';
+import type { AuthResponse, LoginDto, RegisterDto, User, ChangePasswordDto, MfaSetupResponse } from '@theiacast/shared';
 
 export const authService = {
   async login(credentials: LoginDto): Promise<AuthResponse> {

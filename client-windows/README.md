@@ -1,10 +1,10 @@
-# PDS Kiosk Client - Windows .NET
+# TheiaCast Client - Windows .NET
 
-Windows service client for PDS (Playlist Display System) built with .NET 10 and Playwright.
+Windows client for TheiaCast Digital Signage built with .NET 10 and Playwright.
 
 ## ✨ Why This Version?
 
-- **Native Windows Service**: Built-in Windows service support, no NSSM needed
+- **Scheduled Task Auto-Start**: Runs as a scheduled task on user login for proper UI display
 - **Simpler Installation**: Automated PowerShell installer with command-line configuration
 - **Better Integration**: Native Windows APIs for health monitoring
 - **Lower Resources**: Less memory, faster startup
@@ -23,7 +23,7 @@ Windows service client for PDS (Playlist Display System) built with .NET 10 and 
 
 #### 1. Download or Build Installer
 
-**Download:** Get `PDSKioskClient-Setup.exe` from releases
+**Download:** Get `TheiaCast-Setup.exe` from releases
 
 **Or Build It Yourself:**
 ```powershell
@@ -35,8 +35,8 @@ cd path\to\client-windows
 
 #### 2. Obtain Device Token
 
-Before installing, get a device token from the PDS admin interface:
-1. Log into PDS admin UI (e.g., http://your-server:5173)
+Before installing, get a device token from the TheiaCast admin interface:
+1. Log into TheiaCast admin UI (e.g., http://your-server:5173)
 2. Go to **Devices** page
 3. Create or select your device
 4. Copy the **Device Token**
@@ -45,13 +45,13 @@ Before installing, get a device token from the PDS admin interface:
 
 **Interactive Installation (GUI):**
 ```powershell
-PDSKioskClient-Setup.exe
+TheiaCast-Setup.exe
 ```
 The installer will prompt for Server URL, Device ID, and Token.
 
 **Silent Installation (for scripting/remote deployment):**
 ```powershell
-PDSKioskClient-Setup.exe /VERYSILENT /ServerUrl=http://192.168.0.57:5001 /DeviceId=office-kiosk /DeviceToken=abc123
+TheiaCast-Setup.exe /VERYSILENT /ServerUrl=http://192.168.0.57:5001 /DeviceId=office-kiosk /DeviceToken=abc123
 ```
 
 ### Option 2: PowerShell Installer Script
@@ -67,11 +67,11 @@ cd path\to\client-windows
 
 ```powershell
 # Copy installer to remote machine
-Copy-Item PDSKioskClient-Setup.exe \\REMOTE-PC\C$\Temp\
+Copy-Item TheiaCast-Setup.exe \\REMOTE-PC\C$\Temp\
 
 # Execute silent installation remotely
 Invoke-Command -ComputerName REMOTE-PC -ScriptBlock {
-    C:\Temp\PDSKioskClient-Setup.exe /VERYSILENT /ServerUrl=http://192.168.0.57:5001 /DeviceId=remote-kiosk /DeviceToken=abc123
+    C:\Temp\TheiaCast-Setup.exe /VERYSILENT /ServerUrl=http://192.168.0.57:5001 /DeviceId=remote-kiosk /DeviceToken=abc123
 }
 ```
 
@@ -88,20 +88,19 @@ Invoke-Command -ComputerName REMOTE-PC -ScriptBlock {
 }
 ```
 
-## Service Management
+## Task Management
 
-### Check Service Status
+### Check Task Status
 
 ```powershell
-Get-Service -Name PDSKioskClient
+Get-ScheduledTask -TaskName "TheiaCast-AutoStart"
 ```
 
-### Start/Stop Service
+### Start/Stop Task
 
 ```powershell
-Stop-Service -Name PDSKioskClient
-Start-Service -Name PDSKioskClient
-Restart-Service -Name PDSKioskClient
+Stop-ScheduledTask -TaskName "TheiaCast-AutoStart"
+Start-ScheduledTask -TaskName "TheiaCast-AutoStart"
 ```
 
 ### View Logs
@@ -110,19 +109,25 @@ Restart-Service -Name PDSKioskClient
 Get-EventLog -LogName Application -Source KioskClient -Newest 50
 ```
 
+### Get Task Info
+
+```powershell
+Get-ScheduledTask -TaskName "TheiaCast-AutoStart" | Get-ScheduledTaskInfo
+```
+
 ## Uninstall
 
 ```powershell
-# Remove service only
+# Remove scheduled task only
 .\Uninstall.ps1
 
-# Remove service and files
+# Remove scheduled task and files
 .\Uninstall.ps1 -RemoveFiles
 ```
 
 ## ✅ Features (Complete Feature Parity)
 
-- ✅ Windows Service with auto-start
+- ✅ Scheduled Task auto-start on user login
 - ✅ Real-time WebSocket communication
 - ✅ Playlist execution with content rotation
 - ✅ Auto-authentication for protected sites
@@ -139,7 +144,7 @@ Get-EventLog -LogName Application -Source KioskClient -Newest 50
 
 ## Configuration
 
-Configuration is stored in `C:\Program Files\PDS\KioskClient\appsettings.json`:
+Configuration is stored in `C:\Program Files\TheiaCast\appsettings.json`:
 
 ```json
 {
@@ -157,10 +162,11 @@ Configuration is stored in `C:\Program Files\PDS\KioskClient\appsettings.json`:
 }
 ```
 
-After editing configuration, restart the service:
+After editing configuration, restart the task:
 
 ```powershell
-Restart-Service -Name PDSKioskClient
+Stop-ScheduledTask -TaskName "TheiaCast-AutoStart"
+Start-ScheduledTask -TaskName "TheiaCast-AutoStart"
 ```
 
 ## 🆚 vs Node.js Client
@@ -169,7 +175,7 @@ Restart-Service -Name PDSKioskClient
 |---------|---------------|-------------|
 | **Runtime** | Node.js 20+ | Self-contained .exe |
 | **Installation** | npm install | PowerShell installer |
-| **Service Manager** | PM2/systemd | Native Windows Service |
+| **Auto-Start** | PM2/systemd | Scheduled Task (on login) |
 | **Health Monitor** | systeminformation | Native WMI/PerfCounters |
 | **Browser** | Puppeteer + Chromium | Playwright + Chromium |
 | **Platform** | Cross-platform | **Windows only** |
@@ -181,8 +187,9 @@ Restart-Service -Name PDSKioskClient
 client-windows/
 ├── Install.ps1               # Automated installer
 ├── Uninstall.ps1             # Uninstaller
+├── SetupAutoStart.ps1        # Scheduled task setup
 ├── KioskClient.Core/         # Core library (Playwright, WebSocket, Health)
-└── KioskClient.Service/      # Windows Service executable
+└── KioskClient.Service/      # Application executable
 ```
 
 ## 🔧 Development

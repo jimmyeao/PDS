@@ -1,11 +1,11 @@
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: pds-postgres
+    container_name: theiacast-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: pds
+      POSTGRES_DB: theiacast
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -14,11 +14,11 @@ services:
 
   backend:
     build:
-      context: ./src/PDS.Api
+      context: ./src/TheiaCast.Api
       dockerfile: Dockerfile
-    container_name: pds-backend
+    container_name: theiacast-backend
     environment:
-      - ConnectionStrings__Default=Host=postgres;Port=5432;Database=pds;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      - ConnectionStrings__Default=Host=postgres;Port=5432;Database=theiacast;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
       - ASPNETCORE_ENVIRONMENT=Production
       - Jwt__Secret=${JWT_SECRET:-dev-secret-key}
     ports:
@@ -26,7 +26,7 @@ services:
     depends_on:
       - postgres
     volumes:
-      - pds_media:/app/wwwroot
+      - theiacast_media:/app/wwwroot
     restart: unless-stopped
 
   frontend:
@@ -35,7 +35,7 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         - VITE_API_URL=/api
-    container_name: pds-frontend
+    container_name: theiacast-frontend
     ports:
       - "5173:80"
     depends_on:
@@ -44,4 +44,4 @@ services:
 
 volumes:
   postgres_data:
-  pds_media:
+  theiacast_media:

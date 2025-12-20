@@ -7,7 +7,7 @@ import type {
   CreatePlaylistItemDto,
   UpdatePlaylistItemDto,
   DevicePlaylistAssignment,
-} from '@kiosk/shared';
+} from '@theiacast/shared';
 
 export const playlistService = {
   // Playlist operations

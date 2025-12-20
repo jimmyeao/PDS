@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Device } from '@kiosk/shared';
+import type { Device } from '@theiacast/shared';
 import { deviceService } from '../services/device.service';
 
 interface DeviceState {

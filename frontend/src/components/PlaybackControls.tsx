@@ -1,4 +1,4 @@
-import type { PlaybackStateUpdatePayload } from '@kiosk/shared';
+import type { PlaybackStateUpdatePayload } from '@theiacast/shared';
 import {
   PlayIcon,
   PauseIcon,

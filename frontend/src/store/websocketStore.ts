@@ -6,7 +6,7 @@ import type {
   AdminDeviceStatusPayload,
   AdminErrorPayload,
   PlaybackStateUpdatePayload,
-} from '@kiosk/shared';
+} from '@theiacast/shared';
 
 interface Notification {
   id: string;

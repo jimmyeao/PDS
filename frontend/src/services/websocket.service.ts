@@ -6,7 +6,7 @@ import type {
   AdminScreenshotReceivedPayload,
   AdminErrorPayload,
   PlaybackStateUpdatePayload,
-} from '@kiosk/shared';
+} from '@theiacast/shared';
 
 // Import enum values as constants
 const ServerToAdminEventValues = {

@@ -4,7 +4,7 @@
   import { websocketClient } from './websocket';
   import { contentCacheManager } from './content-cache';
   import * as path from 'path';
-  import type { PlaylistItem, PlaybackStateUpdatePayload } from '@kiosk/shared';
+  import type { PlaylistItem, PlaybackStateUpdatePayload } from '@theiacast/shared';
 
   class PlaylistExecutor {
     private playlistItems: PlaylistItem[] = [];

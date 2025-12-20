@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Content } from '@kiosk/shared';
+import type { Content } from '@theiacast/shared';
 import { contentService } from '../services/content.service';
 
 interface ContentState {

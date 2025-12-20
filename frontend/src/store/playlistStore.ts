@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Playlist, PlaylistItem, CreatePlaylistDto, UpdatePlaylistDto, CreatePlaylistItemDto, UpdatePlaylistItemDto } from '@kiosk/shared';
+import type { Playlist, PlaylistItem, CreatePlaylistDto, UpdatePlaylistDto, CreatePlaylistItemDto, UpdatePlaylistItemDto } from '@theiacast/shared';
 import { playlistService } from '../services/playlist.service';
 
 interface PlaylistState {

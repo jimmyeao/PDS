@@ -1,5 +1,5 @@
 import api from './api';
-import type { Device, CreateDeviceDto, UpdateDeviceDto } from '@kiosk/shared';
+import type { Device, CreateDeviceDto, UpdateDeviceDto } from '@theiacast/shared';
 
 export const deviceService = {
   async getAll(): Promise<Device[]> {

@@ -1,14 +1,14 @@
-# Raspberry Pi Quick Install
+# Raspberry Pi Quick Install - TheiaCast
 
 ## One-Line Installation
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/jimmyeao/PDS/main/install-pi.sh | bash
+curl -sSL https://raw.githubusercontent.com/jimmyeao/TheiaCast/main/install-pi.sh | bash
 ```
 
 Or with custom repository URL:
 ```bash
-REPO_URL=https://github.com/jimmyeao/PDS.git curl -sSL https://raw.githubusercontent.com/jimmyeao/PDS/main/install-pi.sh | bash
+REPO_URL=https://github.com/jimmyeao/TheiaCast.git curl -sSL https://raw.githubusercontent.com/jimmyeao/TheiaCast/main/install-pi.sh | bash
 ```
 
 ## What the installer does:
@@ -40,7 +40,7 @@ nano ~/kiosk-client/client/.env
 
 Set these required values:
 ```env
-SERVER_URL=http://your-server-ip:3000
+SERVER_URL=http://your-server-ip:5001
 DEVICE_TOKEN=your-device-token-from-admin-ui
 PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 ```
@@ -150,9 +150,9 @@ sudo apt-get install chromium-browser chromium-codecs-ffmpeg
 
 ### Check if backend is reachable
 ```bash
-curl http://your-server-ip:3000/api/health
+curl http://your-server-ip:5001/health
 ```
-Should return: `{"status":"ok"}`
+Should return: `{"status":"healthy"}`
 
 ## Manual Installation
 

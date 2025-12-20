@@ -1,4 +1,4 @@
-; PDS Kiosk Client Installer Script for Inno Setup
+; TheiaCast Kiosk Client Installer Script for Inno Setup
 ;
 ; Build instructions:
 ; 1. Install Inno Setup from https://jrsoftware.org/isdl.php
@@ -17,12 +17,12 @@
 ; Installation with GUI:
 ;   Setup.exe (will prompt for parameters and install .NET 10 if needed)
 
-#define MyAppName "PDS Kiosk Client"
+#define MyAppName "TheiaCast Kiosk Client"
 #define MyAppVersion "1.0.0"
-#define MyAppPublisher "PDS"
-#define MyAppURL "https://github.com/yourusername/pds"
+#define MyAppPublisher "TheiaCast"
+#define MyAppURL "https://github.com/jimmyeao/TheiaCast"
 #define MyAppExeName "KioskClient.Service.exe"
-#define MyServiceName "PDSKioskClient"
+#define MyServiceName "TheiaCastKioskClient"
 
 [Setup]
 AppId={{B8E9F1A2-3C4D-5E6F-7A8B-9C0D1E2F3A4B}
@@ -32,11 +32,11 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName={autopf}\PDS\KioskClient
+DefaultDirName={autopf}\TheiaCast\KioskClient
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=.
-OutputBaseFilename=PDSKioskClient-Setup
+OutputBaseFilename=TheiaCastKioskClient-Setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -83,31 +83,31 @@ begin
   // Check for .NET 10 Runtime in registry
   if RegQueryStringValue(HKLM, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedhost', 'Version', VersionString) then
   begin
-    MsgBox('Found version in registry: ' + VersionString, mbInformation, MB_OK);
+
     
     // Extract major version number (e.g., "10.0.1" -> 10)
     DotPos := Pos('.', VersionString);
     if DotPos > 0 then
     begin
       MajorVersion := StrToIntDef(Copy(VersionString, 1, DotPos - 1), 0);
-      MsgBox('Major version extracted: ' + IntToStr(MajorVersion), mbInformation, MB_OK);
+     
       
       if MajorVersion >= 10 then
       begin
-        MsgBox('.NET 10+ detected!', mbInformation, MB_OK);
+      
         Result := True;
         Exit;
       end;
     end
     else
-      MsgBox('No dot found in version string', mbError, MB_OK);
+      
   end
   else
-    MsgBox('Registry key not found', mbError, MB_OK);
+   
 
   // Also check the runtime folder directly for any 10.x version
   DotNetPath := ExpandConstant('{commonpf}\dotnet\shared\Microsoft.NETCore.App');
-  MsgBox('Checking folder: ' + DotNetPath, mbInformation, MB_OK);
+
   
   if DirExists(DotNetPath) then
   begin
@@ -117,7 +117,7 @@ begin
         repeat
           if FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0 then
           begin
-            MsgBox('Found .NET 10 folder: ' + FindRec.Name, mbInformation, MB_OK);
+         
             Result := True;
             Exit;
           end;
@@ -127,10 +127,10 @@ begin
       end;
     end
     else
-      MsgBox('No 10.* folders found', mbError, MB_OK);
+  
   end
   else
-    MsgBox('DotNet path does not exist', mbError, MB_OK);
+
 end;
 function DownloadAndInstallDotNet(): Boolean;
 var
@@ -237,7 +237,7 @@ begin
   Result := '';
   // Use {autopf} instead of {app} since {app} isn't available during InitializeWizard
   // {autopf} expands to Program Files directory which is determined by the system
-  ConfigFile := ExpandConstant('{autopf}\PDS\KioskClient\appsettings.json');
+  ConfigFile := ExpandConstant('{autopf}\TheiaCast\KioskClient\appsettings.json');
 
   if FileExists(ConfigFile) then
   begin
@@ -297,8 +297,8 @@ begin
   begin
     // Server URL page
     ServerUrlPage := CreateInputQueryPage(wpWelcome,
-      'Server Configuration', 'Enter PDS Server URL',
-      'Please enter the URL of your PDS server (e.g., http://192.168.0.57:5001)');
+      'Server Configuration', 'Enter TheiaCast Server URL',
+      'Please enter the URL of your TheiaCast server (e.g., http://192.168.0.57:5001)');
     ServerUrlPage.Add('Server URL:', False);
     if ExistingServerUrl <> '' then
       ServerUrlPage.Values[0] := ExistingServerUrl
@@ -318,9 +318,9 @@ begin
     // Device Token page
     DeviceTokenPage := CreateInputQueryPage(DeviceIdPage.ID,
       'Device Authentication', 'Enter Device Token',
-      'Please enter the device token from the PDS admin interface.' + #13#10 +
+      'Please enter the device token from the TheiaCast admin interface.' + #13#10 +
       'To obtain a token:' + #13#10 +
-      '1. Log into the PDS admin UI' + #13#10 +
+      '1. Log into the TheiaCast admin UI' + #13#10 +
       '2. Go to Devices page' + #13#10 +
       '3. Create or select your device' + #13#10 +
       '4. Copy the Device Token');
@@ -484,7 +484,7 @@ begin
 
     // Create browser profile directory with proper permissions
     // This prevents "Profile error occurred" when running as scheduled task
-    ScCommand := ExpandConstant('{commonappdata}\PDS\browser-profile');
+    ScCommand := ExpandConstant('{commonappdata}\TheiaCast\browser-profile');
     if not DirExists(ScCommand) then
       CreateDir(ScCommand);
 
@@ -499,11 +499,11 @@ begin
     ServiceExePath := ExpandConstant('{app}\{#MyAppExeName}');
 
     // Delete existing task if it exists
-    Exec('schtasks.exe', '/Delete /TN "PDSKioskClient-AutoStart" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('schtasks.exe', '/Delete /TN "TheiaCastKioskClient-AutoStart" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
     // Create scheduled task that runs at logon with highest privileges
     // Using the actual logged-in user, not the installer/elevated user
-    ScCommand := '/Create /TN "PDSKioskClient-AutoStart" ' +
+    ScCommand := '/Create /TN "TheiaCastKioskClient-AutoStart" ' +
                  '/TR "\"' + ServiceExePath + '\"" ' +
                  '/SC ONLOGON ' +
                  '/RL HIGHEST ' +
@@ -516,7 +516,7 @@ begin
       if ResultCode = 0 then
       begin
         // Try to start the task immediately
-        Exec('schtasks.exe', '/Run /TN "PDSKioskClient-AutoStart"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+        Exec('schtasks.exe', '/Run /TN "TheiaCastKioskClient-AutoStart"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
         MsgBox('Installation complete!' + #13#10 + #13#10 +
                'The Kiosk Client will start automatically when you log in.' + #13#10 + #13#10 +
                'The browser window should now be visible.', mbInformation, MB_OK);
@@ -541,7 +541,7 @@ begin
     StopAndRemoveService;
 
     // Remove scheduled task
-    Exec('schtasks.exe', '/Delete /TN "PDSKioskClient-AutoStart" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('schtasks.exe', '/Delete /TN "TheiaCastKioskClient-AutoStart" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
     // Remove PLAYWRIGHT_BROWSERS_PATH environment variable
     RegDeleteValue(HKLM, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',

@@ -9,7 +9,7 @@ import { screenshotService } from '../services/screenshot.service';
 import { websocketService } from '../services/websocket.service';
 import { LiveRemoteControl } from '../components/LiveRemoteControl';
 import { PlaybackControlsInline } from '../components/PlaybackControlsInline';
-import type { Playlist } from '@kiosk/shared';
+import type { Playlist } from '@theiacast/shared';
 
 export const DevicesPage = () => {
   const { devices, fetchDevices, createDevice, updateDevice, deleteDevice, isLoading } = useDeviceStore();

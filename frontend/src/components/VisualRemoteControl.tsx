@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import type { Screenshot, AdminScreenshotReceivedPayload } from '@kiosk/shared';
+import type { Screenshot, AdminScreenshotReceivedPayload } from '@theiacast/shared';
 import { screenshotService } from '../services/screenshot.service';
 import { websocketService } from '../services/websocket.service';
 import { deviceService } from '../services/device.service';

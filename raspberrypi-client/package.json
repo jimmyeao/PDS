@@ -1,7 +1,7 @@
 {
-  "name": "@kiosk/client",
+  "name": "@theiacast/client",
   "version": "1.0.0",
-  "description": "Cross-platform client for kiosk digital signage (Windows, Linux, Raspberry Pi)",
+  "description": "TheiaCast client for digital signage (Windows, Linux, Raspberry Pi)",
   "main": "dist/index.js",
   "scripts": {
     "build": "npx tsc",
@@ -16,17 +16,18 @@
     "build:installer": "cd installer && build.bat"
   },
   "keywords": [
-    "kiosk",
+    "theiacast",
     "digital-signage",
     "raspberry-pi",
     "windows",
     "intel-nuc",
-    "chromium"
+    "chromium",
+    "kiosk"
   ],
   "author": "",
   "license": "AGPL-3.0",
   "dependencies": {
-    "@kiosk/shared": "^1.0.0",
+    "@theiacast/shared": "^1.0.0",
     "dotenv": "^16.4.7",
     "puppeteer": "^24.15.0",
     "systeminformation": "^5.23.22",

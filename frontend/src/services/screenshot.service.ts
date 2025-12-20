@@ -1,5 +1,5 @@
 import api from './api';
-import type { Screenshot } from '@kiosk/shared';
+import type { Screenshot } from '@theiacast/shared';
 
 export const screenshotService = {
   /**

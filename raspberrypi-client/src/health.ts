@@ -2,7 +2,7 @@ import * as si from 'systeminformation';
 import { config } from './config';
 import { logger } from './logger';
 import { websocketClient } from './websocket';
-import type { HealthReportPayload } from '@kiosk/shared';
+import type { HealthReportPayload } from '@theiacast/shared';
 
 class HealthMonitor {
   private intervalId: NodeJS.Timeout | null = null;

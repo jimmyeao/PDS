@@ -1,14 +1,14 @@
 {
-  "name": "@kiosk/shared",
+  "name": "@theiacast/shared",
   "version": "1.0.0",
-  "description": "Shared TypeScript types for kiosk digital signage",
+  "description": "Shared TypeScript types for TheiaCast digital signage",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "npx tsc",
     "watch": "npx tsc --watch"
   },
-  "keywords": ["types", "shared"],
+  "keywords": ["theiacast", "types", "shared", "digital-signage"],
   "author": "",
   "license": "AGPL-3.0",
   "devDependencies": {

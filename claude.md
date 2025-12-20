@@ -1,10 +1,10 @@
-# Kiosk Digital Signage - Development Progress
+# TheiaCast Digital Signage - Development Progress
 
-**Last Updated:** 2025-12-13
+**Last Updated:** 2025-12-20
 
 ## Project Overview
 
-A sophisticated web-based digital signage solution with central management of Raspberry Pi displays, featuring **live video streaming**, **remote browser control**, **auto-authentication**, playlist management, and real-time device monitoring. This system rivals commercial digital signage products with its advanced remote control capabilities and Chrome DevTools Protocol (CDP) integration.
+A sophisticated web-based digital signage solution with central management of displays, featuring **live video streaming**, **remote browser control**, **auto-authentication**, playlist management, and real-time device monitoring. This system rivals commercial digital signage products with its advanced remote control capabilities and Chrome DevTools Protocol (CDP) integration.
 
 ## Architecture
 

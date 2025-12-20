@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { User, LoginDto } from '@kiosk/shared';
+import type { User, LoginDto } from '@theiacast/shared';
 import { authService } from '../services/auth.service';
 import { useWebSocketStore } from './websocketStore';
 

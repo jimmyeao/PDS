@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { usePlaylistStore } from '../store/playlistStore';
 import { useContentStore } from '../store/contentStore';
-import type { Playlist, CreatePlaylistItemDto } from '@kiosk/shared';
+import type { Playlist, CreatePlaylistItemDto } from '@theiacast/shared';
 
 export const PlaylistsPage = () => {
   const {

@@ -1,5 +1,5 @@
 import api from './api';
-import type { Content, CreateContentDto, UpdateContentDto } from '@kiosk/shared';
+import type { Content, CreateContentDto, UpdateContentDto } from '@theiacast/shared';
 
 export const contentService = {
   async getAll(): Promise<Content[]> {

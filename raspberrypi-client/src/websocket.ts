@@ -20,7 +20,7 @@
     PlaylistBroadcastStartPayload,
     PlaylistBroadcastEndPayload,
     PlaybackStateUpdatePayload,
-  } from '@kiosk/shared';
+  } from '@theiacast/shared';
 
   // Event and enum values (since we can't import enums from CommonJS shared package)
   const ServerToClientEventValues = {

@@ -142,7 +142,7 @@ cp .env.example .env
 
 2. Edit `.env` with your settings:
 ```env
-SERVER_URL=http://your-server:3000
+SERVER_URL=http://your-server:5001
 DEVICE_TOKEN=your-jwt-token-here
 DISPLAY_WIDTH=1920
 DISPLAY_HEIGHT=1080

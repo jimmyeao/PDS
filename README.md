@@ -1,6 +1,8 @@
-# PDS - Professional Digital Signage Solution 
+# TheiaCast - Professional Digital Signage Solution
 
-[![Version](https://img.shields.io/badge/version-1.0-blue.svg)](https://github.com/jimmyeao/PDS/releases)
+![TheiaCast Logo](logo.png)
+
+[![Version](https://img.shields.io/badge/version-1.0-blue.svg)](https://github.com/jimmyeao/TheiaCast/releases)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/)
 [![React](https://img.shields.io/badge/React-19-blue.svg)](https://reactjs.org/)
@@ -60,8 +62,8 @@ Get up and running in minutes with Docker Compose:
 
 ```bash
 # Clone the repository
-git clone https://github.com/jimmyeao/PDS.git
-cd PDS
+git clone https://github.com/jimmyeao/TheiaCast.git
+cd TheiaCast
 
 # Start all services
 docker-compose up -d
@@ -94,25 +96,25 @@ npm run dev
 
 ### Raspberry Pi - One-Line Install
 ```bash
-curl -sSL https://raw.githubusercontent.com/jimmyeao/PDS/main/install-pi.sh | bash
+curl -sSL https://raw.githubusercontent.com/jimmyeao/TheiaCast/main/install-pi.sh | bash
 ```
 
 ### Windows - Installer Package
-Download the latest installer from [Releases](https://github.com/jimmyeao/PDS/releases) or:
+Download the latest installer from [Releases](https://github.com/jimmyeao/TheiaCast/releases) or:
 
 ```powershell
 # Quick download
-Invoke-WebRequest -Uri "https://github.com/jimmyeao/PDS/releases/latest/download/PDSKioskClient-Setup.exe" -OutFile "PDSKioskClient-Setup.exe"
+Invoke-WebRequest -Uri "https://github.com/jimmyeao/TheiaCast/releases/latest/download/TheiaCast-Setup.exe" -OutFile "TheiaCast-Setup.exe"
 
 # Silent installation
-.\PDSKioskClient-Setup.exe /VERYSILENT /ServerUrl=http://your-server:5001 /DeviceId=kiosk1 /DeviceToken=your-token
+.\TheiaCast-Setup.exe /VERYSILENT /ServerUrl=http://your-server:5001 /DeviceId=kiosk1 /DeviceToken=your-token
 ```
 
 ## 🏗️ Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    PDS Digital Signage                      │
+│                   TheiaCast Digital Signage                 │
 ├─────────────────────────────────────────────────────────────┤
 │  Frontend (React 19 + TypeScript)                          │
 │  ├── Device Management Dashboard                           │
@@ -128,7 +130,7 @@ Invoke-WebRequest -Uri "https://github.com/jimmyeao/PDS/releases/latest/download
 ├─────────────────────────────────────────────────────────────┤
 │  Client Applications                                       │
 │  ├── Raspberry Pi Client (Node.js + Puppeteer)          │
-│  └── Windows Client (.NET 10 Service + Playwright)      │
+│  └── Windows Client (.NET 10 + Playwright)              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -139,20 +141,20 @@ Invoke-WebRequest -Uri "https://github.com/jimmyeao/PDS/releases/latest/download
 | **Backend** | ASP.NET Core 8 (C#) + PostgreSQL |
 | **Frontend** | React 19 + TypeScript + Tailwind CSS |
 | **Pi Client** | Node.js + Puppeteer + Chromium |
-| **Windows Client** | .NET 10 Service + Playwright |
+| **Windows Client** | .NET 10 + Playwright |
 | **Communication** | WebSockets + REST API |
 | **Authentication** | JWT + 2FA Support |
 
 ## 📁 Project Structure
 
 ```
-PDS/
+TheiaCast/
 ├── 📁 src/
-│   ├── 📁 PDS.Api/              # ASP.NET Core 8 API server
-│   └── 📁 PDS.sln               # Visual Studio solution
+│   ├── 📁 TheiaCast.Api/        # ASP.NET Core 8 API server
+│   └── 📁 TheiaCast.sln         # Visual Studio solution
 ├── 📁 frontend/                 # React admin dashboard
 ├── 📁 raspberrypi-client/       # Pi client (Node.js)
-├── 📁 client-windows/           # Windows service client
+├── 📁 client-windows/           # Windows client (.NET)
 ├── 📁 shared/                   # TypeScript shared types
 ├── 📁 scripts/                  # Deployment scripts
 ├── 📁 deploy/                   # Docker configurations
@@ -200,8 +202,8 @@ KIOSK_MODE=true
 #### Using Docker (Recommended)
 ```bash
 # Clone and configure
-git clone https://github.com/jimmyeao/PDS.git
-cd PDS
+git clone https://github.com/jimmyeao/TheiaCast.git
+cd TheiaCast
 cp .env.example .env
 nano .env  # Update production settings
 
@@ -212,9 +214,9 @@ docker-compose -f docker-compose.prod.yml up -d
 #### Manual Deployment
 ```bash
 # Backend
-cd src/PDS.Api
+cd src/TheiaCast.Api
 dotnet publish -c Release -o publish
-cd publish && dotnet PDS.Api.dll
+cd publish && dotnet TheiaCast.Api.dll
 
 # Frontend 
 cd frontend
@@ -227,7 +229,7 @@ npm run build
 #### Raspberry Pi Mass Deployment
 ```bash
 # On each Pi device
-curl -sSL https://raw.githubusercontent.com/jimmyeao/PDS/main/install-pi.sh | bash
+curl -sSL https://raw.githubusercontent.com/jimmyeao/TheiaCast/main/install-pi.sh | bash
 
 # Configure device token
 nano ~/pds-client/raspberrypi-client/.env
@@ -239,7 +241,7 @@ sudo systemctl restart pds-client
 # Silent installation on multiple PCs
 $devices = @("kiosk1", "kiosk2", "office1")
 foreach($device in $devices) {
-    .\PDSKioskClient-Setup.exe /VERYSILENT `
+    .\TheiaCast-Setup.exe /VERYSILENT `
         /ServerUrl=http://your-server:5001 `
         /DeviceId=$device `
         /DeviceToken=(Get-TokenFromAPI $device)
@@ -310,7 +312,7 @@ curl http://your-server:5001/healthz
 sudo apt-get install chromium chromium-codecs-ffmpeg
 ```
 
-**Need help?** Open an [issue](https://github.com/jimmyeao/PDS/issues) with:
+**Need help?** Open an [issue](https://github.com/jimmyeao/TheiaCast/issues) with:
 - System information
 - Log files
 - Steps to reproduce
@@ -323,6 +325,6 @@ sudo apt-get install chromium chromium-codecs-ffmpeg
 
 Made with ❤️ by [Jimmy White](https://github.com/jimmyeao)
 
-[🐛 Report Bug](https://github.com/jimmyeao/PDS/issues) • [✨ Request Feature](https://github.com/jimmyeao/PDS/issues) • [📖 Documentation](https://github.com/jimmyeao/PDS/wiki)
+[🐛 Report Bug](https://github.com/jimmyeao/TheiaCast/issues) • [✨ Request Feature](https://github.com/jimmyeao/TheiaCast/issues) • [📖 Documentation](https://github.com/jimmyeao/TheiaCast/wiki)
 
 </div>
