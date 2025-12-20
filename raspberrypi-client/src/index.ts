@@ -38,8 +38,9 @@ class KioskClient {
       // Start health monitoring
       healthMonitor.start();
 
-      // Start screenshot manager
-      screenshotManager.start();
+      // NOTE: Screenshot manager is started by playlist executor based on playlist type
+      // - Single-item playlists: periodic screenshots every 30s
+      // - Multi-item playlists: screenshots on each rotation only
 
       logger.info('✅ Kiosk client started successfully');
       logger.info('Waiting for playlist from server...');
@@ -121,8 +122,13 @@ class KioskClient {
       // Update config with new values
       if (payload.screenshotInterval) {
         configManager.update({ screenshotInterval: payload.screenshotInterval });
-        screenshotManager.stop();
-        screenshotManager.start();
+        // Restart screenshot manager only if it's currently running
+        // (Single-item playlists use periodic screenshots, multi-item don't)
+        const wasRunning = screenshotManager.isCurrentlyRunning();
+        if (wasRunning) {
+          screenshotManager.stop();
+          screenshotManager.start();
+        }
       }
 
       if (payload.healthCheckInterval) {
@@ -246,9 +252,9 @@ class KioskClient {
 
       // Restart services
       healthMonitor.start();
-      screenshotManager.start();
 
       // Restart playlist executor if it has a playlist
+      // (Playlist executor will start screenshot manager based on playlist type)
       if (playlistExecutor.hasPlaylist()) {
         playlistExecutor.start();
       }

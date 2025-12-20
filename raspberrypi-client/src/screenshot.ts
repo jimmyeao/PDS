@@ -15,6 +15,10 @@ class ScreenshotManager {
     logger.debug('Screenshot manager page reference set');
   }
 
+  public isCurrentlyRunning(): boolean {
+    return this.isRunning;
+  }
+
   public start(): void {
     if (this.isRunning) {
       return;

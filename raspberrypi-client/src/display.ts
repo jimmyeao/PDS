@@ -1024,11 +1024,8 @@ class DisplayController {
       this.currentUrl = url;
       logger.info(`✅ Navigation successful: ${url}`);
 
-      // On Raspberry Pi/Linux, ensure screencast is active after first successful navigation
-      if (!this.isScreencastActive && process.platform === 'linux') {
-        logger.info('Ensuring screencast active after navigation (Linux/Pi)');
-        await this.startScreencast();
-      }
+      // REMOVED: Do not auto-start screencast on navigation
+      // Screencast should only be started when explicitly requested by admin via WebSocket
 
       // REMOVED: Do not wait or log duration here. PlaylistExecutor handles timing.
       // This prevents race conditions and confusing logs.
