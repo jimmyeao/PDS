@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Builds the PDS Kiosk Client installer
+    Builds the TheiaCast Kiosk Client installer
 
 .DESCRIPTION
     Publishes the .NET project, installs Playwright browsers, and compiles the Inno Setup installer.
@@ -12,9 +12,9 @@
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "=====================================" -ForegroundColor Cyan
-Write-Host "PDS Kiosk Client Installer Builder" -ForegroundColor Cyan
-Write-Host "=====================================" -ForegroundColor Cyan
+Write-Host "=========================================" -ForegroundColor Cyan
+Write-Host "TheiaCast Kiosk Client Installer Builder" -ForegroundColor Cyan
+Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Get script directory
@@ -126,7 +126,7 @@ try {
 Write-Host ""
 
 # Find the output installer
-$InstallerPath = Join-Path $ScriptDir "PDSKioskClient-Setup.exe"
+$InstallerPath = Join-Path $ScriptDir "TheiaCastKioskClient-Setup.exe"
 if (Test-Path $InstallerPath) {
     $InstallerSize = (Get-Item $InstallerPath).Length / 1MB
 
@@ -134,20 +134,20 @@ if (Test-Path $InstallerPath) {
     Write-Host "Build Complete!" -ForegroundColor Green
     Write-Host "=====================================" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "Installer created: PDSKioskClient-Setup.exe" -ForegroundColor Green
+    Write-Host "Installer created: TheiaCastKioskClient-Setup.exe" -ForegroundColor Green
     Write-Host "Size: $([math]::Round($InstallerSize, 2)) MB" -ForegroundColor Gray
     Write-Host ""
     Write-Host "Usage Examples:" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Interactive installation:" -ForegroundColor Gray
-    Write-Host "  PDSKioskClient-Setup.exe" -ForegroundColor White
+    Write-Host "  TheiaCastKioskClient-Setup.exe" -ForegroundColor White
     Write-Host ""
     Write-Host "Silent installation with parameters:" -ForegroundColor Gray
-    Write-Host "  PDSKioskClient-Setup.exe /VERYSILENT /ServerUrl=http://server:5001 /DeviceId=kiosk1 /DeviceToken=abc123" -ForegroundColor White
+    Write-Host "  TheiaCastKioskClient-Setup.exe /VERYSILENT /ServerUrl=http://server:5001 /DeviceId=kiosk1 /DeviceToken=abc123" -ForegroundColor White
     Write-Host ""
     Write-Host "Remote deployment:" -ForegroundColor Gray
-    Write-Host "  Copy-Item PDSKioskClient-Setup.exe \\\\REMOTE-PC\\C`$\\Temp\\" -ForegroundColor White
-    Write-Host "  Invoke-Command -ComputerName REMOTE-PC { C:\\Temp\\PDSKioskClient-Setup.exe /VERYSILENT ... }" -ForegroundColor White
+    Write-Host "  Copy-Item TheiaCastKioskClient-Setup.exe \\\\REMOTE-PC\\C`$\\Temp\\" -ForegroundColor White
+    Write-Host "  Invoke-Command -ComputerName REMOTE-PC { C:\\Temp\\TheiaCastKioskClient-Setup.exe /VERYSILENT ... }" -ForegroundColor White
     Write-Host ""
 } else {
     Write-Error "Installer was not created successfully"
