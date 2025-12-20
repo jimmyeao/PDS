@@ -137,7 +137,18 @@
       "Bash(sc.exe query:*)",
       "Bash(cmd //c \"taskkill /F /PID 8536\")",
       "Bash(docker run:*)",
-      "Bash(PGPASSWORD='Cc061mjw0!' psql:*)"
+      "Bash(PGPASSWORD='Cc061mjw0!' psql:*)",
+      "Bash(wsl docker:*)",
+      "Bash(wsl --install:*)",
+      "Bash(wsl --status:*)",
+      "Bash(wsl --list:*)",
+      "Bash(wsl -d Ubuntu -u jimmy -- lsb_release:*)",
+      "Bash(wsl -d Ubuntu -u jimmy -- docker:*)",
+      "Bash(wsl -d Ubuntu -u jimmy -- which:*)",
+      "Bash(wsl -d Ubuntu-24.04 -u jimmy -- lsb_release:*)",
+      "Bash(wsl -d Ubuntu-24.04 -u jimmy -- docker:*)",
+      "Bash(wsl -d Ubuntu-24.04 -u jimmy --:*)",
+      "Bash(cmd //c \"schtasks /Query /FO LIST | findstr /C:TaskName | findstr /i kiosk\")"
     ]
   }
 }

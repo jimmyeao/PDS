@@ -34,10 +34,49 @@ public class KioskWorker : BackgroundService
             // Initialize components
             await InitializeAsync(stoppingToken);
 
-            // Keep service running
+            // Keep service running and monitor WebSocket connection
             while (!stoppingToken.IsCancellationRequested)
             {
-                await Task.Delay(1000, stoppingToken);
+                try
+                {
+                    // Check WebSocket connection health
+                    if (_wsClient != null && !_wsClient.IsConnected)
+                    {
+                        _logger.LogWarning("WebSocket connection lost. Attempting to reconnect...");
+
+                        try
+                        {
+                            // Dispose old client
+                            _wsClient.Dispose();
+
+                            // Create new WebSocket client
+                            _wsClient = new WebSocketClient(_config, new LoggerAdapter(_logger));
+                            _wsClient.OnMessage += HandleWebSocketMessage;
+
+                            // Attempt to connect
+                            await _wsClient.ConnectAsync(stoppingToken);
+
+                            _logger.LogInformation("WebSocket reconnected successfully");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to reconnect WebSocket. Will retry in 5 seconds...");
+                            await Task.Delay(5000, stoppingToken);
+                            continue;
+                        }
+                    }
+
+                    await Task.Delay(1000, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in main service loop");
+                    await Task.Delay(5000, stoppingToken);
+                }
             }
         }
         catch (OperationCanceledException)

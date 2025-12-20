@@ -16,7 +16,7 @@ COPY shared ./shared
 COPY frontend ./frontend
 
 # Build shared library first (required for frontend types)
-RUN npm run build --workspace=@kiosk/shared
+RUN npm run build --workspace=@theiacast/shared
 
 # Build frontend
 # Pass VITE_API_URL as build arg if needed, default to localhost:5001

@@ -228,12 +228,12 @@ using (var scope = app.Services.CreateScope())
 app.MapHealthChecks("/health");
 app.MapHealthChecks("/healthz");
 
-// Auth endpoints (inline token generation to avoid DI issues)
-app.MapPost("/auth/register", ([FromBody] RegisterDto dto, ILogger<Program> log) =>
+// Auth endpoints
+app.MapPost("/auth/register", async ([FromBody] RegisterDto dto, IAuthService auth, ILogger<Program> log) =>
 {
     try
     {
-        var res = AuthHelpers.GenerateTokens(dto.Username, cfg);
+        var res = await auth.RegisterAsync(dto);
         return Results.Ok(res);
     }
     catch (Exception ex)
@@ -799,8 +799,30 @@ public class AuthService : IAuthService
         _db = db;
     }
 
-    public Task<AuthResponse> RegisterAsync(RegisterDto dto)
-        => Task.FromResult(GenerateTokens(dto.Username));
+    public async Task<AuthResponse> RegisterAsync(RegisterDto dto)
+    {
+        // Check if user already exists
+        var existingUser = await _db.Users.FirstOrDefaultAsync(u => u.Username == dto.Username);
+        if (existingUser != null) throw new Exception("Username already exists");
+
+        // Hash the password
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var bytes = System.Text.Encoding.UTF8.GetBytes(dto.Password);
+        var hash = BitConverter.ToString(sha256.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
+
+        // Create new user
+        var user = new User
+        {
+            Username = dto.Username,
+            PasswordHash = hash,
+            IsMfaEnabled = false
+        };
+
+        _db.Users.Add(user);
+        await _db.SaveChangesAsync();
+
+        return GenerateTokens(user.Username);
+    }
 
     public async Task<AuthResponse> LoginAsync(LoginDto dto)
     {
