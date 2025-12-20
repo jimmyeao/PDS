@@ -148,7 +148,8 @@
       "Bash(wsl -d Ubuntu-24.04 -u jimmy -- lsb_release:*)",
       "Bash(wsl -d Ubuntu-24.04 -u jimmy -- docker:*)",
       "Bash(wsl -d Ubuntu-24.04 -u jimmy --:*)",
-      "Bash(cmd //c \"schtasks /Query /FO LIST | findstr /C:TaskName | findstr /i kiosk\")"
+      "Bash(cmd //c \"schtasks /Query /FO LIST | findstr /C:TaskName | findstr /i kiosk\")",
+      "Bash(git rm:*)"
     ]
   }
 }
