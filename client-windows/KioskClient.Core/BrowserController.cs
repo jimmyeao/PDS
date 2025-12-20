@@ -17,6 +17,9 @@ public class BrowserController : IAsyncDisposable
     private string _currentUrl = string.Empty;
     private int _crashCount = 0;
     private const int MaxCrashRetries = 3;
+    private int _browserCrashCount = 0;
+    private const int MaxBrowserCrashRetries = 5;
+    private bool _isRecovering = false;
 
     public BrowserController(KioskConfiguration config, ILogger logger)
     {
@@ -75,25 +78,32 @@ public class BrowserController : IAsyncDisposable
                 "--disable-blink-features=AutomationControlled,WebAuthentication",  // Block automation detection and WebAuthentication at Blink level
                 "--disable-dev-shm-usage",
                 "--no-sandbox",
-                // GPU acceleration is ENABLED (not disabled) to prevent crashes at high resolutions
-                "--enable-gpu-rasterization",  // Enable GPU rasterization for better performance
-                "--disable-gpu-sandbox",  // Disable GPU sandbox to prevent STATUS_BREAKPOINT errors
-                "--disable-features=TranslateUI,WebAuthentication,WebAuth,ClientSideDetectionModel,RendererCodeIntegrity,UseChromeOSDirectVideoDecoder",  // Disable features that can cause crashes
+                "--disable-setuid-sandbox",
+                // CRITICAL: Disable GPU entirely to prevent STATUS_ACCESS_VIOLATION errors
+                // GPU/graphics driver issues are the #1 cause of access violations on Windows
+                "--disable-gpu",  // Completely disable GPU acceleration
+                "--disable-gpu-compositing",  // Disable GPU compositing
+                "--disable-software-rasterizer",  // Use CPU rendering instead
+                "--disable-features=TranslateUI,WebAuthentication,WebAuth,ClientSideDetectionModel,RendererCodeIntegrity,UseChromeOSDirectVideoDecoder,VizDisplayCompositor",  // Disable features that can cause crashes
                 "--enable-features=DefaultPassthroughCommandDecoder",  // Use passthrough command decoder for stability
                 "--disable-extensions",
-                "--disable-setuid-sandbox",
+                // Video stability flags to prevent codec crashes
+                "--disable-accelerated-video-decode",  // Disable hardware video decoding (prevents video codec crashes)
+                "--disable-accelerated-video-encode",  // Disable hardware video encoding
+                "--disable-accelerated-2d-canvas",  // Disable 2D canvas acceleration
+                // Renderer stability flags to prevent ACCESS_VIOLATION
+                "--disable-background-timer-throttling",  // Prevent background throttling issues
+                "--disable-renderer-backgrounding",  // Keep renderer active
+                "--disable-backgrounding-occluded-windows",  // Don't background hidden windows
+                "--disable-ipc-flooding-protection",  // Disable IPC flood protection (can cause crashes)
+                "--disable-hang-monitor",  // Disable hang monitor
+                // Memory and process stability
+                "--js-flags=--max-old-space-size=512",  // Limit JavaScript heap to prevent memory crashes
+                "--no-zygote",  // Prevent zygote process crashes on Windows
+                "--disable-breakpad",  // Disable crash reporting which can cause STATUS_BREAKPOINT
                 "--autoplay-policy=no-user-gesture-required",  // Allow video autoplay
                 "--use-mock-keychain",  // Use mock keychain to avoid Windows credential prompts
                 "--password-store=basic",  // Use basic password storage, not OS keychain
-                "--no-zygote",  // Prevent zygote process crashes on Windows
-                "--disable-breakpad",  // Disable crash reporting which can cause STATUS_BREAKPOINT
-                // Video stability flags to prevent codec crashes
-                "--disable-software-rasterizer",  // Prevent software rasterizer fallback which can crash
-                "--disable-gpu-driver-bug-workarounds",  // Disable GPU bug workarounds that can cause crashes
-                "--ignore-gpu-blocklist",  // Ignore GPU blocklist (use GPU even if blocklisted)
-                "--disable-accelerated-video-decode",  // Disable hardware video decoding (prevents video codec crashes)
-                "--disable-accelerated-video-encode",  // Disable hardware video encoding
-                "--js-flags=--max-old-space-size=512",  // Limit JavaScript heap to prevent memory crashes
                 $"--window-size={_config.ViewportWidth},{_config.ViewportHeight}"
             };
 
@@ -207,6 +217,84 @@ public class BrowserController : IAsyncDisposable
         }
     }
 
+    private async Task RecoverBrowserAsync()
+    {
+        if (_isRecovering)
+        {
+            _logger.LogWarning("Browser recovery already in progress");
+            return;
+        }
+
+        _isRecovering = true;
+        _browserCrashCount++;
+
+        try
+        {
+            _logger.LogWarning("🔄 Browser crash detected. Attempting recovery (attempt {Count}/{Max})...", _browserCrashCount, MaxBrowserCrashRetries);
+
+            // Clean up existing browser resources
+            try
+            {
+                if (_page != null)
+                {
+                    await _page.CloseAsync();
+                    _page = null;
+                }
+            }
+            catch { /* Ignore cleanup errors */ }
+
+            try
+            {
+                if (_browser != null)
+                {
+                    await _browser.CloseAsync();
+                    _browser = null;
+                }
+            }
+            catch { /* Ignore cleanup errors */ }
+
+            try
+            {
+                _playwright?.Dispose();
+                _playwright = null;
+            }
+            catch { /* Ignore cleanup errors */ }
+
+            // Wait before reinitializing
+            await Task.Delay(3000);
+
+            // Mark as not initialized to allow reinitialization
+            _isInitialized = false;
+            _isScreencastActive = false;
+
+            // Reinitialize browser
+            await InitializeAsync();
+
+            // Navigate back to the last URL if we had one
+            if (!string.IsNullOrEmpty(_currentUrl))
+            {
+                _logger.LogInformation("Navigating back to {Url} after recovery", _currentUrl);
+                await NavigateAsync(_currentUrl);
+            }
+
+            _logger.LogInformation("✅ Browser recovered successfully");
+            _browserCrashCount = 0; // Reset on successful recovery
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Browser recovery failed (attempt {Count})", _browserCrashCount);
+
+            if (_browserCrashCount >= MaxBrowserCrashRetries)
+            {
+                _logger.LogWarning("Max browser recovery attempts ({Max}) reached. Manual intervention required.", MaxBrowserCrashRetries);
+            }
+        }
+        finally
+        {
+            _isRecovering = false;
+        }
+    }
+
     public async Task NavigateAsync(string url)
     {
         if (_page == null)
@@ -249,6 +337,20 @@ public class BrowserController : IAsyncDisposable
             // The crash handler will attempt recovery
             throw;
         }
+        catch (PlaywrightException ex) when (ex.Message.Contains("Browser") || ex.Message.Contains("Context closed"))
+        {
+            _logger.LogError(ex, "Fatal browser crash during navigation to: {Url}", url);
+            // Attempt browser-level recovery
+            await RecoverBrowserAsync();
+        }
+        catch (Exception ex) when (ex.Message.Contains("STATUS_ACCESS_VIOLATION") ||
+                                    ex.Message.Contains("STATUS_BREAKPOINT") ||
+                                    ex.Message.Contains("access violation"))
+        {
+            _logger.LogError(ex, "FATAL: Access violation detected during navigation to: {Url}", url);
+            // Attempt browser-level recovery for access violations
+            await RecoverBrowserAsync();
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Navigation failed: {Url}", url);
@@ -275,6 +377,15 @@ public class BrowserController : IAsyncDisposable
         catch (PlaywrightException ex) when (ex.Message.Contains("Target crashed") || ex.Message.Contains("Page crashed"))
         {
             _logger.LogWarning("Cannot capture screenshot: page has crashed. Waiting for recovery...");
+            throw;
+        }
+        catch (Exception ex) when (ex.Message.Contains("STATUS_ACCESS_VIOLATION") ||
+                                    ex.Message.Contains("Browser") ||
+                                    ex.Message.Contains("Context closed"))
+        {
+            _logger.LogError(ex, "FATAL: Browser crash during screenshot");
+            // Trigger browser recovery but don't rethrow - let caller handle
+            _ = RecoverBrowserAsync(); // Fire and forget
             throw;
         }
         catch (Exception ex)
