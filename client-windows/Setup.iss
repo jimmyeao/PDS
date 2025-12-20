@@ -80,35 +80,9 @@ var
 begin
   Result := False;
 
-  // Check for .NET 10 Runtime in registry
-  if RegQueryStringValue(HKLM, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedhost', 'Version', VersionString) then
-  begin
-
-    
-    // Extract major version number (e.g., "10.0.1" -> 10)
-    DotPos := Pos('.', VersionString);
-    if DotPos > 0 then
-    begin
-      MajorVersion := StrToIntDef(Copy(VersionString, 1, DotPos - 1), 0);
-     
-      
-      if MajorVersion >= 10 then
-      begin
-      
-        Result := True;
-        Exit;
-      end;
-    end
-    else
-      
-  end
-  else
-   
-
-  // Also check the runtime folder directly for any 10.x version
-  DotNetPath := ExpandConstant('{commonpf}\dotnet\shared\Microsoft.NETCore.App');
-
-  
+  // Check the FXR directory first (most reliable method)
+  // The registry only shows the LAST installed .NET version, not all versions
+  DotNetPath := ExpandConstant('{commonpf}\dotnet\host\fxr');
   if DirExists(DotNetPath) then
   begin
     if FindFirst(DotNetPath + '\10.*', FindRec) then
@@ -117,7 +91,6 @@ begin
         repeat
           if FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0 then
           begin
-         
             Result := True;
             Exit;
           end;
@@ -125,11 +98,28 @@ begin
       finally
         FindClose(FindRec);
       end;
-    end
-    else
-  
-  end
-  else
+    end;
+  end;
+
+  // Also check the runtime folder directly for any 10.x version
+  DotNetPath := ExpandConstant('{commonpf}\dotnet\shared\Microsoft.NETCore.App');
+  if DirExists(DotNetPath) then
+  begin
+    if FindFirst(DotNetPath + '\10.*', FindRec) then
+    begin
+      try
+        repeat
+          if FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0 then
+          begin
+            Result := True;
+            Exit;
+          end;
+        until not FindNext(FindRec);
+      finally
+        FindClose(FindRec);
+      end;
+    end;
+  end;
 
 end;
 function DownloadAndInstallDotNet(): Boolean;
