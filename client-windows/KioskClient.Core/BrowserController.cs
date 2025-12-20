@@ -14,6 +14,9 @@ public class BrowserController : IAsyncDisposable
     private bool _isScreencastActive;
     private Action<string, object>? _onScreencastFrame;
     private Timer? _screencastTimer;
+    private string _currentUrl = string.Empty;
+    private int _crashCount = 0;
+    private const int MaxCrashRetries = 3;
 
     public BrowserController(KioskConfiguration config, ILogger logger)
     {
@@ -75,7 +78,8 @@ public class BrowserController : IAsyncDisposable
                 // GPU acceleration is ENABLED (not disabled) to prevent crashes at high resolutions
                 "--enable-gpu-rasterization",  // Enable GPU rasterization for better performance
                 "--disable-gpu-sandbox",  // Disable GPU sandbox to prevent STATUS_BREAKPOINT errors
-                "--disable-features=TranslateUI,WebAuthentication,WebAuth,ClientSideDetectionModel,RendererCodeIntegrity",  // Disable code integrity to prevent access violations
+                "--disable-features=TranslateUI,WebAuthentication,WebAuth,ClientSideDetectionModel,RendererCodeIntegrity,UseChromeOSDirectVideoDecoder",  // Disable features that can cause crashes
+                "--enable-features=DefaultPassthroughCommandDecoder",  // Use passthrough command decoder for stability
                 "--disable-extensions",
                 "--disable-setuid-sandbox",
                 "--autoplay-policy=no-user-gesture-required",  // Allow video autoplay
@@ -83,6 +87,13 @@ public class BrowserController : IAsyncDisposable
                 "--password-store=basic",  // Use basic password storage, not OS keychain
                 "--no-zygote",  // Prevent zygote process crashes on Windows
                 "--disable-breakpad",  // Disable crash reporting which can cause STATUS_BREAKPOINT
+                // Video stability flags to prevent codec crashes
+                "--disable-software-rasterizer",  // Prevent software rasterizer fallback which can crash
+                "--disable-gpu-driver-bug-workarounds",  // Disable GPU bug workarounds that can cause crashes
+                "--ignore-gpu-blocklist",  // Ignore GPU blocklist (use GPU even if blocklisted)
+                "--disable-accelerated-video-decode",  // Disable hardware video decoding (prevents video codec crashes)
+                "--disable-accelerated-video-encode",  // Disable hardware video encoding
+                "--js-flags=--max-old-space-size=512",  // Limit JavaScript heap to prevent memory crashes
                 $"--window-size={_config.ViewportWidth},{_config.ViewportHeight}"
             };
 
@@ -133,6 +144,38 @@ public class BrowserController : IAsyncDisposable
                 _logger.LogInformation("Created new page in persistent context");
             }
 
+            // Add page crash handler for automatic recovery
+            _page.Crash += async (sender, e) =>
+            {
+                _logger.LogWarning("⚠️ Page crashed! Attempting recovery...");
+                _crashCount++;
+
+                if (_crashCount <= MaxCrashRetries && !string.IsNullOrEmpty(_currentUrl))
+                {
+                    try
+                    {
+                        _logger.LogInformation("Recovery attempt {CrashCount}/{MaxRetries} - Reloading: {Url}", _crashCount, MaxCrashRetries, _currentUrl);
+
+                        // Wait a moment before reloading
+                        await Task.Delay(2000);
+
+                        // Reload the crashed page
+                        await NavigateAsync(_currentUrl);
+
+                        _logger.LogInformation("✅ Page recovered successfully");
+                        _crashCount = 0; // Reset crash count on successful recovery
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to recover from crash (attempt {CrashCount})", _crashCount);
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("Max crash retries ({MaxRetries}) reached or no URL to recover. Manual intervention required.", MaxCrashRetries);
+                }
+            };
+
             // Use CDP to disable WebAuthn
             try
             {
@@ -173,6 +216,9 @@ public class BrowserController : IAsyncDisposable
         {
             _logger.LogInformation("Navigating to: {Url}", url);
 
+            // Store current URL for crash recovery
+            _currentUrl = url;
+
             // Try with NetworkIdle first (best for complete page loads)
             try
             {
@@ -182,6 +228,7 @@ public class BrowserController : IAsyncDisposable
                     WaitUntil = WaitUntilState.NetworkIdle
                 });
                 _logger.LogInformation("Navigation completed (networkidle)");
+                _crashCount = 0; // Reset crash count on successful navigation
             }
             catch (TimeoutException)
             {
@@ -193,7 +240,14 @@ public class BrowserController : IAsyncDisposable
                     WaitUntil = WaitUntilState.DOMContentLoaded
                 });
                 _logger.LogInformation("Navigation completed (domcontentloaded)");
+                _crashCount = 0; // Reset crash count on successful navigation
             }
+        }
+        catch (PlaywrightException ex) when (ex.Message.Contains("Page crashed") || ex.Message.Contains("Target crashed"))
+        {
+            _logger.LogError(ex, "Page crashed during navigation to: {Url}", url);
+            // The crash handler will attempt recovery
+            throw;
         }
         catch (Exception ex)
         {
@@ -217,6 +271,11 @@ public class BrowserController : IAsyncDisposable
             });
 
             return Convert.ToBase64String(screenshot);
+        }
+        catch (PlaywrightException ex) when (ex.Message.Contains("Target crashed") || ex.Message.Contains("Page crashed"))
+        {
+            _logger.LogWarning("Cannot capture screenshot: page has crashed. Waiting for recovery...");
+            throw;
         }
         catch (Exception ex)
         {

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("KioskClient.Core")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+99cfaf3d0821f81933c39d33db0fbe085ea01db8")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4fac494210d4257672eb969b08d6299d77376ec1")]
 [assembly: System.Reflection.AssemblyProductAttribute("KioskClient.Core")]
 [assembly: System.Reflection.AssemblyTitleAttribute("KioskClient.Core")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

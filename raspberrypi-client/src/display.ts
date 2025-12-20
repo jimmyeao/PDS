@@ -758,6 +758,7 @@ class DisplayController {
         errorMessage.includes('resizeobserver loop') ||
         errorMessage.includes('script error') ||
         errorMessage.includes('appendchild') || // Filter out common DOM errors
+        errorMessage.includes('mutationobserver') || // Filter out MutationObserver errors (Home Assistant kiosk-mode)
         errorMessage === 'uncaught exception' ||
         errorStack.includes('trustedtypepolicy') ||
         errorStack.includes('content security') ||
@@ -768,7 +769,8 @@ class DisplayController {
         errorStack.includes('analytics') ||
         errorStack.includes('onetrust') || // Filter out OneTrust cookie consent errors
         errorStack.includes('advertisement') ||
-        errorStack.includes('imrworldwide.com');
+        errorStack.includes('imrworldwide.com') ||
+        errorStack.includes('kiosk-mode.js'); // Filter out Home Assistant kiosk-mode plugin errors
 
       if (!isNoiseError) {
         logger.error('Page JavaScript error:', err.message);
