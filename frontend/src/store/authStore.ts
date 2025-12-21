@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { User, LoginDto } from '@theiacast/shared';
 import { authService } from '../services/auth.service';
 import { useWebSocketStore } from './websocketStore';
+import { logService } from '../services/log.service';
 
 interface AuthState {
   user: User | null;
@@ -49,8 +50,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       // Connect WebSocket after successful login
       useWebSocketStore.getState().connect(response.accessToken);
     } catch (error: any) {
+      const errorMsg = error.response?.data?.message || 'Login failed';
+      await logService.logError(`Login failed for user: ${credentials.username}`, 'AuthStore', error);
       set({
-        error: error.response?.data?.message || 'Login failed',
+        error: errorMsg,
         isLoading: false,
       });
       throw error;
@@ -87,6 +90,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         // Reconnect WebSocket on app initialization
         useWebSocketStore.getState().connect(token);
       } catch (error) {
+        await logService.logError('Failed to initialize auth from stored credentials', 'AuthStore', error);
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');

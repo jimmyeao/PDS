@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { authService } from '../services/auth.service';
 import { useAuthStore } from '../store/authStore';
+import api from '../services/api';
 
 export const SettingsPage = () => {
   const { user, initialize } = useAuthStore();
@@ -16,6 +17,24 @@ export const SettingsPage = () => {
   const [mfaQrCode, setMfaQrCode] = useState('');
   const [mfaCode, setMfaCode] = useState('');
   const [showMfaSetup, setShowMfaSetup] = useState(false);
+
+  // Log Retention State
+  const [logRetentionDays, setLogRetentionDays] = useState<string>('7');
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [logSuccess, setLogSuccess] = useState('');
+
+  useEffect(() => {
+    // Fetch current log retention setting
+    const fetchLogRetention = async () => {
+      try {
+        const response = await api.get('/settings/LogRetentionDays');
+        setLogRetentionDays(response.data.value);
+      } catch (err) {
+        console.error('Failed to fetch log retention setting:', err);
+      }
+    };
+    fetchLogRetention();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -217,6 +236,64 @@ export const SettingsPage = () => {
               className="btn-primary"
             >
               {loading ? 'Changing Password...' : 'Change Password'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Log Retention Settings */}
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Log Retention</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+          Configure how long system logs are kept before automatic cleanup
+        </p>
+
+        {logSuccess && (
+          <div className="mb-4 p-4 bg-green-100 dark:bg-green-900/30 border border-green-400 dark:border-green-700 text-green-700 dark:text-green-400 rounded">
+            {logSuccess}
+          </div>
+        )}
+
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          setLogSuccess('');
+          setLoadingLogs(true);
+          try {
+            await api.put('/settings/LogRetentionDays', { value: logRetentionDays });
+            setLogSuccess('Log retention period updated successfully');
+          } catch (err) {
+            setError('Failed to update log retention setting');
+          } finally {
+            setLoadingLogs(false);
+          }
+        }}>
+          <div className="max-w-xs">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Retention Period
+            </label>
+            <select
+              value={logRetentionDays}
+              onChange={(e) => setLogRetentionDays(e.target.value)}
+              className="input w-full"
+            >
+              <option value="1">1 Day</option>
+              <option value="7">7 Days (1 Week)</option>
+              <option value="30">30 Days (1 Month)</option>
+              <option value="90">90 Days (3 Months)</option>
+              <option value="365">365 Days (1 Year)</option>
+            </select>
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              Logs older than this period will be automatically deleted
+            </p>
+          </div>
+
+          <div className="flex justify-end mt-4">
+            <button
+              type="submit"
+              disabled={loadingLogs}
+              className="btn-primary"
+            >
+              {loadingLogs ? 'Saving...' : 'Save Retention Period'}
             </button>
           </div>
         </form>

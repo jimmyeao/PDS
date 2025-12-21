@@ -14,6 +14,8 @@ public partial class PdsDbContext : DbContext
     public DbSet<Screenshot> Screenshots => Set<Screenshot>();
     public DbSet<DeviceBroadcastState> DeviceBroadcastStates => Set<DeviceBroadcastState>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<Log> Logs => Set<Log>();
+    public DbSet<AppSettings> AppSettings => Set<AppSettings>();
 }
 
 public class User
@@ -114,4 +116,24 @@ public class DeviceBroadcastState
     public Playlist? OriginalPlaylist { get; set; }
     public string BroadcastUrl { get; set; } = string.Empty;
     public DateTime StartedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class Log
+{
+    public int Id { get; set; }
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public string Level { get; set; } = "Info"; // Info, Warning, Error
+    public string Message { get; set; } = string.Empty;
+    public string? DeviceId { get; set; } // Device ID string (optional - for device-related logs)
+    public string? Source { get; set; } // Component/service that logged this
+    public string? StackTrace { get; set; } // For errors
+    public string? AdditionalData { get; set; } // JSON for extra context
+}
+
+public class AppSettings
+{
+    public int Id { get; set; }
+    public string Key { get; set; } = string.Empty;
+    public string Value { get; set; } = string.Empty;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

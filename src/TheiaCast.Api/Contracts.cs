@@ -74,4 +74,15 @@ namespace TheiaCast.Api.Contracts
     public record PlaylistItemDto([property: JsonPropertyName("playlistId")] int PlaylistId,
                                   [property: JsonPropertyName("url")] string Url,
                                   [property: JsonPropertyName("durationSeconds")] int? DurationSeconds);
+
+    public record SetSettingRequest([property: JsonPropertyName("value")] string Value);
+
+    public record CreateLogRequest(
+        [property: JsonPropertyName("level")] string Level,
+        [property: JsonPropertyName("message")] string Message,
+        [property: JsonPropertyName("deviceId")] string? DeviceId,
+        [property: JsonPropertyName("source")] string? Source,
+        [property: JsonPropertyName("stackTrace")] string? StackTrace,
+        [property: JsonPropertyName("additionalData")] string? AdditionalData
+    );
 }

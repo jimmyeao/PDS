@@ -93,6 +93,9 @@ builder.Services.AddScoped<IPlaylistService, PlaylistService>();
 builder.Services.AddScoped<IScreenshotService, ScreenshotService>();
 builder.Services.AddScoped<ISlideshowService, SlideshowService>();
 builder.Services.AddScoped<IVideoService, VideoService>();
+builder.Services.AddScoped<ILogService, LogService>();
+builder.Services.AddScoped<ISettingsService, SettingsService>();
+builder.Services.AddHostedService<LogCleanupService>();
 
 var app = builder.Build();
 var cfg = builder.Configuration;
@@ -217,6 +220,40 @@ using (var scope = app.Services.CreateScope())
                 ""BroadcastUrl"" text NOT NULL,
                 ""StartedAt"" timestamp NOT NULL
             );
+        ");
+
+        // Create Logs table for server-side logging
+        db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS ""Logs"" (
+                ""Id"" SERIAL PRIMARY KEY,
+                ""Timestamp"" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                ""Level"" text NOT NULL DEFAULT 'Info',
+                ""Message"" text NOT NULL,
+                ""DeviceId"" text,
+                ""Source"" text,
+                ""StackTrace"" text,
+                ""AdditionalData"" text
+            );
+            CREATE INDEX IF NOT EXISTS ""IX_Logs_Timestamp"" ON ""Logs""(""Timestamp"" DESC);
+            CREATE INDEX IF NOT EXISTS ""IX_Logs_DeviceId"" ON ""Logs""(""DeviceId"");
+            CREATE INDEX IF NOT EXISTS ""IX_Logs_Level"" ON ""Logs""(""Level"");
+        ");
+
+        // Create AppSettings table for application configuration
+        db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS ""AppSettings"" (
+                ""Id"" SERIAL PRIMARY KEY,
+                ""Key"" text NOT NULL UNIQUE,
+                ""Value"" text NOT NULL,
+                ""UpdatedAt"" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        ");
+
+        // Initialize default settings if not exists
+        db.Database.ExecuteSqlRaw(@"
+            INSERT INTO ""AppSettings"" (""Key"", ""Value"", ""UpdatedAt"")
+            VALUES ('LogRetentionDays', '7', CURRENT_TIMESTAMP)
+            ON CONFLICT (""Key"") DO NOTHING;
         ");
     }
     catch (Exception ex)
@@ -629,6 +666,38 @@ app.MapGet("/screenshots/device/{deviceId}", async (string deviceId, IScreenshot
 app.MapGet("/screenshots/{id}", async (int id, IScreenshotService svc) => await svc.GetByIdAsync(id))
     .RequireAuthorization();
 
+// Logs endpoints
+app.MapGet("/logs", async (ILogService svc, string? deviceId, string? level, DateTime? startDate, DateTime? endDate, int limit = 100, int offset = 0) =>
+{
+    var logs = await svc.GetLogsAsync(deviceId, level, startDate, endDate, limit, offset);
+    return Results.Ok(logs);
+}).RequireAuthorization();
+
+app.MapPost("/logs", async ([FromBody] CreateLogRequest req, ILogService svc) =>
+{
+    await svc.AddLogAsync(req.Level, req.Message, req.DeviceId, req.Source, req.StackTrace, req.AdditionalData);
+    return Results.Ok();
+}).RequireAuthorization();
+
+// Settings endpoints
+app.MapGet("/settings", async (ISettingsService svc) =>
+{
+    var settings = await svc.GetAllSettingsAsync();
+    return Results.Ok(settings);
+}).RequireAuthorization();
+
+app.MapGet("/settings/{key}", async (string key, ISettingsService svc) =>
+{
+    var value = await svc.GetSettingAsync(key);
+    return value != null ? Results.Ok(new { key, value }) : Results.NotFound();
+}).RequireAuthorization();
+
+app.MapPut("/settings/{key}", async (string key, [FromBody] SetSettingRequest req, ISettingsService svc) =>
+{
+    await svc.SetSettingAsync(key, req.Value);
+    return Results.Ok(new { key, value = req.Value });
+}).RequireAuthorization();
+
 // WebSocket endpoint with event envelope
 app.UseWebSockets();
 app.Map("/ws", async context =>
@@ -793,6 +862,20 @@ public interface IScreenshotService
     Task<object?> GetLatestAsync(string deviceId);
     Task<IEnumerable<object>> GetByDeviceAsync(string deviceId);
     Task<object?> GetByIdAsync(int id);
+}
+
+public interface ILogService
+{
+    Task AddLogAsync(string level, string message, string? deviceId = null, string? source = null, string? stackTrace = null, string? additionalData = null);
+    Task<IEnumerable<object>> GetLogsAsync(string? deviceId = null, string? level = null, DateTime? startDate = null, DateTime? endDate = null, int limit = 100, int offset = 0);
+    Task CleanupOldLogsAsync();
+}
+
+public interface ISettingsService
+{
+    Task<string?> GetSettingAsync(string key);
+    Task SetSettingAsync(string key, string value);
+    Task<IEnumerable<object>> GetAllSettingsAsync();
 }
 
 public class AuthService : IAuthService
@@ -1546,6 +1629,167 @@ public class ScreenshotService : IScreenshotService
     {
         var s = await _db.Screenshots.FindAsync(id);
         return s == null ? null : new { id = s.Id, deviceId = s.DeviceStringId, url = s.CurrentUrl, capturedAt = s.CreatedAt, imageData = s.ImageBase64 };
+    }
+}
+
+public class LogService : ILogService
+{
+    private readonly PdsDbContext _db;
+    private readonly ILogger<LogService> _logger;
+
+    public LogService(PdsDbContext db, ILogger<LogService> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
+
+    public async Task AddLogAsync(string level, string message, string? deviceId = null, string? source = null, string? stackTrace = null, string? additionalData = null)
+    {
+        try
+        {
+            var logEntry = new TheiaCast.Api.Log
+            {
+                Level = level,
+                Message = message,
+                DeviceId = deviceId,
+                Source = source,
+                StackTrace = stackTrace,
+                AdditionalData = additionalData,
+                Timestamp = DateTime.UtcNow
+            };
+            _db.Logs.Add(logEntry);
+            await _db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            // Fallback to console logging if database logging fails
+            _logger.LogError(ex, "Failed to write log to database: {Message}", message);
+        }
+    }
+
+    public async Task<IEnumerable<object>> GetLogsAsync(string? deviceId = null, string? level = null, DateTime? startDate = null, DateTime? endDate = null, int limit = 100, int offset = 0)
+    {
+        var query = _db.Logs.AsQueryable();
+
+        if (!string.IsNullOrEmpty(deviceId))
+            query = query.Where(l => l.DeviceId == deviceId);
+
+        if (!string.IsNullOrEmpty(level))
+            query = query.Where(l => l.Level == level);
+
+        if (startDate.HasValue)
+            query = query.Where(l => l.Timestamp >= startDate.Value);
+
+        if (endDate.HasValue)
+            query = query.Where(l => l.Timestamp <= endDate.Value);
+
+        return await query.OrderByDescending(l => l.Timestamp)
+            .Skip(offset)
+            .Take(limit)
+            .Select(l => new
+            {
+                id = l.Id,
+                timestamp = l.Timestamp,
+                level = l.Level,
+                message = l.Message,
+                deviceId = l.DeviceId,
+                source = l.Source,
+                stackTrace = l.StackTrace,
+                additionalData = l.AdditionalData
+            })
+            .ToListAsync();
+    }
+
+    public async Task CleanupOldLogsAsync()
+    {
+        try
+        {
+            var retentionDaysSetting = await _db.AppSettings.FirstOrDefaultAsync(s => s.Key == "LogRetentionDays");
+            var retentionDays = retentionDaysSetting != null ? int.Parse(retentionDaysSetting.Value) : 7;
+            var cutoffDate = DateTime.UtcNow.AddDays(-retentionDays);
+
+            var oldLogs = _db.Logs.Where(l => l.Timestamp < cutoffDate);
+            _db.Logs.RemoveRange(oldLogs);
+            await _db.SaveChangesAsync();
+
+            _logger.LogInformation("Cleaned up logs older than {CutoffDate} ({RetentionDays} days)", cutoffDate, retentionDays);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to cleanup old logs");
+        }
+    }
+}
+
+public class SettingsService : ISettingsService
+{
+    private readonly PdsDbContext _db;
+
+    public SettingsService(PdsDbContext db) => _db = db;
+
+    public async Task<string?> GetSettingAsync(string key)
+    {
+        var setting = await _db.AppSettings.FirstOrDefaultAsync(s => s.Key == key);
+        return setting?.Value;
+    }
+
+    public async Task SetSettingAsync(string key, string value)
+    {
+        var setting = await _db.AppSettings.FirstOrDefaultAsync(s => s.Key == key);
+        if (setting == null)
+        {
+            setting = new AppSettings { Key = key, Value = value, UpdatedAt = DateTime.UtcNow };
+            _db.AppSettings.Add(setting);
+        }
+        else
+        {
+            setting.Value = value;
+            setting.UpdatedAt = DateTime.UtcNow;
+        }
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task<IEnumerable<object>> GetAllSettingsAsync()
+    {
+        return await _db.AppSettings
+            .Select(s => new { key = s.Key, value = s.Value, updatedAt = s.UpdatedAt })
+            .ToListAsync();
+    }
+}
+
+public class LogCleanupService : BackgroundService
+{
+    private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger<LogCleanupService> _logger;
+
+    public LogCleanupService(IServiceProvider serviceProvider, ILogger<LogCleanupService> logger)
+    {
+        _serviceProvider = serviceProvider;
+        _logger = logger;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        _logger.LogInformation("Log cleanup service starting");
+
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                // Run cleanup every hour
+                await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
+
+                using var scope = _serviceProvider.CreateScope();
+                var logService = scope.ServiceProvider.GetRequiredService<ILogService>();
+                await logService.CleanupOldLogsAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in log cleanup service");
+            }
+        }
+
+        _logger.LogInformation("Log cleanup service stopping");
     }
 }
 

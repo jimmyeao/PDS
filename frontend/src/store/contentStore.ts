@@ -1,12 +1,12 @@
 import { create } from 'zustand';
 import type { Content } from '@theiacast/shared';
 import { contentService } from '../services/content.service';
+import { logService } from '../services/log.service';
 
 interface ContentState {
   content: Content[];
   selectedContent: Content | null;
   isLoading: boolean;
-  error: string | null;
 
   fetchContent: () => Promise<void>;
   fetchContentById: (id: number) => Promise<void>;
@@ -16,71 +16,61 @@ interface ContentState {
   uploadPptx: (file: File, name: string, durationPerSlide: number) => Promise<void>;
   uploadVideo: (file: File, name: string) => Promise<void>;
   setSelectedContent: (content: Content | null) => void;
-  clearError: () => void;
 }
 
 export const useContentStore = create<ContentState>((set) => ({
   content: [],
   selectedContent: null,
   isLoading: false,
-  error: null,
 
   fetchContent: async () => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true });
     try {
       const content = await contentService.getAll();
       set({ content, isLoading: false });
     } catch (error: any) {
-      set({
-        error: error.response?.data?.message || 'Failed to fetch content',
-        isLoading: false,
-      });
+      await logService.logError('Failed to fetch content', 'ContentStore', error);
+      set({ isLoading: false });
     }
   },
 
   fetchContentById: async (id: number) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true });
     try {
       const content = await contentService.getById(id);
       set({ selectedContent: content, isLoading: false });
     } catch (error: any) {
-      set({
-        error: error.response?.data?.message || 'Failed to fetch content',
-        isLoading: false,
-      });
+      await logService.logError(`Failed to fetch content ${id}`, 'ContentStore', error);
+      set({ isLoading: false });
     }
   },
 
   createContent: async (data) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true });
     try {
       await contentService.create(data);
       set({ isLoading: false });
     } catch (error: any) {
-      set({
-        error: error.response?.data?.message || 'Failed to create content',
-        isLoading: false,
-      });
+      await logService.logError('Failed to create content', 'ContentStore', error);
+      set({ isLoading: false });
       throw error;
     }
   },
 
   updateContent: async (id, data) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true });
     try {
       await contentService.update(id, data);
       set({ isLoading: false });
     } catch (error: any) {
-      set({
-        error: error.response?.data?.message || 'Failed to update content',
-        isLoading: false,
-      });
+      await logService.logError(`Failed to update content ${id}`, 'ContentStore', error);
+      set({ isLoading: false });
       throw error;
     }
   },
 
   deleteContent: async (id) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true });
     try {
       await contentService.delete(id);
       set((state) => ({
@@ -88,44 +78,37 @@ export const useContentStore = create<ContentState>((set) => ({
         isLoading: false,
       }));
     } catch (error: any) {
-      set({
-        error: error.response?.data?.message || 'Failed to delete content',
-        isLoading: false,
-      });
+      await logService.logError(`Failed to delete content ${id}`, 'ContentStore', error);
+      set({ isLoading: false });
       throw error;
     }
   },
 
   uploadPptx: async (file, name, durationPerSlide) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true });
     try {
       await contentService.uploadPptx(file, name, durationPerSlide);
       const content = await contentService.getAll();
       set({ content, isLoading: false });
     } catch (error: any) {
-      set({
-        error: error.response?.data?.message || 'Failed to upload PPTX',
-        isLoading: false,
-      });
+      await logService.logError('Failed to upload PPTX', 'ContentStore', error);
+      set({ isLoading: false });
       throw error;
     }
   },
 
   uploadVideo: async (file, name) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true });
     try {
       await contentService.uploadVideo(file, name);
       const content = await contentService.getAll();
       set({ content, isLoading: false });
     } catch (error: any) {
-      set({
-        error: error.response?.data?.message || 'Failed to upload Video',
-        isLoading: false,
-      });
+      await logService.logError('Failed to upload Video', 'ContentStore', error);
+      set({ isLoading: false });
       throw error;
     }
   },
 
   setSelectedContent: (content) => set({ selectedContent: content }),
-  clearError: () => set({ error: null }),
 }));

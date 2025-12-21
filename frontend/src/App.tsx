@@ -9,6 +9,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { DevicesPage } from './pages/DevicesPage';
 import { ContentPage } from './pages/ContentPage';
 import { PlaylistsPage } from './pages/PlaylistsPage';
+import { LogsPage } from './pages/LogsPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 function App() {
@@ -40,6 +41,7 @@ function App() {
           <Route path="devices" element={<DevicesPage />} />
           <Route path="content" element={<ContentPage />} />
           <Route path="playlists" element={<PlaylistsPage />} />
+          <Route path="logs" element={<LogsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
