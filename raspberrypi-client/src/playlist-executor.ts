@@ -43,6 +43,10 @@
         logger.error(`Failed to trigger playlist sync: ${e.message}`);
       });
 
+      // Store old playlist for comparison
+      const oldPlaylist = [...this.playlistItems];
+      const wasRunning = this.isRunning;
+
       // Sort items by orderIndex
       this.playlistItems = items.sort((a, b) => a.orderIndex - b.orderIndex);
 
@@ -54,7 +58,34 @@
       })));
 
       // Restart execution if already running
-      if (this.isRunning) {
+      if (wasRunning) {
+        // Check if we need to restart:
+        // - If the current item being displayed is still in the new playlist, don't restart
+        // - If it's a single permanent item (duration 0) and it hasn't changed, don't restart
+        const currentItem = this.getCurrentItem();
+        const currentStillExists = currentItem && this.playlistItems.some(i => i.id === currentItem.id);
+        const isPermanentDisplay = this.playlistItems.length === 1 && this.playlistItems[0].displayDuration === 0;
+        const wasPermanentDisplay = oldPlaylist.length === 1 && oldPlaylist[0]?.displayDuration === 0;
+        const sameContent = isPermanentDisplay && wasPermanentDisplay &&
+                            this.playlistItems[0].id === oldPlaylist[0].id;
+
+        if (sameContent) {
+          logger.info('Permanent display item unchanged - no restart needed');
+          return;
+        }
+
+        if (currentStillExists && !isPermanentDisplay) {
+          logger.info('Current item still in playlist - updating playlist without restart');
+          // Just update the screenshot policy
+          if (this.playlistItems.length === 1 || this.playlistItems.some(i => i.displayDuration === 0)) {
+            screenshotManager.start();
+          } else {
+            screenshotManager.stop();
+          }
+          return;
+        }
+
+        logger.info('Playlist changed significantly - restarting executor');
         this.stop();
         this.start();
       }

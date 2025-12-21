@@ -37,12 +37,42 @@ public class PlaylistExecutor
     {
         _logger.LogInformation("Loading playlist {PlaylistId} with {Count} items", playlistId, items.Count);
 
+        // Store old playlist for comparison
+        var oldPlaylist = _playlistItems.ToList();
+        var wasRunning = _isRunning;
+
         _currentPlaylistId = playlistId;
         _playlistItems = items.OrderBy(i => i.OrderIndex).ToList();
 
         // Restart execution if already running
-        if (_isRunning)
+        if (wasRunning)
         {
+            // Check if we need to restart:
+            // - If it's a single permanent item (duration 0) and it hasn't changed, don't restart
+            // - If current item still exists in new playlist, don't restart
+            var currentItem = _playlistItems.Count > 0 && _currentIndex > 0
+                ? oldPlaylist.ElementAtOrDefault((_currentIndex - 1 + oldPlaylist.Count) % oldPlaylist.Count)
+                : null;
+
+            var currentStillExists = currentItem != null && _playlistItems.Any(i => i.Id == currentItem.Id);
+            var isPermanentDisplay = _playlistItems.Count == 1 && _playlistItems[0].DurationSeconds == 0;
+            var wasPermanentDisplay = oldPlaylist.Count == 1 && oldPlaylist[0]?.DurationSeconds == 0;
+            var sameContent = isPermanentDisplay && wasPermanentDisplay &&
+                              _playlistItems[0].Id == oldPlaylist[0].Id;
+
+            if (sameContent)
+            {
+                _logger.LogInformation("Permanent display item unchanged - no restart needed");
+                return;
+            }
+
+            if (currentStillExists && !isPermanentDisplay)
+            {
+                _logger.LogInformation("Current item still in playlist - updating playlist without restart");
+                return;
+            }
+
+            _logger.LogInformation("Playlist changed significantly - restarting executor");
             Stop();
             Start();
         }
