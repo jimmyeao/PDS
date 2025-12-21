@@ -599,16 +599,27 @@
 
         let url = item.content.url;
 
-        // Check if we have a local cached version
-        const localPath = contentCacheManager.getLocalPath(url);
-        if (localPath) {
+        // Wait for cacheable content (videos) to be ready
+        if (contentCacheManager.isCacheable(url)) {
+          logger.info(`Waiting for video to be cached: ${url}`);
+          const cachedPath = await contentCacheManager.waitForCache(url, 300000); // 5 minute timeout
+
+          if (cachedPath) {
             // Convert to file URL
-            // On Windows: file:///C:/path/to/file
-            // On Linux: file:///path/to/file
-            // path.resolve ensures absolute path
+            const absolutePath = path.resolve(cachedPath).replace(/\\/g, '/');
+            url = `file:///${absolutePath}`;
+            logger.info(`✅ Video ready in cache, using local file: ${url}`);
+          } else {
+            logger.warn(`Video caching failed or timed out, will attempt to play from remote URL: ${url}`);
+          }
+        } else {
+          // Check if we have a local cached version (for non-videos)
+          const localPath = contentCacheManager.getLocalPath(url);
+          if (localPath) {
             const absolutePath = path.resolve(localPath).replace(/\\/g, '/');
             url = `file:///${absolutePath}`;
             logger.info(`Using cached content: ${url}`);
+          }
         }
 
         await displayController.navigateTo(url, item.displayDuration);

@@ -7,6 +7,7 @@ public class PlaylistExecutor
     private readonly ILogger _logger;
     private readonly BrowserController _browser;
     private readonly string _serverUrl;
+    private readonly VideoCacheManager _cacheManager;
     private List<PlaylistItem> _playlistItems = new();
     private int _currentIndex = 0;
     private Timer? _rotationTimer;
@@ -19,13 +20,20 @@ public class PlaylistExecutor
     private Timer? _stateEmissionTimer;
     private Action<object>? _onStateUpdate;
 
+    // Broadcast state
+    private bool _isBroadcasting = false;
+    private List<PlaylistItem> _savedPlaylist = new();
+    private int _savedIndex = 0;
+    private Timer? _broadcastTimer;
+
     public event Action<string, string>? OnScreenshotReady;
 
-    public PlaylistExecutor(ILogger logger, BrowserController browser, string serverUrl)
+    public PlaylistExecutor(ILogger logger, BrowserController browser, string serverUrl, VideoCacheManager cacheManager)
     {
         _logger = logger;
         _browser = browser;
         _serverUrl = serverUrl;
+        _cacheManager = cacheManager;
     }
 
     public void SetStateUpdateHandler(Action<object> handler)
@@ -43,6 +51,39 @@ public class PlaylistExecutor
 
         _currentPlaylistId = playlistId;
         _playlistItems = items.OrderBy(i => i.OrderIndex).ToList();
+
+        // Start caching videos in background
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                // Get all video URLs from new playlist
+                var videoUrls = _playlistItems
+                    .Where(item => !string.IsNullOrEmpty(item.Url))
+                    .Select(item => item.Url!)
+                    .Where(url => _cacheManager.IsVideoUrl(url))
+                    .ToList();
+
+                _logger.LogInformation("Found {Count} videos to cache", videoUrls.Count);
+
+                // Start caching videos
+                foreach (var url in videoUrls)
+                {
+                    await _cacheManager.CacheVideoAsync(url);
+                }
+
+                // Cleanup videos no longer in playlist
+                var allUrls = _playlistItems
+                    .Where(item => !string.IsNullOrEmpty(item.Url))
+                    .Select(item => item.Url!)
+                    .ToList();
+                await _cacheManager.CleanupUnusedVideosAsync(allUrls);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error caching videos");
+            }
+        });
 
         // Restart execution if already running
         if (wasRunning)
@@ -271,6 +312,47 @@ public class PlaylistExecutor
                 _logger.LogDebug("Converted relative URL {RelativeUrl} to absolute URL {AbsoluteUrl}", item.Url, url);
             }
 
+            // Check if this is a video that needs to be cached
+            if (_cacheManager.IsVideoUrl(url))
+            {
+                _logger.LogInformation("Waiting for video to be cached: {Url}", url);
+
+                // Wait for video to be cached (with timeout)
+                var maxWaitTime = TimeSpan.FromMinutes(5);
+                var startTime = DateTime.UtcNow;
+                var checkInterval = TimeSpan.FromSeconds(1);
+
+                while (DateTime.UtcNow - startTime < maxWaitTime)
+                {
+                    var status = await _cacheManager.GetCacheStatusAsync(url);
+
+                    if (status == CacheStatus.Ready)
+                    {
+                        // Get cached file path
+                        var cachedPath = await _cacheManager.GetCachedVideoPathAsync(url);
+                        if (cachedPath != null)
+                        {
+                            _logger.LogInformation("✅ Video ready in cache, using local file: {Path}", cachedPath);
+                            url = "file:///" + cachedPath.Replace("\\", "/");
+                            break;
+                        }
+                    }
+                    else if (status == CacheStatus.Error)
+                    {
+                        _logger.LogWarning("Video caching failed, will attempt to play from remote URL: {Url}", url);
+                        break;
+                    }
+
+                    // Still downloading, wait a bit
+                    await Task.Delay(checkInterval);
+                }
+
+                if (DateTime.UtcNow - startTime >= maxWaitTime)
+                {
+                    _logger.LogWarning("Timeout waiting for video cache, will attempt to play from remote URL: {Url}", url);
+                }
+            }
+
             await _browser.NavigateAsync(url);
 
             if (item.DurationSeconds == 0)
@@ -446,7 +528,7 @@ public class PlaylistExecutor
         {
             isPlaying = _isRunning,
             isPaused = _isPaused,
-            isBroadcasting = false,
+            isBroadcasting = _isBroadcasting,
             currentItemId = currentItem?.Id,
             currentItemIndex = currentItem != null ? (_currentIndex - 1 + _playlistItems.Count) % _playlistItems.Count : 0,
             playlistId = _currentPlaylistId,
@@ -461,8 +543,157 @@ public class PlaylistExecutor
         _onStateUpdate(state);
     }
 
+    public void StartBroadcast(string type, string? url, string? message, int duration)
+    {
+        _logger.LogInformation("Starting broadcast ({Type}): {Content} (duration: {Duration}ms)", type, url ?? message, duration);
+
+        // Save current playlist state
+        _savedPlaylist = _playlistItems.ToList();
+        _savedIndex = _currentIndex;
+        _isBroadcasting = true;
+
+        // Clear current rotation timer
+        _rotationTimer?.Dispose();
+        _rotationTimer = null;
+
+        // Display broadcast content
+        if (type == "url" && !string.IsNullOrEmpty(url))
+        {
+            // Navigate to broadcast URL
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _browser.NavigateAsync(url);
+                    _logger.LogInformation("Displaying broadcast URL: {Url}", url);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to navigate to broadcast URL");
+                }
+            });
+        }
+        else if (type == "message" && !string.IsNullOrEmpty(message))
+        {
+            // Create HTML page to display the message
+            var messageHtml = $@"
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>Broadcast Message</title>
+    <style>
+      body {{
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      }}
+      .message-container {{
+        background: white;
+        border-radius: 20px;
+        padding: 60px 80px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        max-width: 80%;
+        text-align: center;
+      }}
+      .message-text {{
+        font-size: 48px;
+        font-weight: 600;
+        color: #2d3748;
+        line-height: 1.4;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }}
+      .broadcast-label {{
+        font-size: 18px;
+        color: #667eea;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        margin-bottom: 30px;
+        font-weight: 700;
+      }}
+    </style>
+  </head>
+  <body>
+    <div class='message-container'>
+      <div class='broadcast-label'>Broadcast Message</div>
+      <div class='message-text'>{System.Net.WebUtility.HtmlEncode(message)}</div>
+    </div>
+  </body>
+</html>";
+
+            var dataUri = "data:text/html;charset=utf-8," + Uri.EscapeDataString(messageHtml);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _browser.NavigateAsync(dataUri);
+                    _logger.LogInformation("Displaying broadcast message: {Message}", message);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to display broadcast message");
+                }
+            });
+        }
+
+        EmitStateUpdate();
+
+        // Auto-end broadcast after duration if specified
+        if (duration > 0)
+        {
+            _broadcastTimer = new Timer(_ =>
+            {
+                try
+                {
+                    _logger.LogInformation("Broadcast duration expired, ending broadcast");
+                    EndBroadcast();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error ending broadcast after timeout");
+                }
+            }, null, TimeSpan.FromMilliseconds(duration), Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    public void EndBroadcast()
+    {
+        if (!_isBroadcasting)
+        {
+            _logger.LogWarning("Not currently broadcasting");
+            return;
+        }
+
+        _logger.LogInformation("Ending broadcast, restoring playlist");
+
+        // Clear broadcast timer
+        _broadcastTimer?.Dispose();
+        _broadcastTimer = null;
+
+        // Restore saved playlist
+        _playlistItems = _savedPlaylist.ToList();
+        _currentIndex = _savedIndex;
+        _isBroadcasting = false;
+
+        // Resume normal playlist execution
+        if (_isRunning && !_isPaused)
+        {
+            ExecuteNextItem();
+        }
+
+        EmitStateUpdate();
+    }
+
     public void Dispose()
     {
+        _broadcastTimer?.Dispose();
         Stop();
     }
 }

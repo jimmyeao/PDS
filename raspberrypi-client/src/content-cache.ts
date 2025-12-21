@@ -9,9 +9,23 @@ import { logger } from './logger';
 
 const pipeline = promisify(stream.pipeline);
 
+export enum CacheStatus {
+    NotCached = 'not_cached',
+    Downloading = 'downloading',
+    Ready = 'ready',
+    Error = 'error'
+}
+
+interface CacheEntry {
+    relativePath: string;
+    status: CacheStatus;
+    error?: string;
+}
+
 export class ContentCacheManager {
     private cacheDir: string;
     private activeDownloads: Set<string> = new Set();
+    private cacheEntries: Map<string, CacheEntry> = new Map();
 
     constructor() {
         // Use a cache directory in the user's home or app data
@@ -29,11 +43,55 @@ export class ContentCacheManager {
     public getLocalPath(url: string): string | null {
         const relativePath = this.getRelativePathFromUrl(url);
         if (!relativePath) return null;
-        
+
         const localPath = path.join(this.cacheDir, relativePath);
         if (fs.existsSync(localPath)) {
             return localPath;
         }
+        return null;
+    }
+
+    public getCacheStatus(url: string): CacheStatus {
+        const relativePath = this.getRelativePathFromUrl(url);
+        if (!relativePath) return CacheStatus.NotCached;
+
+        const entry = this.cacheEntries.get(url);
+        if (entry) {
+            return entry.status;
+        }
+
+        // Check if file exists
+        const localPath = path.join(this.cacheDir, relativePath);
+        if (fs.existsSync(localPath)) {
+            return CacheStatus.Ready;
+        }
+
+        return CacheStatus.NotCached;
+    }
+
+    public async waitForCache(url: string, maxWaitMs: number = 300000): Promise<string | null> {
+        if (!this.isCacheable(url)) {
+            return null; // Not a cacheable URL
+        }
+
+        const startTime = Date.now();
+        const checkInterval = 1000; // Check every second
+
+        while (Date.now() - startTime < maxWaitMs) {
+            const status = this.getCacheStatus(url);
+
+            if (status === CacheStatus.Ready) {
+                return this.getLocalPath(url);
+            } else if (status === CacheStatus.Error) {
+                logger.warn(`Video caching failed for: ${url}`);
+                return null;
+            }
+
+            // Still downloading, wait a bit
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+        }
+
+        logger.warn(`Timeout waiting for video cache: ${url}`);
         return null;
     }
 
@@ -74,25 +132,46 @@ export class ContentCacheManager {
             const downloadKey = relativePath;
             if (!fs.existsSync(localPath) && !this.activeDownloads.has(downloadKey)) {
                 const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
-                
+
+                // Mark as downloading
+                this.cacheEntries.set(url, {
+                    relativePath,
+                    status: CacheStatus.Downloading
+                });
+
                 this.activeDownloads.add(downloadKey);
                 try {
                     if (relativePath.endsWith('index.html')) {
                         await this.downloadVideoWrapper(fullUrl, localPath, baseUrl);
-                        // Also mark the video file as active so cleanup doesn't kill it
-                        // We'll discover the video file during downloadVideoWrapper, but for cleanup purposes
-                        // we might need to be smarter. For now, we'll assume anything in the GUID folder is kept
-                        // if the index.html is kept.
                     } else {
                         logger.info(`Downloading ${path.basename(localPath)}...`);
                         await this.downloadFile(fullUrl, localPath);
                         logger.info(`✅ Downloaded ${path.basename(localPath)}`);
                     }
+
+                    // Mark as ready
+                    this.cacheEntries.set(url, {
+                        relativePath,
+                        status: CacheStatus.Ready
+                    });
                 } catch (err: any) {
                     logger.error(`Failed to download ${fullUrl}: ${err.message}`);
+
+                    // Mark as error
+                    this.cacheEntries.set(url, {
+                        relativePath,
+                        status: CacheStatus.Error,
+                        error: err.message
+                    });
                 } finally {
                     this.activeDownloads.delete(downloadKey);
                 }
+            } else if (fs.existsSync(localPath)) {
+                // Already cached
+                this.cacheEntries.set(url, {
+                    relativePath,
+                    status: CacheStatus.Ready
+                });
             }
         }
 
@@ -144,7 +223,7 @@ export class ContentCacheManager {
         }
     }
 
-    private isCacheable(url: string): boolean {
+    public isCacheable(url: string): boolean {
         const lower = url.toLowerCase();
         const ext = path.extname(lower);
         if (['.mp4', '.webm', '.mkv', '.avi', '.mov'].includes(ext)) return true;

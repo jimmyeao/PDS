@@ -846,18 +846,28 @@ public class AuthService : IAuthService
 {
     private readonly IConfiguration _config;
     private readonly PdsDbContext _db;
+    private readonly ILogService _logService;
 
-    public AuthService(IConfiguration config, PdsDbContext db)
+    public AuthService(IConfiguration config, PdsDbContext db, ILogService logService)
     {
         _config = config;
         _db = db;
+        _logService = logService;
     }
 
     public async Task<AuthResponse> RegisterAsync(RegisterDto dto)
     {
         // Check if user already exists
         var existingUser = await _db.Users.FirstOrDefaultAsync(u => u.Username == dto.Username);
-        if (existingUser != null) throw new Exception("Username already exists");
+        if (existingUser != null)
+        {
+            // Log failed registration attempt
+            await _logService.AddLogAsync("Warning",
+                $"Failed registration attempt: Username '{dto.Username}' already exists",
+                null,
+                "AuthService");
+            throw new Exception("Username already exists");
+        }
 
         // Hash the password
         using var sha256 = System.Security.Cryptography.SHA256.Create();
@@ -875,19 +885,41 @@ public class AuthService : IAuthService
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
+        // Log successful registration
+        await _logService.AddLogAsync("Info",
+            $"New user registered: '{user.Username}' (ID: {user.Id})",
+            null,
+            "AuthService");
+
         return GenerateTokens(user.Username);
     }
 
     public async Task<AuthResponse> LoginAsync(LoginDto dto)
     {
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == dto.Username);
-        if (user == null) throw new Exception("Invalid credentials");
+        if (user == null)
+        {
+            // Log failed login attempt
+            await _logService.AddLogAsync("Warning",
+                $"Failed login attempt: User '{dto.Username}' not found",
+                null,
+                "AuthService");
+            throw new Exception("Invalid credentials");
+        }
 
         using var sha256 = System.Security.Cryptography.SHA256.Create();
         var bytes = System.Text.Encoding.UTF8.GetBytes(dto.Password);
         var hash = BitConverter.ToString(sha256.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
 
-        if (user.PasswordHash != hash) throw new Exception("Invalid credentials");
+        if (user.PasswordHash != hash)
+        {
+            // Log failed login attempt
+            await _logService.AddLogAsync("Warning",
+                $"Failed login attempt: Invalid password for user '{dto.Username}'",
+                null,
+                "AuthService");
+            throw new Exception("Invalid credentials");
+        }
 
         if (user.IsMfaEnabled)
         {
@@ -899,9 +931,20 @@ public class AuthService : IAuthService
             var totp = new Totp(Base32Encoding.ToBytes(user.MfaSecret));
             if (!totp.VerifyTotp(dto.MfaCode, out _, VerificationWindow.RfcSpecifiedNetworkDelay))
             {
+                // Log failed MFA attempt
+                await _logService.AddLogAsync("Warning",
+                    $"Failed MFA verification for user '{dto.Username}'",
+                    null,
+                    "AuthService");
                 throw new Exception("Invalid MFA code");
             }
         }
+
+        // Log successful login
+        await _logService.AddLogAsync("Info",
+            $"User logged in: '{user.Username}' (ID: {user.Id}){(user.IsMfaEnabled ? " with MFA" : "")}",
+            null,
+            "AuthService");
 
         return GenerateTokens(user.Username);
     }
@@ -921,13 +964,27 @@ public class AuthService : IAuthService
         var currentBytes = System.Text.Encoding.UTF8.GetBytes(currentPassword);
         var currentHash = BitConverter.ToString(sha256.ComputeHash(currentBytes)).Replace("-", "").ToLowerInvariant();
 
-        if (user.PasswordHash != currentHash) throw new Exception("Current password is incorrect");
+        if (user.PasswordHash != currentHash)
+        {
+            // Log failed password change attempt
+            await _logService.AddLogAsync("Warning",
+                $"Failed password change attempt: Incorrect current password for user '{username}'",
+                null,
+                "AuthService");
+            throw new Exception("Current password is incorrect");
+        }
 
         var newBytes = System.Text.Encoding.UTF8.GetBytes(newPassword);
         var newHash = BitConverter.ToString(sha256.ComputeHash(newBytes)).Replace("-", "").ToLowerInvariant();
 
         user.PasswordHash = newHash;
         await _db.SaveChangesAsync();
+
+        // Log successful password change
+        await _logService.AddLogAsync("Info",
+            $"Password changed for user '{username}' (ID: {user.Id})",
+            null,
+            "AuthService");
     }
 
     public async Task<MfaSetupResponse> SetupMfaAsync(string username)
@@ -954,11 +1011,22 @@ public class AuthService : IAuthService
         var totp = new Totp(Base32Encoding.ToBytes(user.MfaSecret));
         if (!totp.VerifyTotp(code, out _, VerificationWindow.RfcSpecifiedNetworkDelay))
         {
+            // Log failed MFA enablement attempt
+            await _logService.AddLogAsync("Warning",
+                $"Failed MFA enablement attempt: Invalid code for user '{username}'",
+                null,
+                "AuthService");
             throw new Exception("Invalid MFA code");
         }
 
         user.IsMfaEnabled = true;
         await _db.SaveChangesAsync();
+
+        // Log successful MFA enablement
+        await _logService.AddLogAsync("Info",
+            $"MFA enabled for user '{username}' (ID: {user.Id})",
+            null,
+            "AuthService");
     }
 
     public async Task DisableMfaAsync(string username)
@@ -969,6 +1037,12 @@ public class AuthService : IAuthService
         user.IsMfaEnabled = false;
         user.MfaSecret = null;
         await _db.SaveChangesAsync();
+
+        // Log MFA disablement
+        await _logService.AddLogAsync("Info",
+            $"MFA disabled for user '{username}' (ID: {user.Id})",
+            null,
+            "AuthService");
     }
 
     public async Task<UserDto> MeAsync(ClaimsPrincipal principal)
@@ -1044,7 +1118,13 @@ public static class AuthHelpers
 public class DeviceService : IDeviceService
 {
     private readonly PdsDbContext _db;
-    public DeviceService(PdsDbContext db) => _db = db;
+    private readonly ILogService _logService;
+
+    public DeviceService(PdsDbContext db, ILogService logService)
+    {
+        _db = db;
+        _logService = logService;
+    }
 
     public async Task<object> CreateAsync(CreateDeviceDto dto)
     {
@@ -1057,6 +1137,13 @@ public class DeviceService : IDeviceService
             // Generate and persist a token for the device
             entity.Token = GenerateToken();
             await _db.SaveChangesAsync();
+
+            // Log device creation
+            await _logService.AddLogAsync("Info",
+                $"New device registered: '{entity.Name}' (DeviceId: {entity.DeviceId}, ID: {entity.Id})",
+                entity.DeviceId,
+                "DeviceService");
+
             return new { id = entity.Id, entity.DeviceId, entity.Name, token = entity.Token };
         }
         var d = await _db.Devices.FirstAsync(x => x.DeviceId == dto.DeviceId);
@@ -1065,6 +1152,12 @@ public class DeviceService : IDeviceService
         {
             d.Token = GenerateToken();
             await _db.SaveChangesAsync();
+
+            // Log token generation for existing device
+            await _logService.AddLogAsync("Info",
+                $"Token generated for existing device: '{d.Name}' (DeviceId: {d.DeviceId})",
+                d.DeviceId,
+                "DeviceService");
         }
         return new { id = d.Id, d.DeviceId, d.Name, token = d.Token };
     }
@@ -1109,6 +1202,13 @@ public class DeviceService : IDeviceService
         if (d == null) return new { error = "not_found" };
         d.Token = GenerateToken();
         await _db.SaveChangesAsync();
+
+        // Log token rotation
+        await _logService.AddLogAsync("Info",
+            $"Token rotated for device: '{d.Name}' (DeviceId: {d.DeviceId}, ID: {d.Id})",
+            d.DeviceId,
+            "DeviceService");
+
         return new { id = d.Id, deviceId = d.DeviceId, name = d.Name, token = d.Token };
     }
 
@@ -1124,11 +1224,39 @@ public class DeviceService : IDeviceService
     {
         var d = await _db.Devices.FindAsync(id);
         if (d == null) return new { error = "not_found" };
-        if (!string.IsNullOrWhiteSpace(dto.Name)) d.Name = dto.Name!;
-        if (dto.DisplayWidth.HasValue) d.DisplayWidth = dto.DisplayWidth;
-        if (dto.DisplayHeight.HasValue) d.DisplayHeight = dto.DisplayHeight;
-        if (dto.KioskMode.HasValue) d.KioskMode = dto.KioskMode;
+
+        var changes = new List<string>();
+        if (!string.IsNullOrWhiteSpace(dto.Name) && d.Name != dto.Name)
+        {
+            changes.Add($"Name: '{d.Name}' → '{dto.Name}'");
+            d.Name = dto.Name!;
+        }
+        if (dto.DisplayWidth.HasValue && d.DisplayWidth != dto.DisplayWidth)
+        {
+            changes.Add($"DisplayWidth: {d.DisplayWidth} → {dto.DisplayWidth}");
+            d.DisplayWidth = dto.DisplayWidth;
+        }
+        if (dto.DisplayHeight.HasValue && d.DisplayHeight != dto.DisplayHeight)
+        {
+            changes.Add($"DisplayHeight: {d.DisplayHeight} → {dto.DisplayHeight}");
+            d.DisplayHeight = dto.DisplayHeight;
+        }
+        if (dto.KioskMode.HasValue && d.KioskMode != dto.KioskMode)
+        {
+            changes.Add($"KioskMode: {d.KioskMode} → {dto.KioskMode}");
+            d.KioskMode = dto.KioskMode;
+        }
+
         await _db.SaveChangesAsync();
+
+        // Log device update if changes were made
+        if (changes.Any())
+        {
+            await _logService.AddLogAsync("Info",
+                $"Device '{d.Name}' (ID: {d.Id}) updated: {string.Join(", ", changes)}",
+                d.DeviceId,
+                "DeviceService");
+        }
 
         // Send config update to device via WebSocket
         await RealtimeHub.SendToDevice(d.DeviceId, "config:update", new
@@ -1145,6 +1273,13 @@ public class DeviceService : IDeviceService
     {
         var d = await _db.Devices.FindAsync(id);
         if (d == null) return;
+
+        // Log device deletion
+        await _logService.AddLogAsync("Warning",
+            $"Device deleted: '{d.Name}' (DeviceId: {d.DeviceId}, ID: {d.Id})",
+            d.DeviceId,
+            "DeviceService");
+
         _db.Devices.Remove(d);
         await _db.SaveChangesAsync();
     }
@@ -1153,7 +1288,13 @@ public class DeviceService : IDeviceService
 public class PlaylistService : IPlaylistService
 {
     private readonly PdsDbContext _db;
-    public PlaylistService(PdsDbContext db) => _db = db;
+    private readonly ILogService _logService;
+
+    public PlaylistService(PdsDbContext db, ILogService logService)
+    {
+        _db = db;
+        _logService = logService;
+    }
 
     public async Task<object> CreatePlaylistAsync(CreatePlaylistDto dto)
     {
@@ -1392,6 +1533,9 @@ public class PlaylistService : IPlaylistService
 
     public async Task<object> AssignAsync(AssignPlaylistDto dto)
     {
+        var device = await _db.Devices.FindAsync(dto.DeviceId);
+        var playlist = await _db.Playlists.FindAsync(dto.PlaylistId);
+
         // Avoid duplicate assignment
         var exists = await _db.DevicePlaylists.AnyAsync(x => x.DeviceId == dto.DeviceId && x.PlaylistId == dto.PlaylistId);
         if (!exists)
@@ -1399,10 +1543,15 @@ public class PlaylistService : IPlaylistService
             var dp = new DevicePlaylist { DeviceId = dto.DeviceId, PlaylistId = dto.PlaylistId };
             _db.DevicePlaylists.Add(dp);
             await _db.SaveChangesAsync();
+
+            // Log playlist assignment
+            await _logService.AddLogAsync("Info",
+                $"Playlist '{playlist?.Name}' (ID: {dto.PlaylistId}) assigned to device '{device?.Name}' (ID: {dto.DeviceId})",
+                device?.DeviceId,
+                "PlaylistService");
         }
 
         // Push content update to device if connected
-        var device = await _db.Devices.FindAsync(dto.DeviceId);
         if (device != null)
         {
             var items = await _db.PlaylistItems.Where(i => i.PlaylistId == dto.PlaylistId)
@@ -1441,12 +1590,21 @@ public class PlaylistService : IPlaylistService
     {
         var dp = await _db.DevicePlaylists.FirstOrDefaultAsync(x => x.DeviceId == deviceId && x.PlaylistId == playlistId);
         if (dp == null) return;
+
+        var device = await _db.Devices.FindAsync(deviceId);
+        var playlist = await _db.Playlists.FindAsync(playlistId);
+
         _db.DevicePlaylists.Remove(dp);
         await _db.SaveChangesAsync();
 
+        // Log playlist unassignment
+        await _logService.AddLogAsync("Info",
+            $"Playlist '{playlist?.Name}' (ID: {playlistId}) unassigned from device '{device?.Name}' (ID: {deviceId})",
+            device?.DeviceId,
+            "PlaylistService");
+
         // If device has no more playlists, push empty content update
         var remaining = await _db.DevicePlaylists.AnyAsync(x => x.DeviceId == deviceId);
-        var device = await _db.Devices.FindAsync(deviceId);
         if (device != null)
         {
             if (!remaining)
@@ -1888,6 +2046,18 @@ public static class RealtimeHub
         if (role == "device" && !string.IsNullOrEmpty(deviceId))
         {
             Devices[deviceId] = ws;
+
+            // Log device connection
+            try
+            {
+                var logService = ctx.RequestServices.GetRequiredService<ILogService>();
+                await logService.AddLogAsync("Info",
+                    $"Device connected: {deviceId}",
+                    deviceId,
+                    "RealtimeHub");
+            }
+            catch { /* ignore logging errors */ }
+
             // Notify admins that device is online
             BroadcastAdmins("admin:device:connected", new { deviceId, timestamp = DateTime.UtcNow });
             BroadcastAdmins("admin:device:status", new { deviceId, status = "online", timestamp = DateTime.UtcNow });
@@ -1917,6 +2087,17 @@ public static class RealtimeHub
             }
             catch (Exception ex)
             {
+                // Log error
+                try
+                {
+                    var logService = ctx.RequestServices.GetRequiredService<ILogService>();
+                    await logService.AddLogAsync("Error",
+                        $"Failed to push content on device connect: {ex.Message}",
+                        deviceId,
+                        "RealtimeHub");
+                }
+                catch { /* ignore logging errors */ }
+
                 // swallow errors to avoid disconnect on startup
                 BroadcastAdmins("admin:error", new { deviceId, error = "content_push_failed", detail = ex.Message, timestamp = DateTime.UtcNow });
             }
@@ -1949,6 +2130,17 @@ public static class RealtimeHub
                     // Notify admins that device is offline
                     if (role == "device" && !string.IsNullOrEmpty(deviceId))
                     {
+                        // Log device disconnection
+                        try
+                        {
+                            var logService = ctx.RequestServices.GetRequiredService<ILogService>();
+                            await logService.AddLogAsync("Info",
+                                $"Device disconnected: {deviceId}",
+                                deviceId,
+                                "RealtimeHub");
+                        }
+                        catch { /* ignore logging errors */ }
+
                         BroadcastAdmins("admin:device:disconnected", new { deviceId, timestamp = DateTime.UtcNow });
                         BroadcastAdmins("admin:device:status", new { deviceId, status = "offline", timestamp = DateTime.UtcNow });
                         Devices.TryRemove(deviceId, out _);
@@ -1967,6 +2159,17 @@ public static class RealtimeHub
             switch (evt)
             {
                 case "device:register":
+                    // Log device registration
+                    try
+                    {
+                        var logService = ctx.RequestServices.GetRequiredService<ILogService>();
+                        await logService.AddLogAsync("Info",
+                            $"Device registered via WebSocket: {deviceId}",
+                            deviceId,
+                            "RealtimeHub");
+                    }
+                    catch { /* ignore logging errors */ }
+
                     // When a device registers, confirm online status to admins
                     BroadcastAdmins("admin:device:connected", new { deviceId, timestamp = DateTime.UtcNow });
                     BroadcastAdmins("admin:device:status", new { deviceId, status = "online", timestamp = DateTime.UtcNow });
@@ -2021,6 +2224,17 @@ public static class RealtimeHub
                     }
                     catch (Exception ex)
                     {
+                        // Log error
+                        try
+                        {
+                            var logService = ctx.RequestServices.GetRequiredService<ILogService>();
+                            await logService.AddLogAsync("Error",
+                                $"Failed to push content on device register: {ex.Message}",
+                                deviceId,
+                                "RealtimeHub");
+                        }
+                        catch { /* ignore logging errors */ }
+
                         BroadcastAdmins("admin:error", new { deviceId, error = "content_push_failed", detail = ex.Message, timestamp = DateTime.UtcNow });
                     }
                     break;
@@ -2057,6 +2271,17 @@ public static class RealtimeHub
                         }
                         catch (Exception ex)
                         {
+                            // Log error
+                            try
+                            {
+                                var logService = ctx.RequestServices.GetRequiredService<ILogService>();
+                                await logService.AddLogAsync("Error",
+                                    $"Failed to save screenshot: {ex.Message}",
+                                    deviceId,
+                                    "RealtimeHub");
+                            }
+                            catch { /* ignore logging errors */ }
+
                             BroadcastAdmins("admin:error", new { deviceId, error = "screenshot_save_failed", detail = ex.Message, timestamp = DateTime.UtcNow });
                         }
                     }
@@ -2078,6 +2303,17 @@ public static class RealtimeHub
         }
         catch (Exception ex)
         {
+            // Log error
+            try
+            {
+                var logService = ctx.RequestServices.GetRequiredService<ILogService>();
+                await logService.AddLogAsync("Error",
+                    $"WebSocket error for {role} {deviceId ?? "unknown"}: {ex.Message}",
+                    deviceId,
+                    "RealtimeHub");
+            }
+            catch { /* ignore logging errors */ }
+
             // Log the disconnection
             Serilog.Log.Information(ex, "WebSocket connection closed for {Role} {DeviceId}", role, deviceId ?? "unknown");
         }

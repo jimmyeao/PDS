@@ -14,6 +14,7 @@ public class KioskWorker : BackgroundService
     private BrowserController? _browser;
     private HealthMonitor? _healthMonitor;
     private PlaylistExecutor? _playlistExecutor;
+    private VideoCacheManager? _videoCacheManager;
     private Timer? _healthTimer;
     private Timer? _screenshotTimer;
 
@@ -112,8 +113,11 @@ public class KioskWorker : BackgroundService
         // Initialize health monitor
         _healthMonitor = new HealthMonitor(new LoggerAdapter(_logger));
 
+        // Initialize video cache manager
+        _videoCacheManager = new VideoCacheManager(new LoggerAdapter(_logger));
+
         // Initialize playlist executor
-        _playlistExecutor = new PlaylistExecutor(new LoggerAdapter(_logger), _browser, _config.ServerUrl);
+        _playlistExecutor = new PlaylistExecutor(new LoggerAdapter(_logger), _browser, _config.ServerUrl, _videoCacheManager);
 
         // Set up screenshot handler for when playlist items change
         _playlistExecutor.OnScreenshotReady += async (screenshot, currentUrl) =>
@@ -389,6 +393,27 @@ public class KioskWorker : BackgroundService
                     }
                     break;
 
+                case "playlist:broadcast:start":
+                    if (_playlistExecutor != null)
+                    {
+                        var type = payload.TryGetProperty("type", out var typeElement) ? typeElement.GetString() : "url";
+                        var broadcastUrl = payload.TryGetProperty("url", out var broadcastUrlElement) ? broadcastUrlElement.GetString() : null;
+                        var message = payload.TryGetProperty("message", out var messageElement) ? messageElement.GetString() : null;
+                        var duration = payload.TryGetProperty("duration", out var durationElement) ? durationElement.GetInt32() : 0;
+
+                        _logger.LogInformation("Starting broadcast ({Type}): {Content}", type, broadcastUrl ?? message);
+                        _playlistExecutor.StartBroadcast(type ?? "url", broadcastUrl, message, duration);
+                    }
+                    break;
+
+                case "playlist:broadcast:end":
+                    if (_playlistExecutor != null)
+                    {
+                        _logger.LogInformation("Ending broadcast");
+                        _playlistExecutor.EndBroadcast();
+                    }
+                    break;
+
                 default:
                     _logger.LogWarning("Unhandled event: {Event}", eventName);
                     break;
@@ -561,7 +586,7 @@ public class KioskWorker : BackgroundService
                 _logger.LogInformation("Browser restarted with new configuration");
 
                 // Recreate playlist executor with new browser
-                _playlistExecutor = new PlaylistExecutor(new LoggerAdapter(_logger), _browser, _config.ServerUrl);
+                _playlistExecutor = new PlaylistExecutor(new LoggerAdapter(_logger), _browser, _config.ServerUrl, _videoCacheManager!);
 
                 // Re-setup screenshot handler
                 _playlistExecutor.OnScreenshotReady += async (screenshot, currentUrl) =>
@@ -652,6 +677,7 @@ public class KioskWorker : BackgroundService
         _screenshotTimer?.Dispose();
 
         _playlistExecutor?.Dispose();
+        _videoCacheManager?.Dispose();
 
         if (_wsClient != null)
         {
