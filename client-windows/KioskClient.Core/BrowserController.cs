@@ -16,10 +16,15 @@ public class BrowserController : IAsyncDisposable
     private Timer? _screencastTimer;
     private string _currentUrl = string.Empty;
     private int _crashCount = 0;
-    private const int MaxCrashRetries = 3;
+    private const int MaxCrashRetries = 2;
     private int _browserCrashCount = 0;
     private const int MaxBrowserCrashRetries = 5;
     private bool _isRecovering = false;
+    private DateTime _lastCrashTime = DateTime.MinValue;
+    private int _navigationCount = 0;
+    private const int MaxNavigationsBeforeRefresh = 50;  // Refresh page every 50 navigations
+    private DateTime _browserStartTime = DateTime.MinValue;
+    private const int BrowserRestartIntervalHours = 6;  // Restart browser every 6 hours
 
     public BrowserController(KioskConfiguration config, ILogger logger)
     {
@@ -157,32 +162,22 @@ public class BrowserController : IAsyncDisposable
             // Add page crash handler for automatic recovery
             _page.Crash += async (sender, e) =>
             {
-                _logger.LogWarning("⚠️ Page crashed! Attempting recovery...");
+                _logger.LogWarning("⚠️ Page crashed! URL: {Url}", _currentUrl);
                 _crashCount++;
+                _lastCrashTime = DateTime.Now;
 
-                if (_crashCount <= MaxCrashRetries && !string.IsNullOrEmpty(_currentUrl))
+                // If we've crashed multiple times quickly, trigger browser-level recovery
+                if (_crashCount > MaxCrashRetries || (DateTime.Now - _lastCrashTime).TotalSeconds < 5)
                 {
-                    try
-                    {
-                        _logger.LogInformation("Recovery attempt {CrashCount}/{MaxRetries} - Reloading: {Url}", _crashCount, MaxCrashRetries, _currentUrl);
-
-                        // Wait a moment before reloading
-                        await Task.Delay(2000);
-
-                        // Reload the crashed page
-                        await NavigateAsync(_currentUrl);
-
-                        _logger.LogInformation("✅ Page recovered successfully");
-                        _crashCount = 0; // Reset crash count on successful recovery
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to recover from crash (attempt {CrashCount})", _crashCount);
-                    }
+                    _logger.LogWarning("Frequent crashes detected ({Count} crashes). Triggering browser-level recovery...", _crashCount);
+                    _crashCount = 0;
+                    await RecoverBrowserAsync();
                 }
                 else
                 {
-                    _logger.LogWarning("Max crash retries ({MaxRetries}) reached or no URL to recover. Manual intervention required.", MaxCrashRetries);
+                    _logger.LogInformation("Page crash detected (attempt {CrashCount}/{MaxRetries}). Attempting page recreation...", _crashCount, MaxCrashRetries);
+                    // Try to recreate just the page, not the whole browser
+                    await RecreatePageAsync();
                 }
             };
 
@@ -208,12 +203,92 @@ public class BrowserController : IAsyncDisposable
             ");
             _logger.LogInformation("navigator.credentials overridden");
 
+            _browserStartTime = DateTime.Now;
+            _navigationCount = 0;
             _isInitialized = true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to initialize browser");
             throw;
+        }
+    }
+
+    private async Task RecreatePageAsync()
+    {
+        if (_isRecovering)
+        {
+            _logger.LogWarning("Recovery already in progress");
+            return;
+        }
+
+        _isRecovering = true;
+
+        try
+        {
+            _logger.LogInformation("🔄 Recreating page to clear memory...");
+
+            // Close old page
+            if (_page != null)
+            {
+                try
+                {
+                    await _page.CloseAsync();
+                }
+                catch { /* Ignore errors when closing crashed page */ }
+            }
+
+            // Create new page
+            if (_browser != null)
+            {
+                _page = await _browser.NewPageAsync();
+                _logger.LogInformation("✅ New page created successfully");
+
+                // Reattach crash handler
+                _page.Crash += async (sender, e) =>
+                {
+                    _logger.LogWarning("⚠️ Page crashed! URL: {Url}", _currentUrl);
+                    _crashCount++;
+                    _lastCrashTime = DateTime.Now;
+
+                    if (_crashCount > MaxCrashRetries || (DateTime.Now - _lastCrashTime).TotalSeconds < 5)
+                    {
+                        _logger.LogWarning("Frequent crashes detected ({Count} crashes). Triggering browser-level recovery...", _crashCount);
+                        _crashCount = 0;
+                        await RecoverBrowserAsync();
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Page crash detected (attempt {CrashCount}/{MaxRetries}). Attempting page recreation...", _crashCount, MaxCrashRetries);
+                        await RecreatePageAsync();
+                    }
+                };
+
+                // Re-apply CDP settings
+                try
+                {
+                    var cdpSession = await _page.Context.NewCDPSessionAsync(_page);
+                    await cdpSession.SendAsync("WebAuthn.disable");
+                }
+                catch { /* Ignore */ }
+
+                await _page.AddInitScriptAsync(@"
+                    delete navigator.credentials;
+                    Object.defineProperty(navigator, 'credentials', {
+                        get: () => undefined,
+                        configurable: false
+                    });
+                ");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to recreate page. Triggering full browser recovery...");
+            await RecoverBrowserAsync();
+        }
+        finally
+        {
+            _isRecovering = false;
         }
     }
 
@@ -270,12 +345,8 @@ public class BrowserController : IAsyncDisposable
             // Reinitialize browser
             await InitializeAsync();
 
-            // Navigate back to the last URL if we had one
-            if (!string.IsNullOrEmpty(_currentUrl))
-            {
-                _logger.LogInformation("Navigating back to {Url} after recovery", _currentUrl);
-                await NavigateAsync(_currentUrl);
-            }
+            // DON'T navigate back to the URL that caused the crash - let the playlist executor handle it
+            _currentUrl = string.Empty;
 
             _logger.LogInformation("✅ Browser recovered successfully");
             _browserCrashCount = 0; // Reset on successful recovery
@@ -297,8 +368,38 @@ public class BrowserController : IAsyncDisposable
 
     public async Task NavigateAsync(string url)
     {
-        if (_page == null)
-            throw new InvalidOperationException("Browser not initialized");
+        // Check if browser/page is available
+        if (_page == null || _browser == null || !_isInitialized)
+        {
+            _logger.LogWarning("Browser not initialized or closed. Attempting recovery...");
+            await RecoverBrowserAsync();
+
+            if (_page == null || _browser == null)
+            {
+                throw new InvalidOperationException("Browser recovery failed - cannot navigate");
+            }
+        }
+
+        // Preventive maintenance: Check if browser needs restart
+        var browserUptime = DateTime.Now - _browserStartTime;
+        if (browserUptime.TotalHours >= BrowserRestartIntervalHours)
+        {
+            _logger.LogInformation("Browser has been running for {Hours:F1} hours. Performing preventive restart...", browserUptime.TotalHours);
+            await RecoverBrowserAsync();
+            if (_page == null)
+                throw new InvalidOperationException("Browser recovery failed");
+        }
+
+        // Preventive maintenance: Recreate page periodically to prevent memory leaks
+        _navigationCount++;
+        if (_navigationCount >= MaxNavigationsBeforeRefresh)
+        {
+            _logger.LogInformation("Reached {Count} navigations. Performing preventive page refresh...", _navigationCount);
+            await RecreatePageAsync();
+            _navigationCount = 0;
+            if (_page == null)
+                throw new InvalidOperationException("Page recreation failed");
+        }
 
         try
         {
@@ -326,6 +427,36 @@ public class BrowserController : IAsyncDisposable
                 _crashCount = 0; // Reset crash count - this is not a failure
             }
         }
+        catch (PlaywrightException ex) when (ex.GetType().Name == "TargetClosedException" ||
+                                              ex.Message.Contains("Target page, context or browser has been closed"))
+        {
+            _logger.LogError(ex, "Browser/page was closed during navigation to: {Url}. Attempting recovery and retry...", url);
+
+            // Browser/page closed - recover and retry once
+            await RecoverBrowserAsync();
+
+            if (_page != null && _browser != null)
+            {
+                _logger.LogInformation("Recovery successful. Retrying navigation to: {Url}", url);
+                try
+                {
+                    await _page.GotoAsync(url, new PageGotoOptions
+                    {
+                        Timeout = 30000,
+                        WaitUntil = WaitUntilState.NetworkIdle
+                    });
+                    _logger.LogInformation("Navigation retry succeeded");
+                    return;
+                }
+                catch (TimeoutException)
+                {
+                    _logger.LogInformation("NetworkIdle timeout on retry (normal for streaming content)");
+                    return;
+                }
+            }
+
+            throw;
+        }
         catch (PlaywrightException ex) when (ex.Message.Contains("Page crashed") || ex.Message.Contains("Target crashed"))
         {
             _logger.LogError(ex, "Page crashed during navigation to: {Url}", url);
@@ -337,6 +468,7 @@ public class BrowserController : IAsyncDisposable
             _logger.LogError(ex, "Fatal browser crash during navigation to: {Url}", url);
             // Attempt browser-level recovery
             await RecoverBrowserAsync();
+            throw;
         }
         catch (Exception ex) when (ex.Message.Contains("STATUS_ACCESS_VIOLATION") ||
                                     ex.Message.Contains("STATUS_BREAKPOINT") ||
@@ -345,6 +477,7 @@ public class BrowserController : IAsyncDisposable
             _logger.LogError(ex, "FATAL: Access violation detected during navigation to: {Url}", url);
             // Attempt browser-level recovery for access violations
             await RecoverBrowserAsync();
+            throw;
         }
         catch (Exception ex)
         {
@@ -355,8 +488,11 @@ public class BrowserController : IAsyncDisposable
 
     public async Task<string> CaptureScreenshotAsync()
     {
-        if (_page == null)
+        if (_page == null || _browser == null || !_isInitialized)
+        {
+            _logger.LogWarning("Cannot capture screenshot: browser not initialized");
             throw new InvalidOperationException("Browser not initialized");
+        }
 
         try
         {
@@ -368,6 +504,12 @@ public class BrowserController : IAsyncDisposable
             });
 
             return Convert.ToBase64String(screenshot);
+        }
+        catch (PlaywrightException ex) when (ex.GetType().Name == "TargetClosedException" ||
+                                              ex.Message.Contains("Target page, context or browser has been closed"))
+        {
+            _logger.LogWarning("Cannot capture screenshot: browser/page was closed. Recovery should be in progress...");
+            throw;
         }
         catch (PlaywrightException ex) when (ex.Message.Contains("Target crashed") || ex.Message.Contains("Page crashed"))
         {

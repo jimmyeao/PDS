@@ -227,6 +227,9 @@ public class PlaylistExecutor
             if (string.IsNullOrEmpty(item.Url))
             {
                 _logger.LogError(null, "Playlist item {ItemId} missing URL", item.Id);
+                // Skip to next item after a short delay
+                _rotationTimer?.Dispose();
+                _rotationTimer = new Timer(_ => ExecuteNextItem(), null, TimeSpan.FromSeconds(3), Timeout.InfiniteTimeSpan);
                 return;
             }
 
@@ -249,9 +252,29 @@ public class PlaylistExecutor
                 _logger.LogInformation("✅ Displaying content {Url} for {Duration}s", item.Url ?? "", item.DurationSeconds);
             }
         }
+        catch (Exception ex) when (ex.Message.Contains("Target page, context or browser has been closed") ||
+                                    ex.Message.Contains("TargetClosedException"))
+        {
+            _logger.LogError(ex, "Browser/page was closed while displaying content {Url}. Waiting for recovery (10 seconds)...", item.Url ?? "");
+            // Give browser recovery time to complete before trying next item (increased delay)
+            _rotationTimer?.Dispose();
+            _rotationTimer = new Timer(_ => ExecuteNextItem(), null, TimeSpan.FromSeconds(10), Timeout.InfiniteTimeSpan);
+        }
+        catch (Exception ex) when (ex.Message.Contains("Page crashed") ||
+                                    ex.Message.Contains("Target crashed") ||
+                                    ex.Message.Contains("STATUS_ACCESS_VIOLATION"))
+        {
+            _logger.LogError(ex, "Browser crashed while displaying content {Url}. Recovery will be attempted automatically. Continuing playlist in 7 seconds...", item.Url ?? "");
+            // Give browser recovery time to complete before trying next item
+            _rotationTimer?.Dispose();
+            _rotationTimer = new Timer(_ => ExecuteNextItem(), null, TimeSpan.FromSeconds(7), Timeout.InfiniteTimeSpan);
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to display content {Url}", item.Url ?? "");
+            _logger.LogError(ex, "Failed to display content {Url}. Continuing to next item in 3 seconds...", item.Url ?? "");
+            // Skip to next item after a short delay
+            _rotationTimer?.Dispose();
+            _rotationTimer = new Timer(_ => ExecuteNextItem(), null, TimeSpan.FromSeconds(3), Timeout.InfiniteTimeSpan);
         }
     }
 
