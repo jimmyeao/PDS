@@ -15,6 +15,8 @@ namespace TheiaCast.Api.Contracts
     public static class ServerToClientEvent
     {
         public const string CONTENT_UPDATE = "content:update";
+        public const string BROADCAST_START = "playlist:broadcast:start";
+        public const string BROADCAST_END = "playlist:broadcast:end";
     }
 
     public static class ServerToAdminEvent
@@ -84,5 +86,17 @@ namespace TheiaCast.Api.Contracts
         [property: JsonPropertyName("source")] string? Source,
         [property: JsonPropertyName("stackTrace")] string? StackTrace,
         [property: JsonPropertyName("additionalData")] string? AdditionalData
+    );
+
+    public record StartBroadcastRequest(
+        [property: JsonPropertyName("type")] string Type, // "url" or "message"
+        [property: JsonPropertyName("url")] string? Url,
+        [property: JsonPropertyName("message")] string? Message
+    );
+
+    public record BroadcastPayload(
+        [property: JsonPropertyName("type")] string Type,
+        [property: JsonPropertyName("url")] string? Url,
+        [property: JsonPropertyName("message")] string? Message
     );
 }

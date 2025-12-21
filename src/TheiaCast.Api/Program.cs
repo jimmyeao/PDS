@@ -95,6 +95,7 @@ builder.Services.AddScoped<ISlideshowService, SlideshowService>();
 builder.Services.AddScoped<IVideoService, VideoService>();
 builder.Services.AddScoped<ILogService, LogService>();
 builder.Services.AddScoped<ISettingsService, SettingsService>();
+builder.Services.AddScoped<IBroadcastService, BroadcastService>();
 builder.Services.AddHostedService<LogCleanupService>();
 
 var app = builder.Build();
@@ -254,6 +255,21 @@ using (var scope = app.Services.CreateScope())
             INSERT INTO ""AppSettings"" (""Key"", ""Value"", ""UpdatedAt"")
             VALUES ('LogRetentionDays', '7', CURRENT_TIMESTAMP)
             ON CONFLICT (""Key"") DO NOTHING;
+        ");
+
+        // Create Broadcasts table for system-wide broadcasts
+        db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS ""Broadcasts"" (
+                ""Id"" SERIAL PRIMARY KEY,
+                ""Type"" text NOT NULL,
+                ""Url"" text,
+                ""Message"" text,
+                ""IsActive"" boolean NOT NULL DEFAULT true,
+                ""CreatedAt"" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                ""EndedAt"" timestamp
+            );
+            CREATE INDEX IF NOT EXISTS ""IX_Broadcasts_IsActive"" ON ""Broadcasts""(""IsActive"");
+            CREATE INDEX IF NOT EXISTS ""IX_Broadcasts_CreatedAt"" ON ""Broadcasts""(""CreatedAt"" DESC);
         ");
     }
     catch (Exception ex)
@@ -470,84 +486,6 @@ app.MapPost("/devices/{deviceId}/playlist/previous", async (string deviceId, boo
     return Results.Ok(new { message = "Playlist previous command sent", deviceId });
 }).RequireAuthorization();
 
-// Broadcast endpoints
-app.MapPost("/broadcast/start", async ([FromBody] BroadcastStartRequest req, PdsDbContext db) =>
-{
-    var duration = req.Duration ?? 0;
-
-    // Save broadcast state for each device
-    foreach (var deviceId in req.DeviceIds)
-    {
-        var device = await db.Devices.FirstOrDefaultAsync(d => d.DeviceId == deviceId);
-        if (device == null) continue;
-
-        // Get current playlist assignment (if any)
-        var currentPlaylist = await db.DevicePlaylists
-            .Where(dp => dp.DeviceId == device.Id)
-            .OrderByDescending(dp => dp.Id)
-            .Select(dp => dp.PlaylistId)
-            .FirstOrDefaultAsync();
-
-        // Save broadcast state
-        var broadcastState = new DeviceBroadcastState
-        {
-            DeviceId = device.Id,
-            OriginalPlaylistId = currentPlaylist > 0 ? currentPlaylist : null,
-            BroadcastUrl = req.Url,
-            StartedAt = DateTime.UtcNow
-        };
-        db.DeviceBroadcastStates.Add(broadcastState);
-
-        // Send broadcast start command to device
-        await RealtimeHub.SendToDevice(deviceId, "playlist:broadcast:start", new { url = req.Url, duration });
-    }
-
-    await db.SaveChangesAsync();
-    return Results.Ok(new { message = "Broadcast started", deviceCount = req.DeviceIds.Length, url = req.Url, duration });
-}).RequireAuthorization();
-
-app.MapPost("/broadcast/end", async (PdsDbContext db) =>
-{
-    // Get all active broadcasts
-    var activeStates = await db.DeviceBroadcastStates.Include(bs => bs.Device).ToListAsync();
-
-    if (!activeStates.Any())
-    {
-        return Results.Ok(new { message = "No active broadcasts", deviceCount = 0 });
-    }
-
-    // Send end command to all broadcasting devices
-    foreach (var state in activeStates)
-    {
-        if (state.Device?.DeviceId != null)
-        {
-            await RealtimeHub.SendToDevice(state.Device.DeviceId, "playlist:broadcast:end", new { });
-        }
-    }
-
-    // Remove broadcast states
-    db.DeviceBroadcastStates.RemoveRange(activeStates);
-    await db.SaveChangesAsync();
-
-    return Results.Ok(new { message = "Broadcast ended", deviceCount = activeStates.Count });
-}).RequireAuthorization();
-
-app.MapGet("/broadcast/status", async (PdsDbContext db) =>
-{
-    var activeStates = await db.DeviceBroadcastStates
-        .Include(bs => bs.Device)
-        .Select(bs => new
-        {
-            deviceId = bs.Device!.DeviceId,
-            deviceName = bs.Device.Name,
-            broadcastUrl = bs.BroadcastUrl,
-            startedAt = bs.StartedAt
-        })
-        .ToListAsync();
-
-    return Results.Ok(new { broadcasts = activeStates, count = activeStates.Count });
-}).RequireAuthorization();
-
 // Content endpoints
 app.MapPost("/content", async ([FromBody] CreateContentDto dto, IPlaylistService svc) => await svc.CreateContentAsync(dto))
     .RequireAuthorization();
@@ -696,6 +634,25 @@ app.MapPut("/settings/{key}", async (string key, [FromBody] SetSettingRequest re
 {
     await svc.SetSettingAsync(key, req.Value);
     return Results.Ok(new { key, value = req.Value });
+}).RequireAuthorization();
+
+// Broadcast endpoints
+app.MapPost("/broadcast/start", async ([FromBody] StartBroadcastRequest req, IBroadcastService svc) =>
+{
+    var broadcast = await svc.StartBroadcastAsync(req.Type, req.Url, req.Message);
+    return Results.Ok(broadcast);
+}).RequireAuthorization();
+
+app.MapPost("/broadcast/end", async (IBroadcastService svc) =>
+{
+    await svc.EndBroadcastAsync();
+    return Results.Ok();
+}).RequireAuthorization();
+
+app.MapGet("/broadcast/active", async (IBroadcastService svc) =>
+{
+    var broadcast = await svc.GetActiveBroadcastAsync();
+    return broadcast != null ? Results.Ok(broadcast) : Results.NotFound();
 }).RequireAuthorization();
 
 // WebSocket endpoint with event envelope
@@ -876,6 +833,13 @@ public interface ISettingsService
     Task<string?> GetSettingAsync(string key);
     Task SetSettingAsync(string key, string value);
     Task<IEnumerable<object>> GetAllSettingsAsync();
+}
+
+public interface IBroadcastService
+{
+    Task<object> StartBroadcastAsync(string type, string? url, string? message);
+    Task EndBroadcastAsync();
+    Task<object?> GetActiveBroadcastAsync();
 }
 
 public class AuthService : IAuthService
@@ -1757,6 +1721,120 @@ public class SettingsService : ISettingsService
     }
 }
 
+public class BroadcastService : IBroadcastService
+{
+    private readonly PdsDbContext _db;
+    private readonly ILogger<BroadcastService> _logger;
+
+    public BroadcastService(PdsDbContext db, ILogger<BroadcastService> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
+
+    public async Task<object> StartBroadcastAsync(string type, string? url, string? message)
+    {
+        // End any active broadcast first
+        await EndBroadcastAsync();
+
+        // Create new broadcast
+        var broadcast = new Broadcast
+        {
+            Type = type,
+            Url = url,
+            Message = message,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.Broadcasts.Add(broadcast);
+        await _db.SaveChangesAsync();
+
+        _logger.LogInformation("Broadcast started: {Type} - {Url}{Message}", type, url, message);
+
+        // Send broadcast to all connected devices
+        var payload = new BroadcastPayload(type, url, message);
+        await RealtimeHub.BroadcastToDevicesAsync(ServerToClientEvent.BROADCAST_START, payload);
+
+        // Save broadcast state for each device
+        var devices = await _db.Devices.ToListAsync();
+        foreach (var device in devices)
+        {
+            // Get current playlist for this device
+            var devicePlaylist = await _db.DevicePlaylists
+                .Where(dp => dp.DeviceId == device.Id)
+                .OrderByDescending(dp => dp.Id)
+                .FirstOrDefaultAsync();
+
+            // Remove existing broadcast state if any
+            var existingState = await _db.DeviceBroadcastStates
+                .FirstOrDefaultAsync(dbs => dbs.DeviceId == device.Id);
+            if (existingState != null)
+            {
+                _db.DeviceBroadcastStates.Remove(existingState);
+            }
+
+            // Create new broadcast state
+            var broadcastState = new DeviceBroadcastState
+            {
+                DeviceId = device.Id,
+                OriginalPlaylistId = devicePlaylist?.PlaylistId,
+                BroadcastUrl = url ?? "",
+                StartedAt = DateTime.UtcNow
+            };
+            _db.DeviceBroadcastStates.Add(broadcastState);
+        }
+
+        await _db.SaveChangesAsync();
+
+        return new { id = broadcast.Id, type = broadcast.Type, url = broadcast.Url, message = broadcast.Message };
+    }
+
+    public async Task EndBroadcastAsync()
+    {
+        // Find active broadcast
+        var activeBroadcast = await _db.Broadcasts
+            .Where(b => b.IsActive)
+            .FirstOrDefaultAsync();
+
+        if (activeBroadcast != null)
+        {
+            activeBroadcast.IsActive = false;
+            activeBroadcast.EndedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+
+            _logger.LogInformation("Broadcast ended: {Id}", activeBroadcast.Id);
+
+            // Notify all devices to end broadcast
+            await RealtimeHub.BroadcastToDevicesAsync(ServerToClientEvent.BROADCAST_END, new { });
+
+            // Clear broadcast states
+            var broadcastStates = await _db.DeviceBroadcastStates.ToListAsync();
+            _db.DeviceBroadcastStates.RemoveRange(broadcastStates);
+            await _db.SaveChangesAsync();
+        }
+    }
+
+    public async Task<object?> GetActiveBroadcastAsync()
+    {
+        var broadcast = await _db.Broadcasts
+            .Where(b => b.IsActive)
+            .OrderByDescending(b => b.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (broadcast == null) return null;
+
+        return new
+        {
+            id = broadcast.Id,
+            type = broadcast.Type,
+            url = broadcast.Url,
+            message = broadcast.Message,
+            createdAt = broadcast.CreatedAt
+        };
+    }
+}
+
 public class LogCleanupService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
@@ -2033,6 +2111,12 @@ public static class RealtimeHub
     {
         if (Devices.TryGetValue(deviceId, out var ws)) return Send(ws, evt, payload);
         return Task.CompletedTask;
+    }
+
+    public static async Task BroadcastToDevicesAsync(string evt, object payload)
+    {
+        var tasks = Devices.Values.Select(ws => Send(ws, evt, payload)).ToArray();
+        await Task.WhenAll(tasks);
     }
 
     private static Task Send(System.Net.WebSockets.WebSocket ws, string evt, object payload)

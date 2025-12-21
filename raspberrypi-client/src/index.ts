@@ -81,8 +81,15 @@ class KioskClient {
     });
 
     websocketClient.onPlaylistBroadcastStart((payload) => {
-      logger.info(`Playlist broadcast start: ${payload.url} for ${payload.duration || 0}s`);
-      playlistExecutor.startBroadcast(payload.url, payload.duration || 0);
+      if (payload.type === 'url' && payload.url) {
+        logger.info(`Playlist broadcast start (URL): ${payload.url} for ${payload.duration || 0}ms`);
+        playlistExecutor.startBroadcast(payload.type, payload.url, undefined, payload.duration || 0);
+      } else if (payload.type === 'message' && payload.message) {
+        logger.info(`Playlist broadcast start (Message): ${payload.message} for ${payload.duration || 0}ms`);
+        playlistExecutor.startBroadcast(payload.type, undefined, payload.message, payload.duration || 0);
+      } else {
+        logger.error('Invalid broadcast payload:', payload);
+      }
     });
 
     websocketClient.onPlaylistBroadcastEnd(() => {

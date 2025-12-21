@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useDeviceStore } from '../store/deviceStore';
 import { useContentStore } from '../store/contentStore';
 import { useWebSocketStore } from '../store/websocketStore';
+import { BroadcastControl } from '../components/BroadcastControl';
 
 export const DashboardPage = () => {
   const { devices, fetchDevices } = useDeviceStore();
@@ -19,6 +20,8 @@ export const DashboardPage = () => {
   return (
     <div>
       <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">Dashboard</h1>
+
+      <BroadcastControl />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="card">

@@ -175,7 +175,9 @@ export interface PlaylistPreviousPayload {
 }
 
 export interface PlaylistBroadcastStartPayload {
-  url: string;
+  type: 'url' | 'message';
+  url?: string;
+  message?: string;
   duration?: number; // Duration in milliseconds, 0 = infinite until manual end
 }
 

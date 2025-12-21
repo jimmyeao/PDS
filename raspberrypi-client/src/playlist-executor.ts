@@ -277,8 +277,8 @@
       this.emitStateUpdate();
     }
 
-    public startBroadcast(url: string, duration = 0): void {
-      logger.info(`Starting broadcast: ${url} (duration: ${duration}ms)`);
+    public startBroadcast(type: 'url' | 'message', url?: string, message?: string, duration = 0): void {
+      logger.info(`Starting broadcast (${type}): ${url || message} (duration: ${duration}ms)`);
 
       // Save current playlist state
       this.savedPlaylist = [...this.playlistItems];
@@ -291,9 +291,67 @@
         this.timeoutId = null;
       }
 
-      // Navigate to broadcast URL
-      displayController.navigateTo(url, duration);
-      logger.info(`Displaying broadcast URL: ${url}`);
+      if (type === 'url' && url) {
+        // Navigate to broadcast URL
+        displayController.navigateTo(url, duration);
+        logger.info(`Displaying broadcast URL: ${url}`);
+      } else if (type === 'message' && message) {
+        // Create a simple HTML page to display the message
+        const messageHtml = `data:text/html;charset=utf-8,${encodeURIComponent(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Broadcast Message</title>
+              <style>
+                body {
+                  margin: 0;
+                  padding: 0;
+                  display: flex;
+                  justify-content: center;
+                  align-items: center;
+                  min-height: 100vh;
+                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                }
+                .message-container {
+                  background: white;
+                  border-radius: 20px;
+                  padding: 60px 80px;
+                  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                  max-width: 80%;
+                  text-align: center;
+                }
+                .message-text {
+                  font-size: 48px;
+                  font-weight: 600;
+                  color: #2d3748;
+                  line-height: 1.4;
+                  white-space: pre-wrap;
+                  word-wrap: break-word;
+                }
+                .broadcast-label {
+                  font-size: 18px;
+                  color: #667eea;
+                  text-transform: uppercase;
+                  letter-spacing: 2px;
+                  margin-bottom: 30px;
+                  font-weight: 700;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="message-container">
+                <div class="broadcast-label">Broadcast Message</div>
+                <div class="message-text">${message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+              </div>
+            </body>
+          </html>
+        `)}`;
+        displayController.navigateTo(messageHtml, duration);
+        logger.info(`Displaying broadcast message: ${message}`);
+      }
 
       this.emitStateUpdate();
 
