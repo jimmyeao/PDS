@@ -202,7 +202,7 @@ export const ContentPage = () => {
               setVideoData({ name: '', file: null });
               setShowVideoModal(true);
             }}
-            className="btn-secondary flex items-center gap-2"
+            className="btn-primary flex items-center gap-2"
           >
             <VideoCameraIcon className="w-5 h-5" />
             Upload Video
@@ -212,7 +212,7 @@ export const ContentPage = () => {
               setPptxData({ name: '', file: null, durationPerSlide: 10000 });
               setShowPptxModal(true);
             }}
-            className="btn-secondary flex items-center gap-2"
+            className="btn-primary flex items-center gap-2"
           >
             <PresentationChartBarIcon className="w-5 h-5" />
             Upload PPTX
