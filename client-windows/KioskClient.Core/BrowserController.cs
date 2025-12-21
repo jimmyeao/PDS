@@ -292,7 +292,7 @@ public class BrowserController : IAsyncDisposable
         }
     }
 
-    private async Task RecoverBrowserAsync()
+    public async Task RecoverBrowserAsync()
     {
         if (_isRecovering)
         {
