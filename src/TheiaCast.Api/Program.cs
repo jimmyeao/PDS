@@ -1135,7 +1135,7 @@ public class PlaylistService : IPlaylistService
                                   playlistId = i.PlaylistId,
                                   contentId = i.ContentId,
                                   url = i.Url,
-                                  displayDuration = i.DurationSeconds,
+                                  displayDuration = (i.DurationSeconds ?? 0) * 1000,
                                   orderIndex = i.OrderIndex ?? 0,
                                   timeWindowStart = i.TimeWindowStart,
                                   timeWindowEnd = i.TimeWindowEnd,
@@ -1269,7 +1269,7 @@ public class PlaylistService : IPlaylistService
             await RealtimeHub.SendToDevice(devId, ServerToClientEvent.CONTENT_UPDATE, new { playlistId = pid, items });
         }
 
-        return new { id = i.Id, playlistId = i.PlaylistId, contentId = i.ContentId, url = i.Url, durationSeconds = i.DurationSeconds, orderIndex = i.OrderIndex };
+        return new { id = i.Id, playlistId = i.PlaylistId, contentId = i.ContentId, url = i.Url, displayDuration = (i.DurationSeconds ?? 0) * 1000, orderIndex = i.OrderIndex };
     }
 
     public async Task<IEnumerable<object>> GetItemsAsync(int playlistId)
@@ -1285,7 +1285,7 @@ public class PlaylistService : IPlaylistService
                         playlistId = i.PlaylistId,
                         contentId = i.ContentId,
                         url = i.Url,
-                        durationSeconds = i.DurationSeconds,
+                        displayDuration = (i.DurationSeconds ?? 0) * 1000,
                         orderIndex = i.OrderIndex ?? 0,
                         timeWindowStart = i.TimeWindowStart,
                         timeWindowEnd = i.TimeWindowEnd,
@@ -1306,7 +1306,7 @@ public class PlaylistService : IPlaylistService
         if (dto.TimeWindowEnd != null) i.TimeWindowEnd = dto.TimeWindowEnd;
         if (dto.DaysOfWeek != null) i.DaysOfWeek = System.Text.Json.JsonSerializer.Serialize(dto.DaysOfWeek);
         await _db.SaveChangesAsync();
-        return new { id = i.Id, playlistId = i.PlaylistId, contentId = i.ContentId, url = i.Url, durationSeconds = i.DurationSeconds, orderIndex = i.OrderIndex };
+        return new { id = i.Id, playlistId = i.PlaylistId, contentId = i.ContentId, url = i.Url, displayDuration = (i.DurationSeconds ?? 0) * 1000, orderIndex = i.OrderIndex };
     }
 
     public async Task<int> RemoveItemAsync(int id)

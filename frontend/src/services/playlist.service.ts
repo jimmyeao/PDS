@@ -19,7 +19,7 @@ export const playlistService = {
         id: r.id,
         playlistId: r.playlistId,
         contentId: r.contentId,
-        displayDuration: (r.durationSeconds ?? 0) * 1000,
+        displayDuration: r.displayDuration ?? 0, // Backend now returns displayDuration in ms
         orderIndex: r.orderIndex ?? 0,
         timeWindowStart: r.timeWindowStart ?? undefined,
         timeWindowEnd: r.timeWindowEnd ?? undefined,
@@ -38,7 +38,7 @@ export const playlistService = {
         id: r.id,
         playlistId: r.playlistId,
         contentId: r.contentId,
-        displayDuration: (r.durationSeconds ?? 0) * 1000,
+        displayDuration: r.displayDuration ?? 0, // Backend now returns displayDuration in ms
         orderIndex: r.orderIndex ?? 0,
         timeWindowStart: r.timeWindowStart ?? undefined,
         timeWindowEnd: r.timeWindowEnd ?? undefined,
@@ -70,7 +70,7 @@ export const playlistService = {
       id: r.id,
       playlistId: r.playlistId,
       contentId: r.contentId,
-      displayDuration: (r.durationSeconds ?? 0) * 1000, // convert seconds -> ms
+      displayDuration: r.displayDuration ?? 0, // Backend now returns displayDuration in ms
       orderIndex: r.orderIndex ?? 0,
       content: r.content ?? undefined,
     } as PlaylistItem;
@@ -82,7 +82,7 @@ export const playlistService = {
       id: r.id,
       playlistId: r.playlistId,
       contentId: r.contentId,
-      displayDuration: (r.durationSeconds ?? 0) * 1000, // convert seconds -> ms
+      displayDuration: r.displayDuration ?? 0, // Backend now returns displayDuration in ms
       orderIndex: r.orderIndex ?? 0,
       timeWindowStart: r.timeWindowStart ?? undefined,
       timeWindowEnd: r.timeWindowEnd ?? undefined,
@@ -98,7 +98,7 @@ export const playlistService = {
       id: r.id,
       playlistId: r.playlistId,
       contentId: r.contentId,
-      displayDuration: (r.durationSeconds ?? 0) * 1000, // convert seconds -> ms
+      displayDuration: r.displayDuration ?? 0, // Backend now returns displayDuration in ms
       orderIndex: r.orderIndex ?? 0,
       content: r.content ?? undefined,
     } as PlaylistItem;

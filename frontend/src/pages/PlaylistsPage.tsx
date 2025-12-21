@@ -139,6 +139,11 @@ export const PlaylistsPage = () => {
   };
 
   const handleEditPlaylistItem = (item: any, playlist: Playlist) => {
+    console.log('=== EDIT ITEM DEBUG ===');
+    console.log('Full item object:', item);
+    console.log('item.displayDuration:', item.displayDuration);
+    console.log('item.displayDuration type:', typeof item.displayDuration);
+
     setItemFormData({
       playlistId: playlist.id,
       contentId: item.contentId,
@@ -471,7 +476,14 @@ export const PlaylistsPage = () => {
                 </label>
                 <input
                   type="number"
-                  value={itemFormData.displayDuration !== undefined ? itemFormData.displayDuration / 1000 : 0}
+                  value={(() => {
+                    const val = itemFormData.displayDuration !== undefined ? itemFormData.displayDuration / 1000 : 0;
+                    console.log('Duration input value calculation:', {
+                      displayDuration: itemFormData.displayDuration,
+                      calculated: val
+                    });
+                    return val;
+                  })()}
                   onChange={(e) =>
                     setItemFormData({ ...itemFormData, displayDuration: Number(e.target.value) * 1000 })
                   }
