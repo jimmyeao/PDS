@@ -69,6 +69,11 @@ export const deviceService = {
     await api.post(`/devices/${deviceId}/screencast/stop`);
   },
 
+  // Device control methods
+  async restart(deviceId: string): Promise<void> {
+    await api.post(`/devices/${deviceId}/restart`);
+  },
+
   // Playlist control methods
   async playlistPause(deviceId: string): Promise<void> {
     await api.post(`/devices/${deviceId}/playlist/pause`);

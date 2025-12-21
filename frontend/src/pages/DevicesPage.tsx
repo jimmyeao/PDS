@@ -128,6 +128,9 @@ export const DevicesPage = () => {
   const handleOpenDisplayConfig = (device: any) => { setConfiguringDevice(device); setDisplayConfigData({ displayWidth: device.displayWidth || 1920, displayHeight: device.displayHeight || 1080, kioskMode: device.kioskMode !== undefined ? device.kioskMode : true }); setShowDisplayConfigModal(true); };
   const handleSaveDisplayConfig = async () => { if (!configuringDevice) return; try { await updateDevice(configuringDevice.id, displayConfigData); setShowDisplayConfigModal(false); setConfiguringDevice(null); fetchDevices(); } catch {} };
 
+  // Device control handlers
+  const handleRestart = async (deviceId: string, deviceName: string) => { if (confirm(`Are you sure you want to restart ${deviceName}? The client will restart and reconnect.`)) { try { await deviceService.restart(deviceId); } catch (err) { console.error('Failed to restart device:', err); } } };
+
   // Playlist control handlers
   const handlePlaylistPause = async (deviceId: string) => { try { await deviceService.playlistPause(deviceId); } catch (err) { console.error('Failed to pause playlist:', err); } };
   const handlePlaylistResume = async (deviceId: string) => { try { await deviceService.playlistResume(deviceId); } catch (err) { console.error('Failed to resume playlist:', err); } };
@@ -249,6 +252,7 @@ export const DevicesPage = () => {
                     <button onClick={() => setScreenshotDeviceId(device.deviceId)} className="btn-primary text-sm flex-1 min-w-[140px]">Screenshot</button>
                     <button onClick={() => setRemoteControlDeviceId(device.deviceId)} className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm flex-1 min-w-[140px]" title="Remote Control">Remote</button>
                     <button onClick={() => handleOpenDisplayConfig(device)} className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm flex-1 min-w-[140px]" title="Configure Display">Configure Display</button>
+                    <button onClick={() => handleRestart(device.deviceId, device.name)} className="px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm flex-1 min-w-[140px]" title="Restart Client">Restart</button>
                     <button onClick={() => handleShowToken(device.id)} className="btn-secondary text-sm flex-1 min-w-[140px]">Get Token</button>
                     <button onClick={() => handleDelete(device.id)} className="btn-danger text-sm flex-1 min-w-[140px]">Delete</button>
                     <div className="mt-2">

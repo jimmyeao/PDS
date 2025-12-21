@@ -9,6 +9,7 @@ public class KioskWorker : BackgroundService
 {
     private readonly ILogger<KioskWorker> _logger;
     private readonly KioskConfiguration _config;
+    private readonly IHostApplicationLifetime _hostApplicationLifetime;
     private readonly SemaphoreSlim _configUpdateLock = new SemaphoreSlim(1, 1);
     private WebSocketClient? _wsClient;
     private BrowserController? _browser;
@@ -17,10 +18,11 @@ public class KioskWorker : BackgroundService
     private Timer? _healthTimer;
     private Timer? _screenshotTimer;
 
-    public KioskWorker(ILogger<KioskWorker> logger, KioskConfiguration config)
+    public KioskWorker(ILogger<KioskWorker> logger, KioskConfiguration config, IHostApplicationLifetime hostApplicationLifetime)
     {
         _logger = logger;
         _config = config;
+        _hostApplicationLifetime = hostApplicationLifetime;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -323,6 +325,12 @@ public class KioskWorker : BackgroundService
                         _logger.LogInformation("Stopping screencast...");
                         await _browser.StopScreencastAsync();
                     }
+                    break;
+
+                case "device:restart":
+                    _logger.LogWarning("🔄 Restart command received from server. Restarting application...");
+                    // Request cancellation to trigger graceful shutdown
+                    _hostApplicationLifetime.StopApplication();
                     break;
 
                 case "playlist:pause":

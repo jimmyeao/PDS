@@ -29,8 +29,8 @@ services:
     restart: unless-stopped
 
   frontend:
-    # Use the TheiaCast image from GitHub Container Registry
-    image: ghcr.io/jimmyeao/theiacast-frontend:latest
+    # Use the local TheiaCast frontend image (built from source)
+    image: theiacast-frontend:local
     container_name: theiacast-frontend
     ports:
       - "5173:80"

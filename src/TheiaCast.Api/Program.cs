@@ -401,6 +401,13 @@ app.MapPost("/devices/{deviceId}/screencast/stop", async (string deviceId) =>
     return Results.Ok(new { message = "Screencast stop command sent", deviceId });
 }).RequireAuthorization();
 
+// Device control endpoints
+app.MapPost("/devices/{deviceId}/restart", async (string deviceId) =>
+{
+    await RealtimeHub.SendToDevice(deviceId, "device:restart", new { });
+    return Results.Ok(new { message = "Restart command sent", deviceId });
+}).RequireAuthorization();
+
 // Playlist control endpoints
 app.MapPost("/devices/{deviceId}/playlist/pause", async (string deviceId) =>
 {
