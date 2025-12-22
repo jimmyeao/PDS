@@ -907,101 +907,123 @@ class DisplayController {
         throw new Error('Navigation failed after retries');
       }
 
-      // AGGRESSIVE FIX: Inject CSS again to ensure scrollbars are hidden
-      // This handles cases where the page's own CSS overrides our initial injection
-      await this.page.addStyleTag({
-        content: `
-          ::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
-          html, body { 
-            overflow: hidden !important; 
-            scrollbar-width: none !important; 
-            -ms-overflow-style: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            background-color: black !important;
-          }
-          video {
-            object-fit: contain !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            max-width: 100% !important;
-            max-height: 100% !important;
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-          }
-        `
-      });
-
-      // Force page to use full viewport (code runs in browser context via page.evaluate)
-      await this.page.evaluate(() => {
-        // @ts-ignore
-        if (!document.querySelector('meta[name="viewport"]')) {
-          // @ts-ignore
-          const meta = document.createElement('meta');
-          meta.name = 'viewport';
-          meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
-          // @ts-ignore
-          document.head.appendChild(meta);
-        }
-        
-        // Simulate user interaction to unlock audio context
-        // @ts-ignore
-        document.body.click();
-        
-        // Setup robust video handling (works for both HTML wrappers and raw video files)
-        // @ts-ignore
-        function setupVideoHandling() {
-            // @ts-ignore
-            const videos = document.getElementsByTagName('video');
-            for (let i = 0; i < videos.length; i++) {
-                const v = videos[i];
-                
-                // Ensure loop and audio
-                if (!v.loop) v.loop = true;
-                if (v.muted) v.muted = false;
-                v.volume = 1.0;
-                
-                // Set preload to auto to encourage buffering
-                v.preload = 'auto';
-                v.setAttribute('playsinline', '');
-                v.setAttribute('webkit-playsinline', '');
-                
-                // Add event listeners to keep it alive
-                v.onended = () => { v.currentTime = 0; v.play().catch(() => {}); };
-                v.onpause = () => { if (!v.ended) v.play().catch(() => {}); };
-                
-                // Log buffering issues
-                v.onwaiting = () => { console.log('Video buffering...'); };
-                v.onstalled = () => { console.log('Video stalled!'); v.play().catch(() => {}); };
-                
-                // Try to play
-                v.play().catch(() => {});
+      // Inject CSS to hide scrollbars and style video content
+      // Only apply aggressive video-specific styling (black background, full viewport) to actual video content
+      // Regular web pages (Home Assistant, dashboards, etc.) should keep their own styling
+      if (isVideo) {
+        // AGGRESSIVE FIX for videos: Force black background and full viewport
+        await this.page.addStyleTag({
+          content: `
+            ::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
+            html, body {
+              overflow: hidden !important;
+              scrollbar-width: none !important;
+              -ms-overflow-style: none !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              width: 100vw !important;
+              height: 100vh !important;
+              background-color: black !important;
             }
-        }
+            video {
+              object-fit: contain !important;
+              width: 100vw !important;
+              height: 100vh !important;
+              max-width: 100% !important;
+              max-height: 100% !important;
+              position: absolute !important;
+              top: 0 !important;
+              left: 0 !important;
+            }
+          `
+        });
+      } else {
+        // For regular web pages: Only hide scrollbars, don't override page styling
+        await this.page.addStyleTag({
+          content: `
+            ::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
+            html, body {
+              scrollbar-width: none !important;
+              -ms-overflow-style: none !important;
+            }
+          `
+        });
+      }
 
-        // Run immediately
-        setupVideoHandling();
-        
-        // Remove the interval to prevent CPU usage and potential playback interference
-        // The event listeners (onended, onpause) should handle keeping it alive
-        // @ts-ignore
-        // setInterval(setupVideoHandling, 5000);
+      // Only apply video-specific JavaScript for video content
+      // Regular web pages (Home Assistant, dashboards) should not be modified
+      if (isVideo) {
+        // Force page to use full viewport and setup video handling (code runs in browser context via page.evaluate)
+        await this.page.evaluate(() => {
+          // @ts-ignore
+          if (!document.querySelector('meta[name="viewport"]') && document.head) {
+            // @ts-ignore
+            const meta = document.createElement('meta');
+            meta.name = 'viewport';
+            meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+            // @ts-ignore
+            document.head.appendChild(meta);
+          }
 
-        // Force body and html to use 100% width/height and remove any scaling
-        // @ts-ignore
-        if (document.documentElement) {
+          // Simulate user interaction to unlock audio context
           // @ts-ignore
-          document.documentElement.style.cssText = 'width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden; background-color: black;';
-        }
-        // @ts-ignore
-        if (document.body) {
+          if (document.body) {
+            // @ts-ignore
+            document.body.click();
+          }
+
+          // Setup robust video handling (works for both HTML wrappers and raw video files)
           // @ts-ignore
-          document.body.style.cssText = 'width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden; zoom: 100%; background-color: black;';
-        }
-      });
+          function setupVideoHandling() {
+              // @ts-ignore
+              const videos = document.getElementsByTagName('video');
+              for (let i = 0; i < videos.length; i++) {
+                  const v = videos[i];
+
+                  // Ensure loop and audio
+                  if (!v.loop) v.loop = true;
+                  if (v.muted) v.muted = false;
+                  v.volume = 1.0;
+
+                  // Set preload to auto to encourage buffering
+                  v.preload = 'auto';
+                  v.setAttribute('playsinline', '');
+                  v.setAttribute('webkit-playsinline', '');
+
+                  // Add event listeners to keep it alive
+                  v.onended = () => { v.currentTime = 0; v.play().catch(() => {}); };
+                  v.onpause = () => { if (!v.ended) v.play().catch(() => {}); };
+
+                  // Log buffering issues
+                  v.onwaiting = () => { console.log('Video buffering...'); };
+                  v.onstalled = () => { console.log('Video stalled!'); v.play().catch(() => {}); };
+
+                  // Try to play
+                  v.play().catch(() => {});
+              }
+          }
+
+          // Run immediately
+          setupVideoHandling();
+
+          // Remove the interval to prevent CPU usage and potential playback interference
+          // The event listeners (onended, onpause) should handle keeping it alive
+          // @ts-ignore
+          // setInterval(setupVideoHandling, 5000);
+
+          // Force body and html to use 100% width/height and remove any scaling
+          // @ts-ignore
+          if (document.documentElement) {
+            // @ts-ignore
+            document.documentElement.style.cssText = 'width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden; background-color: black;';
+          }
+          // @ts-ignore
+          if (document.body) {
+            // @ts-ignore
+            document.body.style.cssText = 'width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden; zoom: 100%; background-color: black;';
+          }
+        });
+      }
 
       // Log page dimensions after navigation
       const pageDimensions = await this.page.evaluate(() => {

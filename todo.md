@@ -1,5 +1,6 @@
-add broadcast function (broadcast content or message to all screens)
-ability to restart a client from the front end
-ensure video is cached locally on windows and raspberry pi clients fully before playing
-remove errors from front end and move to logs (add logging to server side code)
-
+add broadcast function (broadcast content or message to all screens) (done)
+ability to restart a client from the front end (done)
+ensure video is cached locally on windows and raspberry pi clients fully before playing (done)
+remove errors from front end and move to logs (add logging to server side code) (done)
+changing the time on an item in a playlist is not picked up by a client until it restarsts (done)
+raspberry pi clients are not loading backgrounds on homeassistant URLs; this does work on windows clients. (done)

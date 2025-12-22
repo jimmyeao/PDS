@@ -1494,6 +1494,32 @@ public class PlaylistService : IPlaylistService
         if (dto.TimeWindowEnd != null) i.TimeWindowEnd = dto.TimeWindowEnd;
         if (dto.DaysOfWeek != null) i.DaysOfWeek = System.Text.Json.JsonSerializer.Serialize(dto.DaysOfWeek);
         await _db.SaveChangesAsync();
+
+        // Notify all devices assigned to this playlist with updated items
+        var pid = i.PlaylistId;
+        var deviceIds = await _db.DevicePlaylists.Where(x => x.PlaylistId == pid)
+            .Join(_db.Devices, dp => dp.DeviceId, d => d.Id, (dp, d) => d.DeviceId)
+            .ToListAsync();
+
+        var itemsQuery = from x in _db.PlaylistItems
+                         where x.PlaylistId == pid
+                         join c in _db.Content on x.ContentId equals c.Id into contentGroup
+                         from c in contentGroup.DefaultIfEmpty()
+                         orderby x.OrderIndex ?? x.Id
+                         select new {
+                             id = x.Id,
+                             playlistId = x.PlaylistId,
+                             contentId = x.ContentId,
+                             displayDuration = (x.DurationSeconds ?? 0) * 1000,
+                             orderIndex = x.OrderIndex ?? 0,
+                             content = c == null ? null : new { id = c.Id, name = c.Name, url = c.Url, requiresInteraction = false }
+                         };
+        var items = await itemsQuery.ToListAsync();
+        foreach (var devId in deviceIds)
+        {
+            await RealtimeHub.SendToDevice(devId, ServerToClientEvent.CONTENT_UPDATE, new { playlistId = pid, items });
+        }
+
         return new { id = i.Id, playlistId = i.PlaylistId, contentId = i.ContentId, url = i.Url, displayDuration = (i.DurationSeconds ?? 0) * 1000, orderIndex = i.OrderIndex };
     }
 
