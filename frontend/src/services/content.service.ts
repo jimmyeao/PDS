@@ -36,6 +36,9 @@ export const contentService = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 600000, // 10 minute timeout for large file uploads
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
     });
     return response.data;
   },
@@ -49,6 +52,9 @@ export const contentService = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 600000, // 10 minute timeout for large video uploads
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
     });
     return response.data;
   },
