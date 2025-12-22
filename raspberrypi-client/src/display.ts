@@ -907,6 +907,14 @@ class DisplayController {
         throw new Error('Navigation failed after retries');
       }
 
+      // For Home Assistant pages, add a small delay to let custom cards and scripts fully initialize
+      // This prevents race conditions where HA scripts try to access DOM elements before they're ready
+      const isHomeAssistant = url.includes('homeassistant') || url.includes(':8123');
+      if (isHomeAssistant) {
+        logger.info('Home Assistant detected, waiting 2 seconds for full initialization...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+
       // Inject CSS to hide scrollbars and style video content
       // Only apply aggressive video-specific styling (black background, full viewport) to actual video content
       // Regular web pages (Home Assistant, dashboards, etc.) should keep their own styling
