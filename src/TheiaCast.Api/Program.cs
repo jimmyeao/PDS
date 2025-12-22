@@ -1732,6 +1732,44 @@ public class PlaylistService : IPlaylistService
         if (!string.IsNullOrWhiteSpace(dto.Name)) c.Name = dto.Name!;
         if (!string.IsNullOrWhiteSpace(dto.Url)) c.Url = dto.Url!;
         await _db.SaveChangesAsync();
+
+        // Notify all devices with playlists containing this content
+        // Get all playlists that contain this content
+        var affectedPlaylistIds = await _db.PlaylistItems
+            .Where(x => x.ContentId == id)
+            .Select(x => x.PlaylistId)
+            .Distinct()
+            .ToListAsync();
+
+        // For each affected playlist, notify all assigned devices
+        foreach (var playlistId in affectedPlaylistIds)
+        {
+            var deviceIds = await _db.DevicePlaylists
+                .Where(x => x.PlaylistId == playlistId)
+                .Join(_db.Devices, dp => dp.DeviceId, d => d.Id, (dp, d) => d.DeviceId)
+                .ToListAsync();
+
+            var itemsQuery = from x in _db.PlaylistItems
+                             where x.PlaylistId == playlistId
+                             join content in _db.Content on x.ContentId equals content.Id into contentGroup
+                             from content in contentGroup.DefaultIfEmpty()
+                             orderby x.OrderIndex ?? x.Id
+                             select new {
+                                 id = x.Id,
+                                 playlistId = x.PlaylistId,
+                                 contentId = x.ContentId,
+                                 displayDuration = (x.DurationSeconds ?? 0) * 1000,
+                                 orderIndex = x.OrderIndex ?? 0,
+                                 content = content == null ? null : new { id = content.Id, name = content.Name, url = content.Url, requiresInteraction = false }
+                             };
+            var items = await itemsQuery.ToListAsync();
+
+            foreach (var devId in deviceIds)
+            {
+                await RealtimeHub.SendToDevice(devId, ServerToClientEvent.CONTENT_UPDATE, new { playlistId, items });
+            }
+        }
+
         return new { id = c.Id, name = c.Name, url = c.Url };
     }
 
