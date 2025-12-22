@@ -639,7 +639,7 @@ app.MapPut("/settings/{key}", async (string key, [FromBody] SetSettingRequest re
 // Broadcast endpoints
 app.MapPost("/broadcast/start", async ([FromBody] StartBroadcastRequest req, IBroadcastService svc) =>
 {
-    var broadcast = await svc.StartBroadcastAsync(req.Type, req.Url, req.Message);
+    var broadcast = await svc.StartBroadcastAsync(req.Type, req.Url, req.Message, req.Duration);
     return Results.Ok(broadcast);
 }).RequireAuthorization();
 

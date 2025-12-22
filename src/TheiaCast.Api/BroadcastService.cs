@@ -5,7 +5,7 @@ namespace TheiaCast.Api;
 
 public interface IBroadcastService
 {
-    Task<object> StartBroadcastAsync(string type, string? url, string? message);
+    Task<object> StartBroadcastAsync(string type, string? url, string? message, int? duration);
     Task EndBroadcastAsync();
     Task<object?> GetActiveBroadcastAsync();
 }
@@ -21,7 +21,7 @@ public class BroadcastService : IBroadcastService
         _logger = logger;
     }
 
-    public async Task<object> StartBroadcastAsync(string type, string? url, string? message)
+    public async Task<object> StartBroadcastAsync(string type, string? url, string? message, int? duration)
     {
         // End any active broadcast first
         await EndBroadcastAsync();
@@ -39,10 +39,10 @@ public class BroadcastService : IBroadcastService
         _db.Broadcasts.Add(broadcast);
         await _db.SaveChangesAsync();
 
-        _logger.LogInformation("Broadcast started: {Type} - {Url}{Message}", type, url, message);
+        _logger.LogInformation("Broadcast started: {Type} - {Url}{Message} Duration: {Duration}ms", type, url, message, duration);
 
         // Send broadcast to all connected devices
-        var payload = new BroadcastPayload(type, url, message);
+        var payload = new BroadcastPayload(type, url, message, duration);
         await RealtimeHub.BroadcastToDevicesAsync(ServerToClientEvent.BROADCAST_START, payload);
 
         // Save broadcast state for each device

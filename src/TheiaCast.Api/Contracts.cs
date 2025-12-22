@@ -91,12 +91,14 @@ namespace TheiaCast.Api.Contracts
     public record StartBroadcastRequest(
         [property: JsonPropertyName("type")] string Type, // "url" or "message"
         [property: JsonPropertyName("url")] string? Url,
-        [property: JsonPropertyName("message")] string? Message
+        [property: JsonPropertyName("message")] string? Message,
+        [property: JsonPropertyName("duration")] int? Duration
     );
 
     public record BroadcastPayload(
         [property: JsonPropertyName("type")] string Type,
         [property: JsonPropertyName("url")] string? Url,
-        [property: JsonPropertyName("message")] string? Message
+        [property: JsonPropertyName("message")] string? Message,
+        [property: JsonPropertyName("duration")] int? Duration
     );
 }
