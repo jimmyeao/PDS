@@ -484,6 +484,23 @@ public class BrowserController : IAsyncDisposable
             _logger.LogError(ex, "Navigation failed: {Url}", url);
             throw;
         }
+
+        // Hide cursor for kiosk mode
+        try
+        {
+            await _page.AddStyleTagAsync(new PageAddStyleTagOptions
+            {
+                Content = @"
+                    * { cursor: none !important; }
+                    html, body { cursor: none !important; }
+                "
+            });
+            _logger.LogDebug("Cursor hidden for kiosk mode");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to hide cursor (non-critical)");
+        }
     }
 
     public async Task<string> CaptureScreenshotAsync()

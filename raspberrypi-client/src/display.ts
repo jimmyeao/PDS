@@ -915,7 +915,7 @@ class DisplayController {
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
 
-      // Inject CSS to hide scrollbars and style video content
+      // Inject CSS to hide scrollbars, cursor, and style video content
       // Only apply aggressive video-specific styling (black background, full viewport) to actual video content
       // Regular web pages (Home Assistant, dashboards, etc.) should keep their own styling
       if (isVideo) {
@@ -923,6 +923,7 @@ class DisplayController {
         await this.page.addStyleTag({
           content: `
             ::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
+            * { cursor: none !important; }
             html, body {
               overflow: hidden !important;
               scrollbar-width: none !important;
@@ -932,6 +933,7 @@ class DisplayController {
               width: 100vw !important;
               height: 100vh !important;
               background-color: black !important;
+              cursor: none !important;
             }
             video {
               object-fit: contain !important;
@@ -946,13 +948,15 @@ class DisplayController {
           `
         });
       } else {
-        // For regular web pages: Only hide scrollbars, don't override page styling
+        // For regular web pages: Hide scrollbars and cursor for kiosk mode
         await this.page.addStyleTag({
           content: `
             ::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
+            * { cursor: none !important; }
             html, body {
               scrollbar-width: none !important;
               -ms-overflow-style: none !important;
+              cursor: none !important;
             }
           `
         });
