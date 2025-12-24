@@ -153,7 +153,8 @@
       "Bash(xcopy:*)",
       "Bash(cmd //c copy:*)",
       "Bash(python3:*)",
-      "Bash(cmd //c dir:*)"
+      "Bash(cmd //c dir:*)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
