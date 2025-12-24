@@ -91,11 +91,26 @@ jobs:
           path: client-windows/TheiaCast-Client-Windows-v${{ steps.version.outputs.VERSION }}-Setup.exe
 
       - name: Create GitHub Release
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          name: TheiaCast v${{ steps.version.outputs.VERSION }}
           files: client-windows/TheiaCast-Client-Windows-v${{ steps.version.outputs.VERSION }}-Setup.exe
           draft: false
           prerelease: false
+          body: |
+            ## TheiaCast Windows Client v${{ steps.version.outputs.VERSION }}
+
+            ### Installation
+            Download and run `TheiaCast-Client-Windows-v${{ steps.version.outputs.VERSION }}-Setup.exe`
+
+            ### Requirements
+            - Windows 10 or later
+            - .NET 10 Runtime (automatically installed if missing)
+
+            ### What's Included
+            - Windows installer with auto-start via Task Scheduler
+            - Bundled Chromium browser for kiosk display
+            - Configuration wizard for server connection
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
