@@ -6,17 +6,17 @@ Write-Host ""
 
 # Stop the task
 Write-Host "Stopping scheduled task..." -ForegroundColor Yellow
-Stop-ScheduledTask -TaskName "PDSKioskClient-AutoStart" -ErrorAction SilentlyContinue
+Stop-ScheduledTask -TaskName "TheiaCastKioskClient-AutoStart" -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 3
 
 # Kill any running KioskClient processes
 Write-Host "Stopping any running KioskClient processes..." -ForegroundColor Yellow
 Get-Process -Name "KioskClient.Service" -ErrorAction SilentlyContinue | Stop-Process -Force
-Get-Process -Name "chrome" -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*PDS*" } | Stop-Process -Force
+Get-Process -Name "chrome" -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*TheiaCast*" } | Stop-Process -Force
 Start-Sleep -Seconds 2
 
 # Delete the corrupted profile
-$profileDir = "C:\ProgramData\PDS\browser-profile"
+$profileDir = "C:\ProgramData\TheiaCast\browser-profile"
 if (Test-Path $profileDir) {
     Write-Host "Deleting corrupted profile: $profileDir" -ForegroundColor Yellow
     Remove-Item -Path $profileDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -40,7 +40,7 @@ Write-Host ""
 
 # Restart the task
 Write-Host "Starting scheduled task..." -ForegroundColor Cyan
-Start-ScheduledTask -TaskName "PDSKioskClient-AutoStart"
+Start-ScheduledTask -TaskName "TheiaCastKioskClient-AutoStart"
 Start-Sleep -Seconds 3
 
 Write-Host ""

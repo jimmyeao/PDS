@@ -57,7 +57,7 @@ Quick steps:
 1. Run deployment script: `npm run deploy:win`
 2. Copy `deploy` folder to your Windows machine
 3. Copy `.env.example` to `.env` and configure
-4. Run `start.bat` or install as Windows Service with NSSM
+4. Run the installer (Setup.exe) which will configure auto-start via Task Scheduler
 
 ### Raspberry Pi / Linux
 
