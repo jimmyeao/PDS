@@ -782,6 +782,7 @@ public static class RealtimeHub
         if (role == "device" && !string.IsNullOrEmpty(deviceId))
         {
             Devices[deviceId] = ws;
+            Console.WriteLine($">>> RealtimeHub: Device '{deviceId}' connected. Total devices: {Devices.Count}");
 
             // Log device connection
             try
@@ -1087,8 +1088,10 @@ public static class RealtimeHub
 
     public static async Task BroadcastToDevicesAsync(string evt, object payload)
     {
+        Console.WriteLine($">>> RealtimeHub: Broadcasting event '{evt}' to {Devices.Count} connected device(s)");
         var tasks = Devices.Values.Select(ws => Send(ws, evt, payload)).ToArray();
         await Task.WhenAll(tasks);
+        Console.WriteLine($">>> RealtimeHub: Broadcast complete");
     }
 
     private static Task Send(System.Net.WebSockets.WebSocket ws, string evt, object payload)

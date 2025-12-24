@@ -107,6 +107,7 @@ public class WebSocketClient : IDisposable
                 }
 
                 var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                _logger.LogInformation(">>> Received WebSocket message: {Message}", json);
                 await HandleMessageAsync(json);
             }
         }
