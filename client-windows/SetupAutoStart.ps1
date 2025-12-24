@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Sets up PDS Kiosk Client to auto-start on user login using Task Scheduler
+    Sets up TheiaCast Kiosk Client to auto-start on user login using Task Scheduler
 
 .DESCRIPTION
     Alternative to running as a Windows Service. Uses Task Scheduler to launch
@@ -13,13 +13,13 @@
 
 param(
     [Parameter(Mandatory=$false)]
-    [string]$ServiceName = "PDSKioskClient",
+    [string]$ServiceName = "TheiaCastKioskClient",
 
     [Parameter(Mandatory=$false)]
-    [string]$TaskName = "PDSKioskClient-AutoStart",
+    [string]$TaskName = "TheiaCastKioskClient-AutoStart",
 
     [Parameter(Mandatory=$false)]
-    [string]$InstallPath = "C:\Program Files (x86)\PDS\KioskClient"
+    [string]$InstallPath = "C:\Program Files\TheiaCast\KioskClient"
 )
 
 # Require Administrator
@@ -86,7 +86,7 @@ $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoi
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Highest
 
 # Register the task
-$task = Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Description "Auto-start PDS Kiosk Client on user login"
+$task = Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Description "Auto-start TheiaCast Kiosk Client on user login"
 
 Write-Host "  V Scheduled task created" -ForegroundColor Green
 Write-Host ""

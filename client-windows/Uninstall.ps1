@@ -1,15 +1,15 @@
 <#
 .SYNOPSIS
-    Uninstalls PDS Kiosk Client
+    Uninstalls TheiaCast Kiosk Client
 
 .DESCRIPTION
-    Stops and removes the PDS Kiosk Client service/task and optionally removes installation files.
+    Stops and removes the TheiaCast Kiosk Client service/task and optionally removes installation files.
 
 .PARAMETER RemoveFiles
     Remove installation directory (default: $false)
 
 .PARAMETER InstallPath
-    Installation directory to remove (default: C:\Program Files (x86)\PDS\KioskClient)
+    Installation directory to remove (default: C:\Program Files\TheiaCast\KioskClient)
 
 .EXAMPLE
     .\Uninstall.ps1
@@ -23,7 +23,7 @@ param(
     [switch]$RemoveFiles,
 
     [Parameter(Mandatory=$false)]
-    [string]$InstallPath = "C:\Program Files (x86)\PDS\KioskClient"
+    [string]$InstallPath = "C:\Program Files\TheiaCast\KioskClient"
 )
 
 # Require Administrator
@@ -35,15 +35,15 @@ if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 $ErrorActionPreference = "Stop"
 
 Write-Host "=====================================" -ForegroundColor Cyan
-Write-Host "PDS Kiosk Client Uninstaller" -ForegroundColor Cyan
+Write-Host "TheiaCast Kiosk Client Uninstaller" -ForegroundColor Cyan
 Write-Host "=====================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Remove scheduled task
 Write-Host "[1/3] Removing scheduled task..." -ForegroundColor Yellow
-$task = Get-ScheduledTask -TaskName "PDSKioskClient-AutoStart" -ErrorAction SilentlyContinue
+$task = Get-ScheduledTask -TaskName "TheiaCastKioskClient-AutoStart" -ErrorAction SilentlyContinue
 if ($task) {
-    Unregister-ScheduledTask -TaskName "PDSKioskClient-AutoStart" -Confirm:$false
+    Unregister-ScheduledTask -TaskName "TheiaCastKioskClient-AutoStart" -Confirm:$false
     Write-Host "  V Scheduled task removed" -ForegroundColor Green
 } else {
     Write-Host "  V Scheduled task not found" -ForegroundColor Green
@@ -52,13 +52,13 @@ Write-Host ""
 
 # Stop and remove service (for old installations)
 Write-Host "[2/3] Removing Windows Service (if exists)..." -ForegroundColor Yellow
-$service = Get-Service -Name "PDSKioskClient" -ErrorAction SilentlyContinue
+$service = Get-Service -Name "TheiaCastKioskClient" -ErrorAction SilentlyContinue
 if ($service) {
     if ($service.Status -eq "Running") {
-        Stop-Service -Name "PDSKioskClient" -Force
+        Stop-Service -Name "TheiaCastKioskClient" -Force
         Start-Sleep -Seconds 2
     }
-    sc.exe delete "PDSKioskClient" | Out-Null
+    sc.exe delete "TheiaCastKioskClient" | Out-Null
     Write-Host "  V Service removed" -ForegroundColor Green
 } else {
     Write-Host "  V Service not found" -ForegroundColor Green
@@ -86,7 +86,7 @@ if ($RemoveFiles) {
     }
 
     # Remove browser profile
-    $profileDir = "C:\ProgramData\PDS\browser-profile"
+    $profileDir = "C:\ProgramData\TheiaCast\browser-profile"
     if (Test-Path $profileDir) {
         try {
             Remove-Item -Path $profileDir -Recurse -Force

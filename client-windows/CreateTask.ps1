@@ -2,9 +2,9 @@
 # Run this as Administrator (or with Intune EPM)
 # Detects the actual logged-in user, not the elevated user
 
-$TaskName = "PDSKioskClient-AutoStart"
-$ExePath = "C:\Program Files (x86)\PDS\KioskClient\KioskClient.Service.exe"
-$WorkingDir = "C:\Program Files (x86)\PDS\KioskClient"
+$TaskName = "TheiaCastKioskClient-AutoStart"
+$ExePath = "C:\Program Files\TheiaCast\KioskClient\KioskClient.Service.exe"
+$WorkingDir = "C:\Program Files\TheiaCast\KioskClient"
 
 Write-Host "Detecting actual logged-in user..." -ForegroundColor Cyan
 
@@ -48,7 +48,7 @@ try {
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 
     # Register the task
-    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "Auto-start PDS Kiosk Client on user login" -Force | Out-Null
+    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "Auto-start TheiaCast Kiosk Client on user login" -Force | Out-Null
 
     Write-Host "Task created successfully!" -ForegroundColor Green
     Write-Host ""

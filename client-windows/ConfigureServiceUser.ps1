@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Configures PDSKioskClient service to run as a user account (to show browser UI)
+    Configures TheiaCastKioskClient service to run as a user account (to show browser UI)
 
 .DESCRIPTION
     Windows Services running as SYSTEM cannot display UI. This script reconfigures
@@ -12,7 +12,7 @@
 
 param(
     [Parameter(Mandatory=$false)]
-    [string]$ServiceName = "PDSKioskClient",
+    [string]$ServiceName = "TheiaCastKioskClient",
 
     [Parameter(Mandatory=$false)]
     [string]$Username = $env:USERNAME
