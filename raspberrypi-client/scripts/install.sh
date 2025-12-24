@@ -175,13 +175,14 @@ echo "Creating systemd service..."
 cat > ${SERVICE_FILE} << EOF
 [Unit]
 Description=TheiaCast Kiosk Client
-After=network.target graphical.target
+After=network.target
 
 [Service]
 Type=simple
 User=${ACTUAL_USER}
 Group=${ACTUAL_USER}
 WorkingDirectory=${INSTALL_DIR}
+Environment="NODE_ENV=production"
 Environment="DISPLAY=:0"
 Environment="XAUTHORITY=${USER_HOME}/.Xauthority"
 Environment="HOME=${USER_HOME}"
@@ -189,6 +190,10 @@ EnvironmentFile=${INSTALL_DIR}/.env
 ExecStart=/usr/bin/node ${INSTALL_DIR}/index.js
 Restart=always
 RestartSec=10
+# Ensure all child processes (Chromium) are killed when service stops
+KillMode=control-group
+KillSignal=SIGTERM
+TimeoutStopSec=10
 
 [Install]
 WantedBy=multi-user.target
