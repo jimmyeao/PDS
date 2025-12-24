@@ -69,6 +69,13 @@ jobs:
             cp ../../raspberrypi-client/package-lock.json .
           fi
 
+          # Bundle the shared package as a local dependency
+          mkdir -p node_modules/@theiacast
+          cp -r ../../shared node_modules/@theiacast/shared
+          # Remove dev files from bundled shared package
+          rm -rf node_modules/@theiacast/shared/node_modules
+          rm -rf node_modules/@theiacast/shared/src
+
           # Copy install scripts
           mkdir -p scripts
           cp ../../raspberrypi-client/scripts/*.sh scripts/
