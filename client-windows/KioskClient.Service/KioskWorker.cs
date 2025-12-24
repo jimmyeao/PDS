@@ -397,9 +397,9 @@ public class KioskWorker : BackgroundService
                     if (_playlistExecutor != null)
                     {
                         var type = payload.TryGetProperty("type", out var typeElement) ? typeElement.GetString() : "url";
-                        var broadcastUrl = payload.TryGetProperty("url", out var broadcastUrlElement) ? broadcastUrlElement.GetString() : null;
-                        var message = payload.TryGetProperty("message", out var messageElement) ? messageElement.GetString() : null;
-                        var duration = payload.TryGetProperty("duration", out var durationElement) ? durationElement.GetInt32() : 0;
+                        var broadcastUrl = payload.TryGetProperty("url", out var broadcastUrlElement) && broadcastUrlElement.ValueKind != JsonValueKind.Null ? broadcastUrlElement.GetString() : null;
+                        var message = payload.TryGetProperty("message", out var messageElement) && messageElement.ValueKind != JsonValueKind.Null ? messageElement.GetString() : null;
+                        var duration = payload.TryGetProperty("duration", out var durationElement) && durationElement.ValueKind != JsonValueKind.Null ? durationElement.GetInt32() : 0;
 
                         _logger.LogInformation("Starting broadcast ({Type}): {Content}", type, broadcastUrl ?? message);
                         _playlistExecutor.StartBroadcast(type ?? "url", broadcastUrl, message, duration);
