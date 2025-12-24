@@ -1,0 +1,95 @@
+name: Release Windows Client
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  build-windows-client:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Extract version
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $version = "${{ github.event.inputs.version }}"
+          } else {
+            $version = "${{ github.ref_name }}".TrimStart('v')
+          }
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+          echo "Version: $version"
+
+      - name: Build .NET Project
+        working-directory: client-windows
+        run: |
+          dotnet publish KioskClient.Service -c Release -o publish -r win-x64 --self-contained false
+
+      - name: Install Playwright browsers
+        working-directory: client-windows/publish
+        shell: pwsh
+        run: |
+          # Install Playwright browsers into the publish directory
+          npx playwright@latest install chromium --with-deps
+
+      - name: Download Inno Setup
+        shell: pwsh
+        run: |
+          $InnoSetupUrl = "https://jrsoftware.org/download.php/is.exe"
+          Invoke-WebRequest -Uri $InnoSetupUrl -OutFile "$env:TEMP\innosetup.exe"
+          Start-Process -FilePath "$env:TEMP\innosetup.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" -Wait
+
+      - name: Build Installer
+        working-directory: client-windows
+        shell: pwsh
+        run: |
+          # Update version in Setup.iss
+          $setupContent = Get-Content Setup.iss -Raw
+          $setupContent = $setupContent -replace '#define MyAppVersion ".*"', "#define MyAppVersion `"${{ steps.version.outputs.VERSION }}`""
+          Set-Content Setup.iss -Value $setupContent
+
+          # Compile with Inno Setup
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" Setup.iss
+
+      - name: Rename installer
+        working-directory: client-windows
+        shell: pwsh
+        run: |
+          $oldName = "TheiaCastKioskClient-Setup.exe"
+          $newName = "TheiaCast-Client-Windows-v${{ steps.version.outputs.VERSION }}-Setup.exe"
+          if (Test-Path $oldName) {
+            Rename-Item $oldName $newName
+            echo "Renamed to: $newName"
+          }
+
+      - name: Upload Release Asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-client-installer
+          path: client-windows/TheiaCast-Client-Windows-v${{ steps.version.outputs.VERSION }}-Setup.exe
+
+      - name: Create GitHub Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: client-windows/TheiaCast-Client-Windows-v${{ steps.version.outputs.VERSION }}-Setup.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

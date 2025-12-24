@@ -1,0 +1,241 @@
+name: Release Frontend
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  build-frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build production bundle
+        working-directory: frontend
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Create package directory
+        run: |
+          mkdir -p package/theiacast-frontend
+
+          # Copy built files
+          cp -r frontend/dist package/theiacast-frontend/
+
+          # Copy nginx configuration
+          cp frontend/nginx.conf package/theiacast-frontend/
+
+          # Create installation README
+          cat > package/theiacast-frontend/README.md << 'EOF'
+          # TheiaCast Frontend
+
+          ## Installation Options
+
+          ### Option 1: Nginx (Recommended for Production)
+
+          1. Install Nginx:
+             ```bash
+             sudo apt update
+             sudo apt install nginx
+             ```
+
+          2. Copy files to web root:
+             ```bash
+             sudo mkdir -p /var/www/theiacast
+             sudo cp -r dist /var/www/theiacast/frontend
+             ```
+
+          3. Configure Nginx:
+             ```bash
+             # Edit nginx.conf and update backend proxy URLs (change backend:8080 to localhost:5001)
+             sudo cp nginx.conf /etc/nginx/sites-available/theiacast
+             sudo ln -s /etc/nginx/sites-available/theiacast /etc/nginx/sites-enabled/
+             sudo nginx -t
+             sudo systemctl reload nginx
+             ```
+
+          4. Access at: http://your-server-ip
+
+          ### Option 2: Apache
+
+          1. Install Apache:
+             ```bash
+             sudo apt update
+             sudo apt install apache2
+             ```
+
+          2. Copy files:
+             ```bash
+             sudo cp -r dist/* /var/www/html/
+             ```
+
+          3. Enable mod_rewrite for SPA routing:
+             ```bash
+             sudo a2enmod rewrite
+             sudo systemctl restart apache2
+             ```
+
+          4. Create `.htaccess` in `/var/www/html/`:
+             ```apache
+             <IfModule mod_rewrite.c>
+               RewriteEngine On
+               RewriteBase /
+               RewriteRule ^index\.html$ - [L]
+               RewriteCond %{REQUEST_FILENAME} !-f
+               RewriteCond %{REQUEST_FILENAME} !-d
+               RewriteRule . /index.html [L]
+             </IfModule>
+             ```
+
+          ### Option 3: Serve with Node.js (Development/Testing)
+
+          ```bash
+          npx serve dist -l 5173
+          ```
+
+          ## Backend Configuration
+
+          The frontend expects the backend API to be available at:
+          - Production: Proxied through Nginx at `/api/` and `/ws`
+          - Development: `http://localhost:5001`
+
+          Configure in `VITE_API_URL` environment variable before building.
+
+          ## SSL/HTTPS Setup (Production)
+
+          1. Install Certbot:
+             ```bash
+             sudo apt install certbot python3-certbot-nginx
+             ```
+
+          2. Obtain certificate:
+             ```bash
+             sudo certbot --nginx -d yourdomain.com
+             ```
+
+          3. Certbot will automatically configure HTTPS in nginx.conf
+
+          ## Troubleshooting
+
+          - **404 errors on refresh**: Ensure nginx/apache is configured for SPA routing
+          - **API connection issues**: Check backend is running and proxy configuration
+          - **WebSocket errors**: Verify `/ws` proxy is configured correctly
+          EOF
+
+          # Create deployment script
+          cat > package/theiacast-frontend/deploy.sh << 'EOFSCRIPT'
+          #!/bin/bash
+          set -e
+
+          echo "TheiaCast Frontend Deployment Script"
+          echo "======================================"
+          echo ""
+
+          # Check for root
+          if [ "$EUID" -ne 0 ]; then
+            echo "Please run as root: sudo ./deploy.sh"
+            exit 1
+          fi
+
+          # Install Nginx if not present
+          if ! command -v nginx &> /dev/null; then
+            echo "Installing Nginx..."
+            apt update
+            apt install -y nginx
+          fi
+
+          # Create directory
+          echo "Creating web directory..."
+          mkdir -p /var/www/theiacast
+
+          # Copy files
+          echo "Copying frontend files..."
+          cp -r dist /var/www/theiacast/frontend
+
+          # Update nginx config for production
+          echo "Configuring Nginx..."
+          sed -i 's|http://backend:8080/|http://localhost:5001/|g' nginx.conf
+          sed -i 's|http://backend:8080/ws|http://localhost:5001/ws|g' nginx.conf
+          cp nginx.conf /etc/nginx/sites-available/theiacast
+
+          # Enable site
+          ln -sf /etc/nginx/sites-available/theiacast /etc/nginx/sites-enabled/
+          rm -f /etc/nginx/sites-enabled/default
+
+          # Test and reload
+          echo "Testing Nginx configuration..."
+          nginx -t
+
+          echo "Reloading Nginx..."
+          systemctl reload nginx
+
+          echo ""
+          echo "✓ Frontend deployed successfully!"
+          echo "Access at: http://$(hostname -I | awk '{print $1}')"
+          echo ""
+          echo "Next steps:"
+          echo "1. Ensure backend is running on port 5001"
+          echo "2. For HTTPS, run: sudo certbot --nginx -d yourdomain.com"
+          EOFSCRIPT
+
+          chmod +x package/theiacast-frontend/deploy.sh
+
+      - name: Create tarball
+        run: |
+          cd package
+          tar czf ../theiacast-frontend-v${{ steps.version.outputs.VERSION }}.tar.gz theiacast-frontend
+
+      - name: Create zip
+        run: |
+          cd package
+          zip -r ../theiacast-frontend-v${{ steps.version.outputs.VERSION }}.zip theiacast-frontend
+
+      - name: Upload Release Assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-package
+          path: |
+            theiacast-frontend-v${{ steps.version.outputs.VERSION }}.tar.gz
+            theiacast-frontend-v${{ steps.version.outputs.VERSION }}.zip
+
+      - name: Create GitHub Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            theiacast-frontend-v${{ steps.version.outputs.VERSION }}.tar.gz
+            theiacast-frontend-v${{ steps.version.outputs.VERSION }}.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,127 @@
+name: Release Linux Client
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  build-linux-client:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Install dependencies
+        working-directory: raspberrypi-client
+        run: npm ci
+
+      - name: Build TypeScript
+        working-directory: raspberrypi-client
+        run: npm run build
+
+      - name: Create package directory
+        run: |
+          mkdir -p package/theiacast-client
+          cd package/theiacast-client
+
+          # Copy built files
+          cp -r ../../raspberrypi-client/dist .
+
+          # Copy package files
+          cp ../../raspberrypi-client/package.json .
+          cp ../../raspberrypi-client/package-lock.json .
+
+          # Copy install scripts
+          mkdir -p scripts
+          cp ../../raspberrypi-client/scripts/*.sh scripts/
+          chmod +x scripts/*.sh
+
+          # Create README
+          cat > README.md << 'EOF'
+          # TheiaCast Client for Linux/Raspberry Pi
+
+          ## Installation
+
+          1. Extract this archive
+          2. Run the install script with sudo:
+             ```bash
+             sudo ./scripts/install.sh
+             ```
+          3. Follow the prompts to configure your device
+
+          ## Requirements
+
+          - Node.js 18+ (will be installed automatically if missing)
+          - Systemd (for service management)
+          - X11 display server (for kiosk mode)
+
+          ## Uninstallation
+
+          ```bash
+          sudo ./scripts/uninstall.sh
+          ```
+
+          ## Manual Configuration
+
+          Edit `/opt/theiacast-client/.env` to change settings, then restart:
+          ```bash
+          sudo systemctl restart theiacast-client
+          ```
+
+          ## Troubleshooting
+
+          View logs:
+          ```bash
+          sudo journalctl -u theiacast-client -f
+          ```
+
+          Check status:
+          ```bash
+          sudo systemctl status theiacast-client
+          ```
+          EOF
+
+      - name: Create tarball
+        run: |
+          cd package
+          tar czf ../theiacast-client-linux-v${{ steps.version.outputs.VERSION }}.tar.gz theiacast-client
+
+      - name: Upload Release Asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-client-package
+          path: theiacast-client-linux-v${{ steps.version.outputs.VERSION }}.tar.gz
+
+      - name: Create GitHub Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: theiacast-client-linux-v${{ steps.version.outputs.VERSION }}.tar.gz
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
