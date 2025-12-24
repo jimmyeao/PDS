@@ -154,7 +154,9 @@
       "Bash(cmd //c copy:*)",
       "Bash(python3:*)",
       "Bash(cmd //c dir:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(ssh:*)",
+      "Bash(scp:*)"
     ]
   }
 }

@@ -212,7 +212,7 @@ public class KioskWorker : BackgroundService
     {
         try
         {
-            _logger.LogDebug("Handling event: {Event}", eventName);
+            _logger.LogInformation(">>> Handling event: {Event} with payload: {Payload}", eventName, payload.ToString());
 
             switch (eventName)
             {

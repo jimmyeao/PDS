@@ -43,7 +43,10 @@ public class BroadcastService : IBroadcastService
 
         // Send broadcast to all connected devices
         var payload = new BroadcastPayload(type, url, message, duration);
+        var payloadJson = System.Text.Json.JsonSerializer.Serialize(payload);
+        _logger.LogInformation(">>> Broadcasting to all devices - Event: {Event}, Payload: {Payload}", ServerToClientEvent.BROADCAST_START, payloadJson);
         await RealtimeHub.BroadcastToDevicesAsync(ServerToClientEvent.BROADCAST_START, payload);
+        _logger.LogInformation(">>> Broadcast sent successfully");
 
         // Save broadcast state for each device
         var devices = await _db.Devices.ToListAsync();
