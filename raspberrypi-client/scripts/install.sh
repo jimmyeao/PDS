@@ -67,6 +67,12 @@ if [ -f "${PACKAGE_DIR}/package.json" ]; then
   cp ${PACKAGE_DIR}/package.json ${INSTALL_DIR}/
 fi
 
+# Copy pre-bundled node_modules if they exist (includes @theiacast/shared)
+if [ -d "${PACKAGE_DIR}/node_modules" ]; then
+  echo "Copying pre-bundled dependencies..."
+  cp -r ${PACKAGE_DIR}/node_modules ${INSTALL_DIR}/
+fi
+
 # Install dependencies
 if [ -f "${INSTALL_DIR}/package.json" ]; then
   echo "Installing Node.js dependencies..."
