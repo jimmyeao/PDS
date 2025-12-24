@@ -134,20 +134,32 @@ echo "User home: $USER_HOME"
 # Configure Chromium based on architecture
 CHROMIUM_EXECUTABLE_PATH=""
 if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" || "$ARCH" == "armv7l" ]]; then
-  # ARM system (Raspberry Pi) - use system chromium-browser
-  echo "ARM system detected. Installing system chromium-browser package..."
+  # ARM system (Raspberry Pi) - use system chromium
+  echo "ARM system detected. Installing system Chromium package..."
   apt-get update -qq
-  apt-get install -y chromium-browser chromium-codecs-ffmpeg-extra
+
+  # Try different package names (varies by distribution)
+  if apt-cache show chromium &> /dev/null; then
+    echo "Installing chromium package..."
+    apt-get install -y chromium
+  elif apt-cache show chromium-browser &> /dev/null; then
+    echo "Installing chromium-browser package..."
+    apt-get install -y chromium-browser
+  else
+    echo -e "${YELLOW}Warning: Could not find chromium package in apt${NC}"
+  fi
 
   # Find chromium executable
-  if command -v chromium-browser &> /dev/null; then
-    CHROMIUM_EXECUTABLE_PATH=$(which chromium-browser)
-    echo -e "${GREEN}✓${NC} System Chromium installed at: ${CHROMIUM_EXECUTABLE_PATH}"
-  elif command -v chromium &> /dev/null; then
+  if command -v chromium &> /dev/null; then
     CHROMIUM_EXECUTABLE_PATH=$(which chromium)
+    echo -e "${GREEN}✓${NC} System Chromium installed at: ${CHROMIUM_EXECUTABLE_PATH}"
+  elif command -v chromium-browser &> /dev/null; then
+    CHROMIUM_EXECUTABLE_PATH=$(which chromium-browser)
     echo -e "${GREEN}✓${NC} System Chromium installed at: ${CHROMIUM_EXECUTABLE_PATH}"
   else
     echo -e "${YELLOW}Warning: Could not find chromium executable${NC}"
+    echo -e "${YELLOW}The client may fail to start. Please install chromium manually:${NC}"
+    echo -e "${YELLOW}  sudo apt-get install chromium${NC}"
   fi
 else
   # x64 system - let Puppeteer download its own Chrome
