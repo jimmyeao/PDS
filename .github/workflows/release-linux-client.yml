@@ -60,7 +60,11 @@ jobs:
 
           # Copy package files
           cp ../../raspberrypi-client/package.json .
-          cp ../../raspberrypi-client/package-lock.json .
+
+          # Copy package-lock.json if it exists (workspace setups may not have individual lock files)
+          if [ -f ../../raspberrypi-client/package-lock.json ]; then
+            cp ../../raspberrypi-client/package-lock.json .
+          fi
 
           # Copy install scripts
           mkdir -p scripts
