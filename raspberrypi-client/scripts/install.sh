@@ -51,10 +51,23 @@ mkdir -p ${INSTALL_DIR}
 
 # Copy files to installation directory
 echo "Copying files..."
-cp -r ../dist/* ${INSTALL_DIR}/
-# Note: node_modules will be installed by npm, not copied
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PACKAGE_DIR="$(dirname "$SCRIPT_DIR")"
 
-# Install dependencies if package.json exists
+# Copy dist files
+if [ -d "${PACKAGE_DIR}/dist" ]; then
+  cp -r ${PACKAGE_DIR}/dist/* ${INSTALL_DIR}/
+else
+  echo -e "${RED}Error: dist directory not found at ${PACKAGE_DIR}/dist${NC}"
+  exit 1
+fi
+
+# Copy package.json if it exists
+if [ -f "${PACKAGE_DIR}/package.json" ]; then
+  cp ${PACKAGE_DIR}/package.json ${INSTALL_DIR}/
+fi
+
+# Install dependencies
 if [ -f "${INSTALL_DIR}/package.json" ]; then
   echo "Installing Node.js dependencies..."
   cd ${INSTALL_DIR}
