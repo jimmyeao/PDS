@@ -4,7 +4,7 @@
 
 [![Version](https://img.shields.io/badge/version-1.0-blue.svg)](https://github.com/jimmyeao/TheiaCast/releases)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/)
+[![.NET](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
 [![React](https://img.shields.io/badge/React-19-blue.svg)](https://reactjs.org/)
 
 A comprehensive web-based digital signage solution with centralized management, real-time monitoring, and advanced remote control capabilities. Perfect for managing displays across multiple locations with support for Windows PCs, Intel NUCs, and Raspberry Pi devices.
@@ -76,39 +76,137 @@ docker-compose up -d
 
 ### Option 2: Development Setup
 
+#### Prerequisites
+- .NET 10 SDK - [Download](https://dotnet.microsoft.com/download/dotnet/10.0)
+- Node.js 20+ - [Download](https://nodejs.org/)
+- PostgreSQL 12+ - [Download](https://www.postgresql.org/download/)
+
+#### Setup Steps
+
 ```bash
-# Install dependencies
+# 1. Clone the repository
+git clone https://github.com/jimmyeao/TheiaCast.git
+cd TheiaCast
+
+# 2. Install frontend dependencies (using npm workspaces)
 npm install
 
-# Start database
+# 3. Start database
 docker-compose up postgres -d
+# Or use local PostgreSQL and update connection string
 
-# Start backend (.NET 8)
-cd src/PDS.Api
+# 4. Start backend (.NET 10)
+cd src/TheiaCast.Api
+dotnet restore
 dotnet run
 
-# Start frontend (React)
+# Backend runs at: http://localhost:5001
+# Swagger API docs: http://localhost:5001/swagger
+
+# 5. In a new terminal, start frontend (React)
 cd frontend
 npm run dev
+
+# Frontend runs at: http://localhost:5173
+# Default login: admin / admin123
+```
+
+#### Building for Production
+
+```bash
+# Build backend
+cd src/TheiaCast.Api
+dotnet publish -c Release -o ../../publish/backend
+
+# Build frontend
+cd frontend
+npm run build
+# Output in: frontend/dist/
+
+# Build clients (from project root)
+npm run build --workspace=raspberrypi-client
+# Output in: raspberrypi-client/dist/
 ```
 
 ## 📱 Client Installation
 
-### Raspberry Pi - One-Line Install
+### Linux/Raspberry Pi Client
+
+**Requirements:**
+- Raspberry Pi OS (or any Linux distribution)
+- Node.js 18+ (automatically installed if missing)
+- Systemd (for service management)
+- X11 display server
+
+**Installation:**
+
+1. **Download and extract:**
+   ```bash
+   # Download from releases
+   wget https://github.com/jimmyeao/TheiaCast/releases/latest/download/theiacast-client-linux-v1.0.0.tar.gz
+
+   # Extract
+   tar xzf theiacast-client-linux-v1.0.0.tar.gz
+   cd theiacast-client
+   ```
+
+2. **Run installation script:**
+   ```bash
+   sudo ./scripts/install.sh
+   ```
+   The script will:
+   - Install Node.js if needed
+   - Create systemd service
+   - Prompt for server URL, device ID, and token
+   - Configure auto-start
+
+3. **Verify installation:**
+   ```bash
+   sudo systemctl status theiacast-client
+   sudo journalctl -u theiacast-client -f
+   ```
+
+**Configuration:**
+Edit `/opt/theiacast-client/.env` and restart:
+```bash
+sudo nano /opt/theiacast-client/.env
+sudo systemctl restart theiacast-client
+```
+
+**One-Line Install (Alternative):**
 ```bash
 curl -sSL https://raw.githubusercontent.com/jimmyeao/TheiaCast/main/install-pi.sh | bash
 ```
 
 ### Windows - Installer Package
-Download the latest installer from [Releases](https://github.com/jimmyeao/TheiaCast/releases) or:
+Download the latest installer from [Releases](https://github.com/jimmyeao/TheiaCast/releases)
 
-```powershell
-# Quick download
-Invoke-WebRequest -Uri "https://github.com/jimmyeao/TheiaCast/releases/latest/download/TheiaCast-Setup.exe" -OutFile "TheiaCast-Setup.exe"
+**Requirements:**
+- Windows 10 or later
+- .NET 10 Runtime (automatically installed by the installer)
 
-# Silent installation
-.\TheiaCast-Setup.exe /VERYSILENT /ServerUrl=http://your-server:5001 /DeviceId=kiosk1 /DeviceToken=your-token
-```
+**Installation:**
+
+1. **Interactive Installation:**
+   ```powershell
+   # Download and run
+   .\TheiaCast-Client-Windows-v1.0.0-Setup.exe
+   ```
+   The installer will guide you through configuration.
+
+2. **Silent Installation:**
+   ```powershell
+   # Automated deployment
+   .\TheiaCast-Client-Windows-v1.0.0-Setup.exe /VERYSILENT `
+       /ServerUrl=http://your-server:5001 `
+       /DeviceId=kiosk1 `
+       /DeviceToken=your-device-token
+   ```
+
+**Post-Installation:**
+- The client auto-starts via Task Scheduler on user login
+- Chromium browser is bundled with the installer
+- Configuration stored in: `C:\Program Files\TheiaCast\KioskClient\appsettings.json`
 
 ## 🏗️ Architecture
 
@@ -138,7 +236,7 @@ Invoke-WebRequest -Uri "https://github.com/jimmyeao/TheiaCast/releases/latest/do
 
 | Component | Technology |
 |-----------|------------|
-| **Backend** | ASP.NET Core 8 (C#) + PostgreSQL |
+| **Backend** | ASP.NET Core 10 (C#) + PostgreSQL |
 | **Frontend** | React 19 + TypeScript + Tailwind CSS |
 | **Pi Client** | Node.js + Puppeteer + Chromium |
 | **Windows Client** | .NET 10 + Playwright |
@@ -199,41 +297,124 @@ KIOSK_MODE=true
 
 ### Server Deployment
 
-#### Using Docker (Recommended)
+#### Option 1: Docker (Recommended)
+
+Docker images are automatically built and published for each release.
+
+**Using Docker Compose:**
 ```bash
-# Clone and configure
+# Clone the repository
 git clone https://github.com/jimmyeao/TheiaCast.git
 cd TheiaCast
-cp .env.example .env
-nano .env  # Update production settings
 
-# Deploy
+# Configure environment
+cp .env.example .env
+nano .env  # Update settings
+
+# Start services
 docker-compose -f docker-compose.prod.yml up -d
 ```
 
-#### Manual Deployment
+**Using Pre-built Images:**
 ```bash
-# Backend
-cd src/TheiaCast.Api
-dotnet publish -c Release -o publish
-cd publish && dotnet TheiaCast.Api.dll
+# Pull images
+docker pull ghcr.io/jimmyeao/theiacast-backend:latest
+docker pull ghcr.io/jimmyeao/theiacast-frontend:latest
 
-# Frontend 
+# Run backend
+docker run -d \
+  -p 5001:8080 \
+  -e ConnectionStrings__Default="Host=postgres;Database=theiacast;Username=postgres;Password=yourpassword" \
+  -e Jwt__Secret="your-secret-key-min-32-chars" \
+  --name theiacast-backend \
+  ghcr.io/jimmyeao/theiacast-backend:latest
+
+# Run frontend
+docker run -d \
+  -p 80:80 \
+  -e VITE_API_URL=http://your-server:5001 \
+  --name theiacast-frontend \
+  ghcr.io/jimmyeao/theiacast-frontend:latest
+```
+
+#### Option 2: Manual Deployment
+
+**Backend:**
+```bash
+cd src/TheiaCast.Api
+
+# Publish self-contained for your platform
+dotnet publish -c Release \
+  -r linux-x64 \
+  --self-contained true \
+  -p:PublishSingleFile=true \
+  -o publish
+
+# Run
+cd publish
+./TheiaCast.Api
+
+# Or as a systemd service
+sudo nano /etc/systemd/system/theiacast.service
+sudo systemctl enable theiacast
+sudo systemctl start theiacast
+```
+
+**Frontend:**
+```bash
 cd frontend
+
+# Build for production
 npm run build
-# Deploy dist/ to your web server
+
+# Deploy to web server
+# Option 1: Nginx
+sudo cp -r dist/* /var/www/html/theiacast/
+
+# Option 2: Apache
+sudo cp -r dist/* /var/www/html/
+
+# Option 3: Node.js serve
+npx serve dist -l 5173
+```
+
+**Database Setup:**
+```sql
+-- Create database
+CREATE DATABASE theiacast;
+
+-- Connection string
+Host=localhost;Port=5432;Database=theiacast;Username=postgres;Password=yourpassword
 ```
 
 ### Client Deployment
 
 #### Raspberry Pi Mass Deployment
-```bash
-# On each Pi device
-curl -sSL https://raw.githubusercontent.com/jimmyeao/TheiaCast/main/install-pi.sh | bash
 
-# Configure device token
-nano ~/pds-client/raspberrypi-client/.env
-sudo systemctl restart pds-client
+**Using the installation package:**
+```bash
+# Download and extract on each Pi
+wget https://github.com/jimmyeao/TheiaCast/releases/latest/download/theiacast-client-linux-v1.0.0.tar.gz
+tar xzf theiacast-client-linux-v1.0.0.tar.gz
+cd theiacast-client
+
+# Install with pre-configured settings
+sudo ./scripts/install.sh
+
+# Or configure via environment file
+sudo nano /opt/theiacast-client/.env
+sudo systemctl restart theiacast-client
+```
+
+**Using configuration management:**
+```bash
+# Ansible, Puppet, or custom scripts
+# Deploy tarball and run install.sh with environment variables
+export SERVER_URL=http://your-server:5001
+export DEVICE_ID=pi-${HOSTNAME}
+export DEVICE_TOKEN=$(curl -X POST http://your-server:5001/devices ...)
+
+sudo ./scripts/install.sh
 ```
 
 #### Windows Mass Deployment

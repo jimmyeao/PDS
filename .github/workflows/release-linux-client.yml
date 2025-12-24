@@ -128,11 +128,32 @@ jobs:
           path: theiacast-client-linux-v${{ steps.version.outputs.VERSION }}.tar.gz
 
       - name: Create GitHub Release
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          name: TheiaCast v${{ steps.version.outputs.VERSION }}
           files: theiacast-client-linux-v${{ steps.version.outputs.VERSION }}.tar.gz
           draft: false
           prerelease: false
+          body: |
+            ## TheiaCast Linux/Raspberry Pi Client v${{ steps.version.outputs.VERSION }}
+
+            ### Installation
+            ```bash
+            tar xzf theiacast-client-linux-v${{ steps.version.outputs.VERSION }}.tar.gz
+            cd theiacast-client
+            sudo ./scripts/install.sh
+            ```
+
+            ### Requirements
+            - Linux/Raspberry Pi OS
+            - Node.js 18+ (automatically installed if missing)
+            - Systemd for service management
+            - X11 display server for kiosk mode
+
+            ### What's Included
+            - Pre-built Node.js application
+            - Installation and uninstallation scripts
+            - Systemd service configuration
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
