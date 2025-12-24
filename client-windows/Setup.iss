@@ -223,28 +223,56 @@ var
   ConfigContent: AnsiString;
   StartPos, EndPos: Integer;
   SearchKey: String;
+  PreviousInstallPath: String;
 begin
   Result := '';
-  // Use {autopf} instead of {app} since {app} isn't available during InitializeWizard
-  // {autopf} expands to Program Files directory which is determined by the system
-  ConfigFile := ExpandConstant('{autopf}\TheiaCast\KioskClient\appsettings.json');
+
+  // First, try to get the previous installation path from registry
+  if RegQueryStringValue(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{B8E9F1A2-3C4D-5E6F-7A8B-9C0D1E2F3A4B}_is1',
+                          'InstallLocation', PreviousInstallPath) then
+  begin
+    // Registry found, try reading from previous install location
+    ConfigFile := AddBackslash(PreviousInstallPath) + 'appsettings.json';
+    Log('Checking for existing config at registry location: ' + ConfigFile);
+  end
+  else
+  begin
+    // Fallback to default location if registry not found
+    // Use {autopf} instead of {app} since {app} isn't available during InitializeWizard
+    ConfigFile := ExpandConstant('{autopf}\TheiaCast\KioskClient\appsettings.json');
+    Log('Checking for existing config at default location: ' + ConfigFile);
+  end;
 
   if FileExists(ConfigFile) then
   begin
+    Log('Found existing config file: ' + ConfigFile);
     if LoadStringFromFile(ConfigFile, ConfigContent) then
     begin
       // Simple JSON parsing - look for "Key": "Value"
       SearchKey := '"' + Key + '": "';
-      StartPos := Pos(SearchKey, ConfigContent);
+      StartPos := Pos(SearchKey, String(ConfigContent));
       if StartPos > 0 then
       begin
         StartPos := StartPos + Length(SearchKey);
         EndPos := StartPos;
         while (EndPos <= Length(ConfigContent)) and (ConfigContent[EndPos] <> '"') do
           EndPos := EndPos + 1;
-        Result := Copy(ConfigContent, StartPos, EndPos - StartPos);
+        Result := Copy(String(ConfigContent), StartPos, EndPos - StartPos);
+        Log('Read ' + Key + ' from config: ' + Result);
+      end
+      else
+      begin
+        Log('Key "' + Key + '" not found in config file');
       end;
+    end
+    else
+    begin
+      Log('Failed to load config file');
     end;
+  end
+  else
+  begin
+    Log('Config file does not exist: ' + ConfigFile);
   end;
 end;
 
