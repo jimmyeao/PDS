@@ -39,6 +39,10 @@ fi
 NODE_VERSION=$(node -v)
 echo -e "${GREEN}✓${NC} Node.js ${NODE_VERSION} found"
 
+# Detect system architecture early
+ARCH=$(uname -m)
+echo "Detected architecture: ${ARCH}"
+
 # Stop existing service if running
 if systemctl is-active --quiet ${SERVICE_NAME}; then
   echo "Stopping existing ${SERVICE_NAME} service..."
@@ -77,7 +81,13 @@ fi
 if [ -f "${INSTALL_DIR}/package.json" ]; then
   echo "Installing Node.js dependencies..."
   cd ${INSTALL_DIR}
-  npm install --production --no-optional
+  # Skip Puppeteer's Chromium download on ARM (we use system chromium)
+  # On x64, let Puppeteer download its own Chrome
+  if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" || "$ARCH" == "armv7l" ]]; then
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true npm install --production --no-optional
+  else
+    npm install --production --no-optional
+  fi
 fi
 
 # Prompt for configuration
@@ -98,9 +108,14 @@ SCREENSHOT_INTERVAL=300000
 HEALTH_REPORT_INTERVAL=60000
 HEADLESS=false
 KIOSK_MODE=false
+PUPPETEER_EXECUTABLE_PATH=${CHROMIUM_EXECUTABLE_PATH}
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 EOF
 
 echo -e "${GREEN}✓${NC} Configuration saved to ${INSTALL_DIR}/.env"
+if [ -n "$CHROMIUM_EXECUTABLE_PATH" ]; then
+  echo -e "${GREEN}✓${NC} Configured to use Playwright Chromium"
+fi
 
 # Detect the actual user (not root)
 ACTUAL_USER=${SUDO_USER:-$(who am i | awk '{print $1}')}
@@ -116,11 +131,29 @@ fi
 echo "Installing for user: $ACTUAL_USER"
 echo "User home: $USER_HOME"
 
-# Install Playwright browsers
-echo "Installing Chromium browser..."
-cd ${INSTALL_DIR}
-# Install as the actual user to avoid permission issues
-sudo -u ${ACTUAL_USER} npx playwright install chromium --with-deps
+# Configure Chromium based on architecture
+CHROMIUM_EXECUTABLE_PATH=""
+if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" || "$ARCH" == "armv7l" ]]; then
+  # ARM system (Raspberry Pi) - use system chromium-browser
+  echo "ARM system detected. Installing system chromium-browser package..."
+  apt-get update -qq
+  apt-get install -y chromium-browser chromium-codecs-ffmpeg-extra
+
+  # Find chromium executable
+  if command -v chromium-browser &> /dev/null; then
+    CHROMIUM_EXECUTABLE_PATH=$(which chromium-browser)
+    echo -e "${GREEN}✓${NC} System Chromium installed at: ${CHROMIUM_EXECUTABLE_PATH}"
+  elif command -v chromium &> /dev/null; then
+    CHROMIUM_EXECUTABLE_PATH=$(which chromium)
+    echo -e "${GREEN}✓${NC} System Chromium installed at: ${CHROMIUM_EXECUTABLE_PATH}"
+  else
+    echo -e "${YELLOW}Warning: Could not find chromium executable${NC}"
+  fi
+else
+  # x64 system - let Puppeteer download its own Chrome
+  echo "x64 system detected. Puppeteer will download Chrome automatically."
+  CHROMIUM_EXECUTABLE_PATH=""
+fi
 
 # Set proper ownership
 chown -R ${ACTUAL_USER}:${ACTUAL_USER} ${INSTALL_DIR}
