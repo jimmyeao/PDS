@@ -11,7 +11,7 @@ on:
         required: true
         default: '1.0.0'
       components:
-        description: 'Components to release (all, windows-client, linux-client, backend, frontend)'
+        description: 'Components to release (all, windows-client, linux-client)'
         required: false
         default: 'all'
 
@@ -52,28 +52,8 @@ jobs:
     with:
       version: ${{ needs.extract-version.outputs.version }}
 
-  release-backend:
-    needs: extract-version
-    if: |
-      github.event.inputs.components == 'all' ||
-      github.event.inputs.components == 'backend' ||
-      github.event_name == 'push'
-    uses: ./.github/workflows/release-backend.yml
-    with:
-      version: ${{ needs.extract-version.outputs.version }}
-
-  release-frontend:
-    needs: extract-version
-    if: |
-      github.event.inputs.components == 'all' ||
-      github.event.inputs.components == 'frontend' ||
-      github.event_name == 'push'
-    uses: ./.github/workflows/release-frontend.yml
-    with:
-      version: ${{ needs.extract-version.outputs.version }}
-
   create-release-summary:
-    needs: [extract-version, release-windows-client, release-linux-client, release-backend, release-frontend]
+    needs: [extract-version, release-windows-client, release-linux-client]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -81,14 +61,17 @@ jobs:
         run: |
           echo "## TheiaCast Release v${{ needs.extract-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Release Packages:" >> $GITHUB_STEP_SUMMARY
+          echo "### Client Installers:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Windows Client**: TheiaCast-Client-Windows-v${{ needs.extract-version.outputs.version }}-Setup.exe" >> $GITHUB_STEP_SUMMARY
-          echo "- **Linux Client**: theiacast-client-linux-v${{ needs.extract-version.outputs.version }}.tar.gz" >> $GITHUB_STEP_SUMMARY
-          echo "- **Backend (Windows)**: theiacast-backend-win-x64-v${{ needs.extract-version.outputs.version }}.zip" >> $GITHUB_STEP_SUMMARY
-          echo "- **Backend (Linux)**: theiacast-backend-linux-x64-v${{ needs.extract-version.outputs.version }}.tar.gz" >> $GITHUB_STEP_SUMMARY
-          echo "- **Backend (macOS)**: theiacast-backend-osx-x64-v${{ needs.extract-version.outputs.version }}.tar.gz" >> $GITHUB_STEP_SUMMARY
-          echo "- **Frontend**: theiacast-frontend-v${{ needs.extract-version.outputs.version }}.tar.gz" >> $GITHUB_STEP_SUMMARY
+          echo "- **Linux/Raspberry Pi Client**: theiacast-client-linux-v${{ needs.extract-version.outputs.version }}.tar.gz" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Server Deployment:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Backend and Frontend are deployed via Docker. See:" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker images: \`ghcr.io/${{ github.repository_owner }}/theiacast-backend:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker images: \`ghcr.io/${{ github.repository_owner }}/theiacast-frontend:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker workflow: [docker-publish.yml](../.github/workflows/docker-publish.yml)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Installation Guides:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
