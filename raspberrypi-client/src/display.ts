@@ -840,14 +840,43 @@ class DisplayController {
       // Only do this if we are actually switching content types, to avoid unnecessary flashing
       const isVideo = url.includes('.mp4') || url.includes('/videos/') || url.startsWith('file://');
       const wasVideo = this.currentUrl.includes('.mp4') || this.currentUrl.includes('/videos/') || this.currentUrl.startsWith('file://');
-      
-      // Only use about:blank if we are switching AWAY from a video to a web page
-      // Switching TO a video (index.html) is fast enough and handles its own cleanup
-      if (wasVideo && !isVideo) {
+      const wasBroadcast = this.currentUrl.startsWith('data:text/html');
+
+      // Use about:blank if we are switching AWAY from a video to a web page, or away from a broadcast message
+      // This ensures clean transitions and prevents navigation abort errors
+      if ((wasVideo && !isVideo) || wasBroadcast) {
           try {
               // Use a shorter timeout and don't wait for full load
               await this.page.goto('about:blank', { waitUntil: 'domcontentloaded', timeout: 1000 });
-          } catch (e) {}
+              logger.info('Cleared previous page state via about:blank');
+
+              // For broadcasts, clear page state and add delay to prevent navigation conflicts
+              if (wasBroadcast) {
+                  try {
+                      // Evaluate in page context to clear any lingering state
+                      await this.page.evaluate(() => {
+                          // Clear any timers or intervals from the broadcast page
+                          // Note: In the browser context, setTimeout returns a number
+                          const highestTimeoutId = setTimeout(() => {}, 0) as unknown as number;
+                          for (let i = 0; i < highestTimeoutId; i++) {
+                              clearTimeout(i);
+                          }
+                          const highestIntervalId = setInterval(() => {}, 9999) as unknown as number;
+                          for (let i = 0; i < highestIntervalId; i++) {
+                              clearInterval(i);
+                          }
+                      });
+
+                      // Wait longer to ensure broadcast page is fully cleared
+                      await new Promise(resolve => setTimeout(resolve, 1000));
+                      logger.info('Completed broadcast cleanup, waiting 1 second before navigation');
+                  } catch (cleanupError: any) {
+                      logger.warn(`Cleanup failed (non-critical): ${cleanupError.message}`);
+                  }
+              }
+          } catch (e) {
+              logger.warn('Failed to navigate to about:blank, continuing anyway');
+          }
       }
 
       logger.info(`Navigating to: ${url}${duration ? ` (duration: ${duration}ms)` : ''}`);
@@ -863,17 +892,57 @@ class DisplayController {
       try {
         // For video files/wrappers, we don't need networkidle2, domcontentloaded is enough
         const waitStrategy = isVideo ? 'domcontentloaded' : 'networkidle2';
-        
+
         await this.page.goto(url, {
           waitUntil: waitStrategy,
           timeout: timeout,
         });
         navigationSuccess = true;
       } catch (error: any) {
-        // Ignore abort errors caused by rapid navigation changes
+        // Handle abort errors - retry instead of giving up
         if (error.message.includes('net::ERR_ABORTED')) {
-            logger.warn(`Navigation aborted (likely due to new navigation request): ${error.message}`);
-            return;
+            logger.warn(`Navigation aborted: ${error.message}`);
+
+            // Check if we should retry (from broadcast, startup, or blank page)
+            const isStartupOrBlank = !this.currentUrl || this.currentUrl === '' || this.currentUrl === 'about:blank';
+            const shouldRetry = wasBroadcast || isStartupOrBlank;
+
+            // If we came from a broadcast or blank state, the service worker might be causing issues
+            // Try to unregister service workers and retry
+            if (shouldRetry) {
+                const reason = wasBroadcast ? 'post-broadcast' : 'startup/blank';
+                logger.info(`Attempting to unregister service workers and retry navigation (${reason})...`);
+                try {
+                    // Unregister all service workers via page evaluation
+                    await this.page.evaluate(async () => {
+                        if ('serviceWorker' in navigator) {
+                            const registrations = await navigator.serviceWorker.getRegistrations();
+                            for (const registration of registrations) {
+                                await registration.unregister();
+                                console.log('Unregistered service worker:', registration.scope);
+                            }
+                        }
+                    });
+                    logger.info('Service workers unregistered, waiting 500ms before retry...');
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                    // Retry navigation with more lenient strategy
+                    await this.page.goto(url, {
+                        waitUntil: 'domcontentloaded',
+                        timeout: 30000,
+                    });
+                    navigationSuccess = true;
+                    logger.info('✅ Navigation succeeded after service worker cleanup and retry');
+                } catch (retryError: any) {
+                    logger.error(`Navigation failed even after retry: ${retryError.message}`);
+                    // Continue anyway - the page might still partially load
+                    navigationSuccess = true;
+                }
+            } else {
+                // Not from broadcast/startup, likely a legitimate abort (new navigation started)
+                logger.info('Navigation aborted but not retrying (not from broadcast/startup)');
+                return;
+            }
         }
 
         if (error.message.includes('Navigation timeout') || error.message.includes('Timeout')) {
