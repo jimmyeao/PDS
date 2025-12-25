@@ -1,9 +1,6 @@
 name: Release Linux Client
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       version:
