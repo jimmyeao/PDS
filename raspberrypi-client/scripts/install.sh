@@ -90,33 +90,6 @@ if [ -f "${INSTALL_DIR}/package.json" ]; then
   fi
 fi
 
-# Prompt for configuration
-echo ""
-echo -e "${YELLOW}Configuration:${NC}"
-read -p "Enter Server URL (e.g., http://192.168.0.11:5001): " SERVER_URL
-read -p "Enter Device ID (e.g., $(hostname)): " DEVICE_ID
-DEVICE_ID=${DEVICE_ID:-$(hostname)}
-read -p "Enter Device Token: " DEVICE_TOKEN
-
-# Create .env file
-cat > ${INSTALL_DIR}/.env << EOF
-SERVER_URL=${SERVER_URL}
-DEVICE_ID=${DEVICE_ID}
-DEVICE_TOKEN=${DEVICE_TOKEN}
-LOG_LEVEL=info
-SCREENSHOT_INTERVAL=300000
-HEALTH_REPORT_INTERVAL=60000
-HEADLESS=false
-KIOSK_MODE=false
-PUPPETEER_EXECUTABLE_PATH=${CHROMIUM_EXECUTABLE_PATH}
-PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-EOF
-
-echo -e "${GREEN}✓${NC} Configuration saved to ${INSTALL_DIR}/.env"
-if [ -n "$CHROMIUM_EXECUTABLE_PATH" ]; then
-  echo -e "${GREEN}✓${NC} Configured to use Playwright Chromium"
-fi
-
 # Detect the actual user (not root)
 ACTUAL_USER=${SUDO_USER:-$(who am i | awk '{print $1}')}
 ACTUAL_USER=${ACTUAL_USER:-$(logname 2>/dev/null)}
@@ -131,7 +104,7 @@ fi
 echo "Installing for user: $ACTUAL_USER"
 echo "User home: $USER_HOME"
 
-# Configure Chromium based on architecture
+# Configure Chromium based on architecture BEFORE creating .env file
 CHROMIUM_EXECUTABLE_PATH=""
 if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" || "$ARCH" == "armv7l" ]]; then
   # ARM system (Raspberry Pi) - use system chromium
@@ -165,6 +138,33 @@ else
   # x64 system - let Puppeteer download its own Chrome
   echo "x64 system detected. Puppeteer will download Chrome automatically."
   CHROMIUM_EXECUTABLE_PATH=""
+fi
+
+# NOW prompt for configuration (after CHROMIUM_EXECUTABLE_PATH is set)
+echo ""
+echo -e "${YELLOW}Configuration:${NC}"
+read -p "Enter Server URL (e.g., http://192.168.0.11:5001): " SERVER_URL
+read -p "Enter Device ID (e.g., $(hostname)): " DEVICE_ID
+DEVICE_ID=${DEVICE_ID:-$(hostname)}
+read -p "Enter Device Token: " DEVICE_TOKEN
+
+# Create .env file with the now-set CHROMIUM_EXECUTABLE_PATH
+cat > ${INSTALL_DIR}/.env << EOF
+SERVER_URL=${SERVER_URL}
+DEVICE_ID=${DEVICE_ID}
+DEVICE_TOKEN=${DEVICE_TOKEN}
+LOG_LEVEL=info
+SCREENSHOT_INTERVAL=300000
+HEALTH_REPORT_INTERVAL=60000
+HEADLESS=false
+KIOSK_MODE=false
+PUPPETEER_EXECUTABLE_PATH=${CHROMIUM_EXECUTABLE_PATH}
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+EOF
+
+echo -e "${GREEN}✓${NC} Configuration saved to ${INSTALL_DIR}/.env"
+if [ -n "$CHROMIUM_EXECUTABLE_PATH" ]; then
+  echo -e "${GREEN}✓${NC} Configured to use system Chromium at ${CHROMIUM_EXECUTABLE_PATH}"
 fi
 
 # Set proper ownership
