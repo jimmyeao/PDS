@@ -140,13 +140,45 @@ else
   CHROMIUM_EXECUTABLE_PATH=""
 fi
 
+# Load existing configuration if available
+EXISTING_SERVER_URL=""
+EXISTING_DEVICE_ID=""
+EXISTING_DEVICE_TOKEN=""
+
+if [ -f "${INSTALL_DIR}/.env" ]; then
+  echo "Found existing configuration, loading defaults..."
+  # Read existing values (using grep and cut to safely extract values)
+  EXISTING_SERVER_URL=$(grep "^SERVER_URL=" "${INSTALL_DIR}/.env" 2>/dev/null | cut -d'=' -f2-)
+  EXISTING_DEVICE_ID=$(grep "^DEVICE_ID=" "${INSTALL_DIR}/.env" 2>/dev/null | cut -d'=' -f2-)
+  EXISTING_DEVICE_TOKEN=$(grep "^DEVICE_TOKEN=" "${INSTALL_DIR}/.env" 2>/dev/null | cut -d'=' -f2-)
+fi
+
 # NOW prompt for configuration (after CHROMIUM_EXECUTABLE_PATH is set)
 echo ""
 echo -e "${YELLOW}Configuration:${NC}"
-read -p "Enter Server URL (e.g., http://192.168.0.11:5001): " SERVER_URL
-read -p "Enter Device ID (e.g., $(hostname)): " DEVICE_ID
-DEVICE_ID=${DEVICE_ID:-$(hostname)}
-read -p "Enter Device Token: " DEVICE_TOKEN
+
+# Prompt with existing values as defaults
+if [ -n "$EXISTING_SERVER_URL" ]; then
+  read -p "Enter Server URL [$EXISTING_SERVER_URL]: " SERVER_URL
+  SERVER_URL=${SERVER_URL:-$EXISTING_SERVER_URL}
+else
+  read -p "Enter Server URL (e.g., http://192.168.0.11:5001): " SERVER_URL
+fi
+
+if [ -n "$EXISTING_DEVICE_ID" ]; then
+  read -p "Enter Device ID [$EXISTING_DEVICE_ID]: " DEVICE_ID
+  DEVICE_ID=${DEVICE_ID:-$EXISTING_DEVICE_ID}
+else
+  read -p "Enter Device ID (e.g., $(hostname)): " DEVICE_ID
+  DEVICE_ID=${DEVICE_ID:-$(hostname)}
+fi
+
+if [ -n "$EXISTING_DEVICE_TOKEN" ]; then
+  read -p "Enter Device Token [$EXISTING_DEVICE_TOKEN]: " DEVICE_TOKEN
+  DEVICE_TOKEN=${DEVICE_TOKEN:-$EXISTING_DEVICE_TOKEN}
+else
+  read -p "Enter Device Token: " DEVICE_TOKEN
+fi
 
 # Create .env file with the now-set CHROMIUM_EXECUTABLE_PATH
 cat > ${INSTALL_DIR}/.env << EOF
