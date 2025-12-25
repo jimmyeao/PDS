@@ -163,7 +163,8 @@
       "Bash(gh workflow run:*)",
       "Bash(systemctl status:*)",
       "Bash(sudo journalctl:*)",
-      "Bash(tar:*)"
+      "Bash(tar:*)",
+      "Bash(git show:*)"
     ]
   }
 }
