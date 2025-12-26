@@ -17,6 +17,8 @@ public partial class PdsDbContext : DbContext
     public DbSet<Log> Logs => Set<Log>();
     public DbSet<AppSettings> AppSettings => Set<AppSettings>();
     public DbSet<Broadcast> Broadcasts => Set<Broadcast>();
+    public DbSet<License> Licenses => Set<License>();
+    public DbSet<LicenseViolation> LicenseViolations => Set<LicenseViolation>();
 }
 
 public class User
@@ -43,6 +45,11 @@ public class Device
     public int? DisplayWidth { get; set; }
     public int? DisplayHeight { get; set; }
     public bool? KioskMode { get; set; }
+
+    // License tracking
+    public int? LicenseId { get; set; }
+    public License? License { get; set; }
+    public DateTime? LicenseActivatedAt { get; set; }
 }
 
 public class DeviceLog
@@ -151,4 +158,35 @@ public class Broadcast
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? EndedAt { get; set; }
+}
+
+public class License
+{
+    public int Id { get; set; }
+    public string Key { get; set; } = string.Empty;
+    public string KeyHash { get; set; } = string.Empty;
+    public string Tier { get; set; } = "free"; // free, pro-10, pro-20, pro-50, pro-100, enterprise
+    public int MaxDevices { get; set; } = 3;
+    public int CurrentDeviceCount { get; set; } = 0;
+    public string? CompanyName { get; set; }
+    public string? ContactEmail { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTime? ExpiresAt { get; set; }
+    public DateTime? ActivatedAt { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? LastValidatedAt { get; set; }
+    public string? Notes { get; set; }
+}
+
+public class LicenseViolation
+{
+    public int Id { get; set; }
+    public int? LicenseId { get; set; }
+    public License? License { get; set; }
+    public string ViolationType { get; set; } = string.Empty; // over_limit, expired, inactive
+    public int DeviceCount { get; set; }
+    public int MaxAllowed { get; set; }
+    public DateTime DetectedAt { get; set; } = DateTime.UtcNow;
+    public DateTime GracePeriodEndsAt { get; set; }
+    public bool Resolved { get; set; } = false;
 }

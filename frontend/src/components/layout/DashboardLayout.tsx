@@ -101,6 +101,9 @@ export const DashboardLayout = () => {
             <Link to="/users" className={navLinkClass('/users')}>
               👥 Users
             </Link>
+            <Link to="/license" className={navLinkClass('/license')}>
+              🔑 License
+            </Link>
             <Link to="/settings" className={navLinkClass('/settings')}>
               ⚙️ Settings
             </Link>

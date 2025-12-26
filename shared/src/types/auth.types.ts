@@ -70,3 +70,48 @@ export interface UserListDto {
   isMfaEnabled: boolean;
   lastLoginAt?: Date;
 }
+
+// License management interfaces
+export interface License {
+  id: number;
+  key: string;
+  keyHash: string;
+  tier: string;
+  maxDevices: number;
+  currentDeviceCount: number;
+  companyName?: string;
+  contactEmail?: string;
+  isActive: boolean;
+  expiresAt?: Date;
+  activatedAt?: Date;
+  createdAt: Date;
+  lastValidatedAt?: Date;
+  notes?: string;
+}
+
+export interface LicenseStatus {
+  tier: string;
+  maxDevices: number;
+  currentDevices: number;
+  isValid: boolean;
+  isInGracePeriod: boolean;
+  gracePeriodEndsAt?: Date;
+  reason?: string;
+}
+
+export interface GenerateLicenseDto {
+  tier: string;
+  maxDevices: number;
+  companyName?: string;
+  expiresAt?: Date;
+}
+
+export interface UpdateLicenseDto {
+  isActive?: boolean;
+  expiresAt?: Date;
+  notes?: string;
+}
+
+export interface ActivateLicenseDto {
+  licenseKey: string;
+}

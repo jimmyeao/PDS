@@ -101,4 +101,22 @@ namespace TheiaCast.Api.Contracts
         [property: JsonPropertyName("message")] string? Message,
         [property: JsonPropertyName("duration")] int? Duration
     );
+
+    // License DTOs
+    public record GenerateLicenseDto(
+        [property: JsonPropertyName("tier")] string Tier,
+        [property: JsonPropertyName("maxDevices")] int MaxDevices,
+        [property: JsonPropertyName("companyName")] string? CompanyName,
+        [property: JsonPropertyName("expiresAt")] DateTime? ExpiresAt
+    );
+
+    public record UpdateLicenseDto(
+        [property: JsonPropertyName("isActive")] bool? IsActive,
+        [property: JsonPropertyName("expiresAt")] DateTime? ExpiresAt,
+        [property: JsonPropertyName("notes")] string? Notes
+    );
+
+    public record ActivateLicenseDto(
+        [property: JsonPropertyName("licenseKey")] string LicenseKey
+    );
 }

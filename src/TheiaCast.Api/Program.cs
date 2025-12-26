@@ -97,7 +97,9 @@ builder.Services.AddScoped<IVideoService, VideoService>();
 builder.Services.AddScoped<ILogService, LogService>();
 builder.Services.AddScoped<ISettingsService, SettingsService>();
 builder.Services.AddScoped<IBroadcastService, BroadcastService>();
+builder.Services.AddScoped<ILicenseService, LicenseService>();
 builder.Services.AddHostedService<LogCleanupService>();
+builder.Services.AddHostedService<LicenseValidationBackgroundService>();
 
 var app = builder.Build();
 var cfg = builder.Configuration;
@@ -278,6 +280,57 @@ using (var scope = app.Services.CreateScope())
             CREATE INDEX IF NOT EXISTS ""IX_Broadcasts_IsActive"" ON ""Broadcasts""(""IsActive"");
             CREATE INDEX IF NOT EXISTS ""IX_Broadcasts_CreatedAt"" ON ""Broadcasts""(""CreatedAt"" DESC);
         ");
+
+        // Create Licenses table for licensing system
+        db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS ""Licenses"" (
+                ""Id"" SERIAL PRIMARY KEY,
+                ""Key"" text NOT NULL UNIQUE,
+                ""KeyHash"" text NOT NULL UNIQUE,
+                ""Tier"" text NOT NULL DEFAULT 'free',
+                ""MaxDevices"" int NOT NULL DEFAULT 3,
+                ""CurrentDeviceCount"" int DEFAULT 0,
+                ""CompanyName"" text,
+                ""ContactEmail"" text,
+                ""IsActive"" boolean DEFAULT true,
+                ""ExpiresAt"" timestamp,
+                ""ActivatedAt"" timestamp,
+                ""CreatedAt"" timestamp DEFAULT CURRENT_TIMESTAMP,
+                ""LastValidatedAt"" timestamp,
+                ""Notes"" text
+            );
+        ");
+
+        // Create LicenseViolations table for grace period tracking
+        db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS ""LicenseViolations"" (
+                ""Id"" SERIAL PRIMARY KEY,
+                ""LicenseId"" int,
+                ""ViolationType"" text NOT NULL,
+                ""DeviceCount"" int NOT NULL,
+                ""MaxAllowed"" int NOT NULL,
+                ""DetectedAt"" timestamp DEFAULT CURRENT_TIMESTAMP,
+                ""GracePeriodEndsAt"" timestamp NOT NULL,
+                ""Resolved"" boolean DEFAULT false
+            );
+        ");
+
+        // Add license columns to Devices
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Devices\" ADD COLUMN IF NOT EXISTS \"LicenseId\" int;");
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Devices\" ADD COLUMN IF NOT EXISTS \"LicenseActivatedAt\" timestamp;");
+
+        // Create default free license (auto-assigned to first 3 devices)
+        var freeLicenseExists = db.Database.SqlQueryRaw<int>(
+            "SELECT COUNT(*) as \"Value\" FROM \"Licenses\" WHERE \"Tier\" = 'free'"
+        ).AsEnumerable().FirstOrDefault();
+
+        if (freeLicenseExists == 0)
+        {
+            db.Database.ExecuteSqlRaw(@"
+                INSERT INTO ""Licenses"" (""Key"", ""KeyHash"", ""Tier"", ""MaxDevices"", ""IsActive"", ""CompanyName"")
+                VALUES ('FREE-TIER', 'free-tier-hash', 'free', 3, true, 'Default Free License');
+            ");
+        }
     }
     catch (Exception ex)
     {
@@ -489,6 +542,99 @@ app.MapDelete("/users/{id:int}", async (int id, ClaimsPrincipal principal, IUser
     {
         return Results.Problem(title: "Failed to delete user", detail: ex.Message, statusCode: 500);
     }
+}).RequireAuthorization();
+
+// License endpoints
+// Admin - Generate new license
+app.MapPost("/licenses/generate", async ([FromBody] GenerateLicenseDto dto, ILicenseService svc) =>
+{
+    try
+    {
+        var license = await svc.GenerateLicenseAsync(dto.Tier, dto.MaxDevices, dto.CompanyName, dto.ExpiresAt);
+        return Results.Ok(license);
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+// Admin - List all licenses
+app.MapGet("/licenses", async (ILicenseService svc) =>
+{
+    var licenses = await svc.GetAllLicensesAsync();
+    return Results.Ok(licenses);
+}).RequireAuthorization();
+
+// Admin - Get license by ID
+app.MapGet("/licenses/{id:int}", async (int id, ILicenseService svc) =>
+{
+    var license = await svc.GetLicenseByIdAsync(id);
+    return license == null ? Results.NotFound() : Results.Ok(license);
+}).RequireAuthorization();
+
+// Admin - Update license
+app.MapPatch("/licenses/{id:int}", async (int id, [FromBody] UpdateLicenseDto dto, ILicenseService svc) =>
+{
+    try
+    {
+        await svc.UpdateLicenseAsync(id, dto);
+        return Results.Ok(new { message = "License updated successfully" });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+// Admin - Revoke license
+app.MapDelete("/licenses/{id:int}", async (int id, ILicenseService svc) =>
+{
+    try
+    {
+        await svc.RevokeLicenseAsync(id);
+        return Results.NoContent();
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+// Device - Activate license key
+app.MapPost("/devices/{deviceId:int}/activate-license", async (int deviceId, [FromBody] ActivateLicenseDto dto, ILicenseService svc) =>
+{
+    try
+    {
+        var license = await svc.ActivateLicenseAsync(dto.LicenseKey, deviceId);
+        return Results.Ok(new { message = "License activated successfully", license });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+// Get current license status
+app.MapGet("/license/status", async (ILicenseService svc, PdsDbContext db) =>
+{
+    var freeLicense = await db.Licenses.FirstOrDefaultAsync(l => l.Tier == "free");
+    if (freeLicense == null)
+        return Results.NotFound(new { error = "No license found" });
+
+    var validation = await svc.ValidateLicenseAsync(freeLicense.Id);
+    var deviceCount = await db.Devices.CountAsync(d => d.LicenseId == freeLicense.Id);
+
+    return Results.Ok(new
+    {
+        tier = freeLicense.Tier,
+        maxDevices = freeLicense.MaxDevices,
+        currentDevices = deviceCount,
+        isValid = validation.IsValid,
+        isInGracePeriod = validation.IsInGracePeriod,
+        gracePeriodEndsAt = validation.GracePeriodEndsAt,
+        reason = validation.Reason
+    });
 }).RequireAuthorization();
 
 // Devices endpoints

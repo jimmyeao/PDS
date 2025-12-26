@@ -19,11 +19,13 @@ public class DeviceService : IDeviceService
 {
     private readonly PdsDbContext _db;
     private readonly ILogService _logService;
+    private readonly ILicenseService _licenseService;
 
-    public DeviceService(PdsDbContext db, ILogService logService)
+    public DeviceService(PdsDbContext db, ILogService logService, ILicenseService licenseService)
     {
         _db = db;
         _logService = logService;
+        _licenseService = licenseService;
     }
 
     public async Task<object> CreateAsync(CreateDeviceDto dto)
@@ -31,7 +33,39 @@ public class DeviceService : IDeviceService
         var exists = await _db.Devices.AnyAsync(d => d.DeviceId == dto.DeviceId);
         if (!exists)
         {
+            // License validation for new devices
+            var freeLicense = await _db.Licenses
+                .FirstOrDefaultAsync(l => l.Tier == "free" && l.IsActive);
+
+            if (freeLicense != null)
+            {
+                var canAdd = await _licenseService.CanAddDeviceAsync(freeLicense.Id);
+                if (!canAdd)
+                {
+                    var validation = await _licenseService.ValidateLicenseAsync(freeLicense.Id);
+                    if (validation.IsInGracePeriod)
+                    {
+                        throw new InvalidOperationException(
+                            $"Device limit exceeded. Grace period ends: {validation.GracePeriodEndsAt:yyyy-MM-dd HH:mm:ss UTC}. Please upgrade your license.");
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException(
+                            "Device limit reached. Cannot add more devices. Please upgrade your license.");
+                    }
+                }
+            }
+
             var entity = new Device { DeviceId = dto.DeviceId, Name = dto.Name, CreatedAt = DateTime.UtcNow };
+
+            // Assign free license if available
+            if (freeLicense != null)
+            {
+                entity.LicenseId = freeLicense.Id;
+                entity.LicenseActivatedAt = DateTime.UtcNow;
+                freeLicense.CurrentDeviceCount++;
+            }
+
             _db.Devices.Add(entity);
             await _db.SaveChangesAsync();
             // Generate and persist a token for the device

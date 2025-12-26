@@ -12,6 +12,7 @@ import { PlaylistsPage } from './pages/PlaylistsPage';
 import { LogsPage } from './pages/LogsPage';
 import { UsersPage } from './pages/UsersPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { LicensePage } from './pages/LicensePage';
 
 function App() {
   const { initialize, isAuthenticated } = useAuthStore();
@@ -44,6 +45,7 @@ function App() {
           <Route path="playlists" element={<PlaylistsPage />} />
           <Route path="logs" element={<LogsPage />} />
           <Route path="users" element={<UsersPage />} />
+          <Route path="license" element={<LicensePage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
