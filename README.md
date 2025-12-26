@@ -142,11 +142,11 @@ npm run build --workspace=raspberrypi-client
 
 1. **Download and extract:**
    ```bash
-   # Download from releases
-   wget https://github.com/jimmyeao/TheiaCast/releases/latest/download/theiacast-client-linux-v1.0.0.tar.gz
+   # Download latest release
+   wget https://github.com/jimmyeao/TheiaCast/releases/latest/download/theiacast-client-linux.tar.gz
 
    # Extract
-   tar xzf theiacast-client-linux-v1.0.0.tar.gz
+   tar xzf theiacast-client-linux.tar.gz
    cd theiacast-client
    ```
 
@@ -189,15 +189,16 @@ Download the latest installer from [Releases](https://github.com/jimmyeao/TheiaC
 
 1. **Interactive Installation:**
    ```powershell
-   # Download and run
-   .\TheiaCast-Client-Windows-v1.0.0-Setup.exe
+   # Download latest from https://github.com/jimmyeao/TheiaCast/releases/latest
+   # Then run
+   .\TheiaCast-Client-Windows-Setup.exe
    ```
    The installer will guide you through configuration.
 
 2. **Silent Installation:**
    ```powershell
    # Automated deployment
-   .\TheiaCast-Client-Windows-v1.0.0-Setup.exe /VERYSILENT `
+   .\TheiaCast-Client-Windows-Setup.exe /VERYSILENT `
        /ServerUrl=http://your-server:5001 `
        /DeviceId=kiosk1 `
        /DeviceToken=your-device-token
@@ -393,9 +394,9 @@ Host=localhost;Port=5432;Database=theiacast;Username=postgres;Password=yourpassw
 
 **Using the installation package:**
 ```bash
-# Download and extract on each Pi
-wget https://github.com/jimmyeao/TheiaCast/releases/latest/download/theiacast-client-linux-v1.0.0.tar.gz
-tar xzf theiacast-client-linux-v1.0.0.tar.gz
+# Download latest release
+wget https://github.com/jimmyeao/TheiaCast/releases/latest/download/theiacast-client-linux.tar.gz
+tar xzf theiacast-client-linux.tar.gz
 cd theiacast-client
 
 # Install with pre-configured settings
