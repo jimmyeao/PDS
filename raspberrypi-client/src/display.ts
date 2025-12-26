@@ -887,7 +887,7 @@ class DisplayController {
 
       // Home Assistant and PWA pages use service workers and never become network idle
       // Use faster timeout and domcontentloaded strategy for better UX
-      const isHomeAssistant = url.includes('home-assistant') || url.includes('ha.') || url.match(/:\d+\/lovelace/);
+      const isHomeAssistant = url.includes('home-assistant') || url.includes('homeassistant') || url.includes('ha.') || url.includes(':8123') || url.match(/:\d+\/lovelace/);
       const isPWA = isHomeAssistant || url.includes('?kiosk'); // Many PWAs use ?kiosk parameter
 
       // Set timeout: 60s for auth, 10s for PWA/HA (faster retry), 30s for others
@@ -985,7 +985,6 @@ class DisplayController {
 
       // For Home Assistant pages, add a small delay to let custom cards and scripts fully initialize
       // This prevents race conditions where HA scripts try to access DOM elements before they're ready
-      const isHomeAssistant = url.includes('homeassistant') || url.includes(':8123');
       if (isHomeAssistant) {
         logger.info('Home Assistant detected, waiting 2 seconds for full initialization...');
         await new Promise(resolve => setTimeout(resolve, 2000));
