@@ -688,6 +688,41 @@ app.MapGet("/license/installation-key", async (PdsDbContext db) =>
     });
 }).RequireAuthorization();
 
+// Debug endpoint: Verify license key hash (admin only)
+app.MapPost("/license/debug/verify-hash", async ([FromBody] DebugLicenseKeyDto dto, ILicenseService svc, PdsDbContext db) =>
+{
+    try
+    {
+        var installationKey = await db.AppSettings.FirstOrDefaultAsync(s => s.Key == "InstallationKey");
+
+        // Get all licenses to show their hashes
+        var allLicenses = await db.Licenses.ToListAsync();
+
+        // Try to find the license
+        var license = await svc.GetLicenseByKeyAsync(dto.LicenseKey);
+
+        return Results.Ok(new
+        {
+            licenseKey = dto.LicenseKey,
+            foundInDatabase = license != null,
+            installationKeyInDatabase = installationKey?.Value,
+            totalLicensesInDatabase = allLicenses.Count,
+            allLicenseKeys = allLicenses.Select(l => new {
+                key = l.Key,
+                keyHash = l.KeyHash,
+                tier = l.Tier
+            }).ToList(),
+            message = license != null
+                ? "License found! Hash matches."
+                : "License NOT found. The license key hash does not match any license in the database."
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Ok(new { error = ex.Message, stackTrace = ex.ToString() });
+    }
+}).RequireAuthorization();
+
 // Activate license globally (for customer use)
 app.MapPost("/license/activate", async ([FromBody] ActivateLicenseGlobalDto dto, ILicenseService svc, PdsDbContext db, ILogService logService, ILogger<Program> logger) =>
 {
