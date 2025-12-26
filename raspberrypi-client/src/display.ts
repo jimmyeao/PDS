@@ -903,14 +903,17 @@ class DisplayController {
         if (error.message.includes('net::ERR_ABORTED')) {
             logger.warn(`Navigation aborted: ${error.message}`);
 
-            // Check if we should retry (from broadcast, startup, or blank page)
-            const isStartupOrBlank = !this.currentUrl || this.currentUrl === '' || this.currentUrl === 'about:blank';
-            const shouldRetry = wasBroadcast || isStartupOrBlank;
+            // ALWAYS retry ERR_ABORTED errors - they can be caused by:
+            // - Service workers (Home Assistant uses these heavily)
+            // - Redirects that abort the initial navigation
+            // - Page still loading when new navigation starts
+            // These are usually recoverable with a retry
+            const shouldRetry = true;
 
-            // If we came from a broadcast or blank state, the service worker might be causing issues
+            // Service workers (especially in Home Assistant) can cause abort errors
             // Try to unregister service workers and retry
             if (shouldRetry) {
-                const reason = wasBroadcast ? 'post-broadcast' : 'startup/blank';
+                const reason = wasBroadcast ? 'post-broadcast' : (this.currentUrl ? 'playlist-rotation' : 'startup');
                 logger.info(`Attempting to unregister service workers and retry navigation (${reason})...`);
                 try {
                     // Unregister all service workers via page evaluation
@@ -938,10 +941,6 @@ class DisplayController {
                     // Continue anyway - the page might still partially load
                     navigationSuccess = true;
                 }
-            } else {
-                // Not from broadcast/startup, likely a legitimate abort (new navigation started)
-                logger.info('Navigation aborted but not retrying (not from broadcast/startup)');
-                return;
             }
         }
 
