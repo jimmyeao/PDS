@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import type { FormEvent } from 'react';
 import { licenseService } from '../services/license.service';
-import type { License, LicenseStatus, GenerateLicenseDto } from '@theiacast/shared';
+import type { License, LicenseStatus } from '@theiacast/shared';
 
 export const LicensePage = () => {
   const [licenseStatus, setLicenseStatus] = useState<LicenseStatus | null>(null);
@@ -10,15 +9,6 @@ export const LicensePage = () => {
   const [loadingLicenses, setLoadingLicenses] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [showGenerateModal, setShowGenerateModal] = useState(false);
-
-  // Form state for generating licenses
-  const [formData, setFormData] = useState<GenerateLicenseDto>({
-    tier: 'pro-10',
-    maxDevices: 10,
-    companyName: '',
-    expiresAt: undefined,
-  });
 
   const fetchLicenseStatus = async () => {
     setLoadingStatus(true);
@@ -45,28 +35,6 @@ export const LicensePage = () => {
       setError('Failed to load licenses');
     } finally {
       setLoadingLicenses(false);
-    }
-  };
-
-  const handleGenerateLicense = async (e: FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-
-    try {
-      await licenseService.generate(formData);
-      setSuccess('License generated successfully!');
-      setShowGenerateModal(false);
-      setFormData({
-        tier: 'pro-10',
-        maxDevices: 10,
-        companyName: '',
-        expiresAt: undefined,
-      });
-      fetchLicenses();
-      fetchLicenseStatus();
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to generate license');
     }
   };
 
@@ -112,12 +80,6 @@ export const LicensePage = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">License Management</h1>
-        <button
-          onClick={() => setShowGenerateModal(true)}
-          className="btn-primary"
-        >
-          Generate License
-        </button>
       </div>
 
       {error && (
@@ -291,103 +253,6 @@ export const LicensePage = () => {
           )}
         </div>
       </div>
-
-      {/* Generate License Modal */}
-      {showGenerateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Generate New License</h3>
-
-            <form onSubmit={handleGenerateLicense} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Tier
-                </label>
-                <select
-                  value={formData.tier}
-                  onChange={(e) => {
-                    const tier = e.target.value;
-                    const maxDevices =
-                      tier === 'pro-10' ? 10 :
-                      tier === 'pro-20' ? 20 :
-                      tier === 'pro-50' ? 50 :
-                      tier === 'pro-100' ? 100 : 999;
-                    setFormData({ ...formData, tier, maxDevices });
-                  }}
-                  className="input w-full"
-                >
-                  <option value="pro-10">Pro-10 (10 devices)</option>
-                  <option value="pro-20">Pro-20 (20 devices)</option>
-                  <option value="pro-50">Pro-50 (50 devices)</option>
-                  <option value="pro-100">Pro-100 (100 devices)</option>
-                  <option value="enterprise">Enterprise (Custom)</option>
-                </select>
-              </div>
-
-              {formData.tier === 'enterprise' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Max Devices
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.maxDevices}
-                    onChange={(e) => setFormData({ ...formData, maxDevices: parseInt(e.target.value) })}
-                    className="input w-full"
-                    min="1"
-                    required
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Company Name (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={formData.companyName}
-                  onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                  className="input w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Expiration Date (Optional)
-                </label>
-                <input
-                  type="date"
-                  value={formData.expiresAt ? new Date(formData.expiresAt).toISOString().split('T')[0] : ''}
-                  onChange={(e) => setFormData({ ...formData, expiresAt: e.target.value ? new Date(e.target.value) : undefined })}
-                  className="input w-full"
-                />
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowGenerateModal(false);
-                    setFormData({
-                      tier: 'pro-10',
-                      maxDevices: 10,
-                      companyName: '',
-                      expiresAt: undefined,
-                    });
-                  }}
-                  className="btn-secondary"
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary">
-                  Generate
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

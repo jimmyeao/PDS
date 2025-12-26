@@ -545,19 +545,9 @@ app.MapDelete("/users/{id:int}", async (int id, ClaimsPrincipal principal, IUser
 }).RequireAuthorization();
 
 // License endpoints
-// Admin - Generate new license
-app.MapPost("/licenses/generate", async ([FromBody] GenerateLicenseDto dto, ILicenseService svc) =>
-{
-    try
-    {
-        var license = await svc.GenerateLicenseAsync(dto.Tier, dto.MaxDevices, dto.CompanyName, dto.ExpiresAt);
-        return Results.Ok(license);
-    }
-    catch (Exception ex)
-    {
-        return Results.BadRequest(new { error = ex.Message });
-    }
-}).RequireAuthorization();
+// NOTE: License generation has been REMOVED from the API for security.
+// Use the standalone LicenseGenerator tool (tools/LicenseGenerator) to generate licenses.
+// Only the vendor should be able to generate licenses, not customers.
 
 // Admin - List all licenses
 app.MapGet("/licenses", async (ILicenseService svc) =>
