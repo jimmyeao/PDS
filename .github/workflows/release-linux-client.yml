@@ -41,6 +41,27 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
 
+      - name: Update package.json versions
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          echo "Updating package.json files to version $VERSION"
+
+          # Update root package.json
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" package.json
+
+          # Update raspberrypi-client package.json and dependency reference
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" raspberrypi-client/package.json
+          sed -i "s/\"@theiacast\/shared\": \".*\"/\"@theiacast\/shared\": \"^$VERSION\"/" raspberrypi-client/package.json
+
+          # Update shared package.json
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" shared/package.json
+
+          # Update frontend package.json (in case it's used elsewhere)
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" frontend/package.json
+          sed -i "s/\"@theiacast\/shared\": \".*\"/\"@theiacast\/shared\": \"$VERSION\"/" frontend/package.json
+
+          echo "✅ Updated all package.json versions to $VERSION"
+
       - name: Install workspace dependencies
         run: npm install
 

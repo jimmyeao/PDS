@@ -42,6 +42,28 @@ jobs:
           echo "VERSION=$version" >> $env:GITHUB_OUTPUT
           echo "Version: $version"
 
+      - name: Update package.json versions
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          Write-Host "Updating package.json files to version $version"
+
+          # Update root package.json
+          (Get-Content package.json) -replace '"version": ".*"', "`"version`": `"$version`"" | Set-Content package.json
+
+          # Update raspberrypi-client package.json and dependency reference
+          (Get-Content raspberrypi-client/package.json) -replace '"version": ".*"', "`"version`": `"$version`"" | Set-Content raspberrypi-client/package.json
+          (Get-Content raspberrypi-client/package.json) -replace '"@theiacast/shared": ".*"', "`"@theiacast/shared`": `"^$version`"" | Set-Content raspberrypi-client/package.json
+
+          # Update shared package.json
+          (Get-Content shared/package.json) -replace '"version": ".*"', "`"version`": `"$version`"" | Set-Content shared/package.json
+
+          # Update frontend package.json
+          (Get-Content frontend/package.json) -replace '"version": ".*"', "`"version`": `"$version`"" | Set-Content frontend/package.json
+          (Get-Content frontend/package.json) -replace '"@theiacast/shared": ".*"', "`"@theiacast/shared`": `"$version`"" | Set-Content frontend/package.json
+
+          Write-Host "✅ Updated all package.json versions to $version"
+
       - name: Build .NET Project
         working-directory: client-windows
         run: |
