@@ -51,8 +51,25 @@ jobs:
         working-directory: client-windows/publish
         shell: pwsh
         run: |
-          # Install Playwright browsers into the publish directory
-          npx playwright@latest install chromium --with-deps
+          # Set PLAYWRIGHT_BROWSERS_PATH to install browsers into publish directory
+          # This ensures browsers are bundled with the installer
+          $env:PLAYWRIGHT_BROWSERS_PATH = "$PWD"
+          Write-Host "Installing Playwright browsers to: $env:PLAYWRIGHT_BROWSERS_PATH"
+
+          # Use the playwright.ps1 script from Microsoft.Playwright package for version compatibility
+          pwsh playwright.ps1 install chromium --with-deps
+
+          # Verify installation
+          Write-Host "Checking for installed browsers..."
+          Get-ChildItem ".\ms-playwright" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq "chrome.exe" } | ForEach-Object { Write-Host "Found: $($_.FullName)" }
+
+          if (Test-Path ".\ms-playwright\chromium-*\chrome-win64\chrome.exe") {
+            Write-Host "✅ Chromium browser installed successfully"
+          } else {
+            Write-Error "❌ Failed to install Chromium browser"
+            Get-ChildItem "." -Recurse -Depth 3 | Select-Object FullName
+            exit 1
+          }
 
       - name: Download Inno Setup
         shell: pwsh

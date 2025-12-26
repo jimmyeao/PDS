@@ -2,8 +2,11 @@
 ;
 ; Build instructions:
 ; 1. Install Inno Setup from https://jrsoftware.org/isdl.php
-; 2. Build the .NET project: dotnet publish KioskClient.Service -c Release -o publish
-; 3. Run Playwright install: cd publish && pwsh playwright.ps1 install chromium
+; 2. Build the .NET project: dotnet publish KioskClient.Service -c Release -o publish -r win-x64 --self-contained false
+; 3. Run Playwright install with bundled browsers:
+;    cd publish
+;    $env:PLAYWRIGHT_BROWSERS_PATH = "$PWD"
+;    pwsh playwright.ps1 install chromium --with-deps
 ; 4. Compile this script with Inno Setup to create Setup.exe
 ; 5. Distribute Setup.exe
 ;
