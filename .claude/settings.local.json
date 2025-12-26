@@ -165,7 +165,8 @@
       "Bash(sudo journalctl:*)",
       "Bash(tar:*)",
       "Bash(git show:*)",
-      "Bash(gh run list:*)"
+      "Bash(gh run list:*)",
+      "WebFetch(domain:playwright.dev)"
     ]
   }
 }
