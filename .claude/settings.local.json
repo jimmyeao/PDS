@@ -164,7 +164,8 @@
       "Bash(systemctl status:*)",
       "Bash(sudo journalctl:*)",
       "Bash(tar:*)",
-      "Bash(git show:*)"
+      "Bash(git show:*)",
+      "Bash(gh run list:*)"
     ]
   }
 }
