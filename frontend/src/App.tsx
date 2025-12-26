@@ -10,6 +10,7 @@ import { DevicesPage } from './pages/DevicesPage';
 import { ContentPage } from './pages/ContentPage';
 import { PlaylistsPage } from './pages/PlaylistsPage';
 import { LogsPage } from './pages/LogsPage';
+import { UsersPage } from './pages/UsersPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 function App() {
@@ -42,6 +43,7 @@ function App() {
           <Route path="content" element={<ContentPage />} />
           <Route path="playlists" element={<PlaylistsPage />} />
           <Route path="logs" element={<LogsPage />} />
+          <Route path="users" element={<UsersPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
