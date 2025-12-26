@@ -47,12 +47,6 @@ jobs:
         run: |
           dotnet publish KioskClient.Service -c Release -o publish -r win-x64 --self-contained false
 
-      - name: Install Playwright CLI
-        shell: pwsh
-        run: |
-          # Install Microsoft.Playwright.CLI globally
-          dotnet tool install --global Microsoft.Playwright.CLI --version 1.57.0
-
       - name: Install Playwright browsers
         working-directory: client-windows/publish
         shell: pwsh
@@ -61,9 +55,10 @@ jobs:
           # This ensures browsers are bundled with the installer
           $env:PLAYWRIGHT_BROWSERS_PATH = "$PWD"
           Write-Host "Installing Playwright browsers to: $env:PLAYWRIGHT_BROWSERS_PATH"
+          Write-Host "Current directory: $PWD"
 
-          # Install Chromium browser using Microsoft.Playwright.CLI
-          playwright install chromium --with-deps
+          # Install Chromium browser using npx playwright (version 1.49 matches Microsoft.Playwright 1.57.0)
+          npx -y playwright@1.49 install chromium --with-deps
 
           # Verify installation
           Write-Host "Checking for installed browsers..."
@@ -71,6 +66,7 @@ jobs:
 
           if (Test-Path ".\ms-playwright\chromium-*\chrome-win64\chrome.exe") {
             Write-Host "✅ Chromium browser installed successfully"
+            Get-ChildItem ".\ms-playwright" -Directory | ForEach-Object { Write-Host "Browser folder: $($_.Name)" }
           } else {
             Write-Error "❌ Failed to install Chromium browser"
             Write-Host "Directory contents:"
