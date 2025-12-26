@@ -32,6 +32,38 @@ public class BrowserController : IAsyncDisposable
         _logger = logger;
     }
 
+    private async Task KillExistingChromiumProcessesAsync()
+    {
+        try
+        {
+            var chromeProcesses = System.Diagnostics.Process.GetProcessesByName("chrome");
+            if (chromeProcesses.Length > 0)
+            {
+                _logger.LogInformation($"Found {chromeProcesses.Length} existing Chrome processes. Terminating them...");
+                foreach (var process in chromeProcesses)
+                {
+                    try
+                    {
+                        process.Kill();
+                        process.WaitForExit(2000); // Wait up to 2 seconds for exit
+                        process.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning($"Could not kill Chrome process {process.Id}: {ex.Message}");
+                    }
+                }
+                // Give processes time to fully terminate and release file locks
+                await Task.Delay(1000);
+                _logger.LogInformation("Existing Chrome processes terminated");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"Error killing existing Chrome processes: {ex.Message}");
+        }
+    }
+
     public async Task InitializeAsync()
     {
         if (_isInitialized)
@@ -40,6 +72,9 @@ public class BrowserController : IAsyncDisposable
         try
         {
             _logger.LogInformation("Initializing Playwright...");
+
+            // Kill any existing Chromium processes to prevent "Opening in existing browser session" error
+            await KillExistingChromiumProcessesAsync();
 
             // Create Playwright instance
             _playwright = await Playwright.CreateAsync();
@@ -337,6 +372,9 @@ public class BrowserController : IAsyncDisposable
 
             // Wait before reinitializing
             await Task.Delay(3000);
+
+            // Kill any orphaned Chrome processes before recovery
+            await KillExistingChromiumProcessesAsync();
 
             // Mark as not initialized to allow reinitialization
             _isInitialized = false;

@@ -379,9 +379,13 @@
       this.currentIndex = this.savedIndex;
       this.isBroadcasting = false;
 
-      // Restart playlist execution
+      // Add a delay before navigating to allow the broadcast page to finish cleanup
+      // This prevents navigation abort errors when transitioning from broadcast to playlist
       if (this.isRunning) {
-        this.executeNextItem();
+        logger.info('Waiting 1500ms before restoring playlist to avoid navigation conflicts');
+        setTimeout(() => {
+          this.executeNextItem();
+        }, 1500);
       }
 
       this.emitStateUpdate();

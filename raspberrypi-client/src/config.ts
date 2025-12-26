@@ -1,8 +1,9 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
-// Load environment variables
-dotenv.config({ path: path.join(__dirname, '..', '.env') });
+// Load environment variables from working directory (not relative to __dirname which changes after compilation)
+// This allows the .env file to be in /opt/theiacast-client/ when running as a service
+dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 export interface ClientConfig {
   // Server

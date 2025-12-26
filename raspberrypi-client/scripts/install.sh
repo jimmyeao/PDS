@@ -39,6 +39,10 @@ fi
 NODE_VERSION=$(node -v)
 echo -e "${GREEN}✓${NC} Node.js ${NODE_VERSION} found"
 
+# Detect system architecture early
+ARCH=$(uname -m)
+echo "Detected architecture: ${ARCH}"
+
 # Stop existing service if running
 if systemctl is-active --quiet ${SERVICE_NAME}; then
   echo "Stopping existing ${SERVICE_NAME} service..."
@@ -67,34 +71,24 @@ if [ -f "${PACKAGE_DIR}/package.json" ]; then
   cp ${PACKAGE_DIR}/package.json ${INSTALL_DIR}/
 fi
 
+# Copy pre-bundled node_modules if they exist (includes @theiacast/shared)
+if [ -d "${PACKAGE_DIR}/node_modules" ]; then
+  echo "Copying pre-bundled dependencies..."
+  cp -r ${PACKAGE_DIR}/node_modules ${INSTALL_DIR}/
+fi
+
 # Install dependencies
 if [ -f "${INSTALL_DIR}/package.json" ]; then
   echo "Installing Node.js dependencies..."
   cd ${INSTALL_DIR}
-  npm install --production --no-optional
+  # Skip Puppeteer's Chromium download on ARM (we use system chromium)
+  # On x64, let Puppeteer download its own Chrome
+  if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" || "$ARCH" == "armv7l" ]]; then
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true npm install --production --no-optional
+  else
+    npm install --production --no-optional
+  fi
 fi
-
-# Prompt for configuration
-echo ""
-echo -e "${YELLOW}Configuration:${NC}"
-read -p "Enter Server URL (e.g., http://192.168.0.11:5001): " SERVER_URL
-read -p "Enter Device ID (e.g., $(hostname)): " DEVICE_ID
-DEVICE_ID=${DEVICE_ID:-$(hostname)}
-read -p "Enter Device Token: " DEVICE_TOKEN
-
-# Create .env file
-cat > ${INSTALL_DIR}/.env << EOF
-SERVER_URL=${SERVER_URL}
-DEVICE_ID=${DEVICE_ID}
-DEVICE_TOKEN=${DEVICE_TOKEN}
-LOG_LEVEL=info
-SCREENSHOT_INTERVAL=300000
-HEALTH_REPORT_INTERVAL=60000
-HEADLESS=false
-KIOSK_MODE=false
-EOF
-
-echo -e "${GREEN}✓${NC} Configuration saved to ${INSTALL_DIR}/.env"
 
 # Detect the actual user (not root)
 ACTUAL_USER=${SUDO_USER:-$(who am i | awk '{print $1}')}
@@ -110,11 +104,102 @@ fi
 echo "Installing for user: $ACTUAL_USER"
 echo "User home: $USER_HOME"
 
-# Install Playwright browsers
-echo "Installing Chromium browser..."
-cd ${INSTALL_DIR}
-# Install as the actual user to avoid permission issues
-sudo -u ${ACTUAL_USER} npx playwright install chromium --with-deps
+# Configure Chromium based on architecture BEFORE creating .env file
+CHROMIUM_EXECUTABLE_PATH=""
+if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" || "$ARCH" == "armv7l" ]]; then
+  # ARM system (Raspberry Pi) - use system chromium
+  echo "ARM system detected. Installing system Chromium package..."
+  apt-get update -qq
+
+  # Try different package names (varies by distribution)
+  if apt-cache show chromium &> /dev/null; then
+    echo "Installing chromium package..."
+    apt-get install -y chromium
+  elif apt-cache show chromium-browser &> /dev/null; then
+    echo "Installing chromium-browser package..."
+    apt-get install -y chromium-browser
+  else
+    echo -e "${YELLOW}Warning: Could not find chromium package in apt${NC}"
+  fi
+
+  # Find chromium executable
+  if command -v chromium &> /dev/null; then
+    CHROMIUM_EXECUTABLE_PATH=$(which chromium)
+    echo -e "${GREEN}✓${NC} System Chromium installed at: ${CHROMIUM_EXECUTABLE_PATH}"
+  elif command -v chromium-browser &> /dev/null; then
+    CHROMIUM_EXECUTABLE_PATH=$(which chromium-browser)
+    echo -e "${GREEN}✓${NC} System Chromium installed at: ${CHROMIUM_EXECUTABLE_PATH}"
+  else
+    echo -e "${YELLOW}Warning: Could not find chromium executable${NC}"
+    echo -e "${YELLOW}The client may fail to start. Please install chromium manually:${NC}"
+    echo -e "${YELLOW}  sudo apt-get install chromium${NC}"
+  fi
+else
+  # x64 system - let Puppeteer download its own Chrome
+  echo "x64 system detected. Puppeteer will download Chrome automatically."
+  CHROMIUM_EXECUTABLE_PATH=""
+fi
+
+# Load existing configuration if available
+EXISTING_SERVER_URL=""
+EXISTING_DEVICE_ID=""
+EXISTING_DEVICE_TOKEN=""
+
+if [ -f "${INSTALL_DIR}/.env" ]; then
+  echo "Found existing configuration, loading defaults..."
+  # Read existing values (using grep and cut to safely extract values)
+  EXISTING_SERVER_URL=$(grep "^SERVER_URL=" "${INSTALL_DIR}/.env" 2>/dev/null | cut -d'=' -f2-)
+  EXISTING_DEVICE_ID=$(grep "^DEVICE_ID=" "${INSTALL_DIR}/.env" 2>/dev/null | cut -d'=' -f2-)
+  EXISTING_DEVICE_TOKEN=$(grep "^DEVICE_TOKEN=" "${INSTALL_DIR}/.env" 2>/dev/null | cut -d'=' -f2-)
+fi
+
+# NOW prompt for configuration (after CHROMIUM_EXECUTABLE_PATH is set)
+echo ""
+echo -e "${YELLOW}Configuration:${NC}"
+
+# Prompt with existing values as defaults
+if [ -n "$EXISTING_SERVER_URL" ]; then
+  read -p "Enter Server URL [$EXISTING_SERVER_URL]: " SERVER_URL
+  SERVER_URL=${SERVER_URL:-$EXISTING_SERVER_URL}
+else
+  read -p "Enter Server URL (e.g., http://192.168.0.11:5001): " SERVER_URL
+fi
+
+if [ -n "$EXISTING_DEVICE_ID" ]; then
+  read -p "Enter Device ID [$EXISTING_DEVICE_ID]: " DEVICE_ID
+  DEVICE_ID=${DEVICE_ID:-$EXISTING_DEVICE_ID}
+else
+  read -p "Enter Device ID (e.g., $(hostname)): " DEVICE_ID
+  DEVICE_ID=${DEVICE_ID:-$(hostname)}
+fi
+
+if [ -n "$EXISTING_DEVICE_TOKEN" ]; then
+  read -p "Enter Device Token [$EXISTING_DEVICE_TOKEN]: " DEVICE_TOKEN
+  DEVICE_TOKEN=${DEVICE_TOKEN:-$EXISTING_DEVICE_TOKEN}
+else
+  read -p "Enter Device Token: " DEVICE_TOKEN
+fi
+
+# Create .env file with the now-set CHROMIUM_EXECUTABLE_PATH
+cat > ${INSTALL_DIR}/.env << EOF
+SERVER_URL=${SERVER_URL}
+DEVICE_ID=${DEVICE_ID}
+DEVICE_TOKEN=${DEVICE_TOKEN}
+LOG_LEVEL=info
+SCREENSHOT_INTERVAL=300000
+HEALTH_REPORT_INTERVAL=60000
+DISPLAY_WIDTH=800
+DISPLAY_HEIGHT=480
+HEADLESS=false
+KIOSK_MODE=true
+PUPPETEER_EXECUTABLE_PATH=${CHROMIUM_EXECUTABLE_PATH}
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+EOF
+
+echo -e "${GREEN}✓${NC} Configuration saved to ${INSTALL_DIR}/.env"
+if [ -n "$CHROMIUM_EXECUTABLE_PATH" ]; then
+  echo -e "${GREEN}✓${NC} Configured to use system Chromium at ${CHROMIUM_EXECUTABLE_PATH}"
+fi
 
 # Set proper ownership
 chown -R ${ACTUAL_USER}:${ACTUAL_USER} ${INSTALL_DIR}
@@ -124,13 +209,14 @@ echo "Creating systemd service..."
 cat > ${SERVICE_FILE} << EOF
 [Unit]
 Description=TheiaCast Kiosk Client
-After=network.target graphical.target
+After=network.target
 
 [Service]
 Type=simple
 User=${ACTUAL_USER}
 Group=${ACTUAL_USER}
 WorkingDirectory=${INSTALL_DIR}
+Environment="NODE_ENV=production"
 Environment="DISPLAY=:0"
 Environment="XAUTHORITY=${USER_HOME}/.Xauthority"
 Environment="HOME=${USER_HOME}"
@@ -138,6 +224,10 @@ EnvironmentFile=${INSTALL_DIR}/.env
 ExecStart=/usr/bin/node ${INSTALL_DIR}/index.js
 Restart=always
 RestartSec=10
+# Ensure all child processes (Chromium) are killed when service stops
+KillMode=control-group
+KillSignal=SIGTERM
+TimeoutStopSec=10
 
 [Install]
 WantedBy=multi-user.target

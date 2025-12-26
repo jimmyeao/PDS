@@ -156,7 +156,15 @@
       "Bash(cmd //c dir:*)",
       "WebFetch(domain:github.com)",
       "Bash(ssh:*)",
-      "Bash(scp:*)"
+      "Bash(scp:*)",
+      "WebFetch(domain:192.168.0.11)",
+      "Bash(git tag:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(gh workflow run:*)",
+      "Bash(systemctl status:*)",
+      "Bash(sudo journalctl:*)",
+      "Bash(tar:*)",
+      "Bash(git show:*)"
     ]
   }
 }
