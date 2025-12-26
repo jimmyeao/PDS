@@ -884,14 +884,22 @@ class DisplayController {
 
       // Determine timeout and wait strategy based on URL
       const requiresAuth = url.includes('outlook.') || url.includes('office.com') || url.includes('microsoft.com');
-      const timeout = requiresAuth ? 60000 : 30000; // 60s for auth pages, 30s for others
+
+      // Home Assistant and PWA pages use service workers and never become network idle
+      // Use faster timeout and domcontentloaded strategy for better UX
+      const isHomeAssistant = url.includes('home-assistant') || url.includes('ha.') || url.match(/:\d+\/lovelace/);
+      const isPWA = isHomeAssistant || url.includes('?kiosk'); // Many PWAs use ?kiosk parameter
+
+      // Set timeout: 60s for auth, 10s for PWA/HA (faster retry), 30s for others
+      const timeout = requiresAuth ? 60000 : (isPWA ? 10000 : 30000);
 
       // Try with networkidle2 first, then fall back to domcontentloaded
       let navigationSuccess = false;
 
       try {
-        // For video files/wrappers, we don't need networkidle2, domcontentloaded is enough
-        const waitStrategy = isVideo ? 'domcontentloaded' : 'networkidle2';
+        // For video files, PWAs, and Home Assistant: use domcontentloaded directly (faster)
+        // For other pages: try networkidle2 first for complete loading
+        const waitStrategy = (isVideo || isPWA) ? 'domcontentloaded' : 'networkidle2';
 
         await this.page.goto(url, {
           waitUntil: waitStrategy,
