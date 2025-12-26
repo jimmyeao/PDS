@@ -64,13 +64,15 @@ jobs:
           Write-Host "Checking for installed browsers..."
           Get-ChildItem "publish" -Recurse -Filter "chrome.exe" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "Found: $($_.FullName)" }
 
-          if (Test-Path "publish\ms-playwright\chromium-*\chrome-win64\chrome.exe") {
+          # Check for chromium in the correct location (publish/chromium-*/chrome-win64/chrome.exe)
+          if (Test-Path "publish\chromium-*\chrome-win64\chrome.exe") {
             Write-Host "✅ Chromium browser installed successfully"
-            Get-ChildItem "publish\ms-playwright" -Directory | ForEach-Object { Write-Host "Browser folder: $($_.Name)" }
+            Get-ChildItem "publish" -Directory -Filter "chromium-*" | ForEach-Object { Write-Host "Browser folder: $($_.Name)" }
+            Get-ChildItem "publish" -Directory -Filter "ffmpeg-*" | ForEach-Object { Write-Host "FFMPEG folder: $($_.Name)" }
           } else {
             Write-Error "❌ Failed to install Chromium browser"
             Write-Host "Directory contents:"
-            Get-ChildItem "publish" -Recurse -Depth 2 | Select-Object FullName | Out-String
+            Get-ChildItem "publish" -Directory | Select-Object Name | Out-String
             exit 1
           }
 
