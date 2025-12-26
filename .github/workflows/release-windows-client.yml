@@ -110,13 +110,33 @@ jobs:
             }
           }
 
-          if (-not $foundBrowser) {
-            Write-Error "❌ Failed to install Chromium browser"
-            Write-Host ""
-            Write-Host "=== Detailed chromium-1200 contents: ==="
-            if (Test-Path "publish/chromium-1200") {
-              Get-ChildItem "publish/chromium-1200" -Recurse | Select-Object FullName -First 50 | ForEach-Object { Write-Host $_.FullName }
+          # Check what's inside chrome-win64 folder specifically
+          Write-Host ""
+          Write-Host "=== Contents of chrome-win64 folder: ==="
+          if (Test-Path "publish/chromium-1200/chrome-win64") {
+            Write-Host "chrome-win64 folder exists, listing contents:"
+            Get-ChildItem "publish/chromium-1200/chrome-win64" -Force | ForEach-Object {
+              Write-Host "  - $($_.Name) ($($_.Length) bytes)"
             }
+            Write-Host ""
+            Write-Host "Checking specifically for chrome.exe:"
+            if (Test-Path "publish/chromium-1200/chrome-win64/chrome.exe") {
+              Write-Host "  ✅ chrome.exe EXISTS at publish/chromium-1200/chrome-win64/chrome.exe"
+              $foundBrowser = $true
+            } else {
+              Write-Host "  ❌ chrome.exe NOT FOUND at publish/chromium-1200/chrome-win64/chrome.exe"
+              Write-Host "  Searching for any .exe files in chrome-win64:"
+              Get-ChildItem "publish/chromium-1200/chrome-win64" -Filter "*.exe" -Force | ForEach-Object {
+                Write-Host "    - Found EXE: $($_.Name)"
+              }
+            }
+          } else {
+            Write-Host "chrome-win64 folder does NOT exist"
+          }
+          Write-Host ""
+
+          if (-not $foundBrowser) {
+            Write-Error "❌ Failed to install Chromium browser - chrome.exe not found in chrome-win64 folder"
             exit 1
           }
 
