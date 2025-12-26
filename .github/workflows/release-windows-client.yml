@@ -190,31 +190,51 @@ jobs:
         shell: pwsh
         run: |
           $oldName = "TheiaCastKioskClient-Setup.exe"
-          $newName = "TheiaCast-Client-Windows-v${{ steps.version.outputs.VERSION }}-Setup.exe"
+          $versionedName = "TheiaCast-Client-Windows-v${{ steps.version.outputs.VERSION }}-Setup.exe"
+          $latestName = "TheiaCast-Client-Windows-Setup.exe"
+
           if (Test-Path $oldName) {
-            Rename-Item $oldName $newName
-            echo "Renamed to: $newName"
+            # Create versioned installer
+            Copy-Item $oldName $versionedName
+            Write-Host "Created versioned installer: $versionedName"
+
+            # Create latest installer
+            Rename-Item $oldName $latestName
+            Write-Host "Created latest installer: $latestName"
           }
 
       - name: Upload Release Asset
         uses: actions/upload-artifact@v4
         with:
           name: windows-client-installer
-          path: client-windows/TheiaCast-Client-Windows-v${{ steps.version.outputs.VERSION }}-Setup.exe
+          path: |
+            client-windows/TheiaCast-Client-Windows-v${{ steps.version.outputs.VERSION }}-Setup.exe
+            client-windows/TheiaCast-Client-Windows-Setup.exe
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version.outputs.VERSION }}
           name: TheiaCast v${{ steps.version.outputs.VERSION }}
-          files: client-windows/TheiaCast-Client-Windows-v${{ steps.version.outputs.VERSION }}-Setup.exe
+          files: |
+            client-windows/TheiaCast-Client-Windows-v${{ steps.version.outputs.VERSION }}-Setup.exe
+            client-windows/TheiaCast-Client-Windows-Setup.exe
           draft: false
           prerelease: false
           body: |
             ## TheiaCast Windows Client v${{ steps.version.outputs.VERSION }}
 
             ### Installation
-            Download and run `TheiaCast-Client-Windows-v${{ steps.version.outputs.VERSION }}-Setup.exe`
+
+            **Download latest (recommended):**
+            ```powershell
+            # Download from https://github.com/jimmyeao/TheiaCast/releases/latest
+            # Then run:
+            .\TheiaCast-Client-Windows-Setup.exe
+            ```
+
+            **Or download specific version:**
+            `TheiaCast-Client-Windows-v${{ steps.version.outputs.VERSION }}-Setup.exe`
 
             ### Requirements
             - Windows 10 or later

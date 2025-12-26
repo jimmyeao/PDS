@@ -126,20 +126,26 @@ jobs:
       - name: Create tarball
         run: |
           cd package
+          # Create both versioned and latest tarballs
           tar czf ../theiacast-client-linux-v${{ steps.version.outputs.VERSION }}.tar.gz theiacast-client
+          tar czf ../theiacast-client-linux.tar.gz theiacast-client
 
       - name: Upload Release Asset
         uses: actions/upload-artifact@v4
         with:
           name: linux-client-package
-          path: theiacast-client-linux-v${{ steps.version.outputs.VERSION }}.tar.gz
+          path: |
+            theiacast-client-linux-v${{ steps.version.outputs.VERSION }}.tar.gz
+            theiacast-client-linux.tar.gz
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version.outputs.VERSION }}
           name: TheiaCast v${{ steps.version.outputs.VERSION }}
-          files: theiacast-client-linux-v${{ steps.version.outputs.VERSION }}.tar.gz
+          files: |
+            theiacast-client-linux-v${{ steps.version.outputs.VERSION }}.tar.gz
+            theiacast-client-linux.tar.gz
           draft: false
           prerelease: false
           body: |
@@ -147,7 +153,15 @@ jobs:
 
             ### Installation
             ```bash
+            # Download latest (recommended)
+            wget https://github.com/jimmyeao/TheiaCast/releases/latest/download/theiacast-client-linux.tar.gz
+            tar xzf theiacast-client-linux.tar.gz
+
+            # Or download specific version
+            wget https://github.com/jimmyeao/TheiaCast/releases/download/v${{ steps.version.outputs.VERSION }}/theiacast-client-linux-v${{ steps.version.outputs.VERSION }}.tar.gz
             tar xzf theiacast-client-linux-v${{ steps.version.outputs.VERSION }}.tar.gz
+
+            # Install
             cd theiacast-client
             sudo ./scripts/install.sh
             ```
