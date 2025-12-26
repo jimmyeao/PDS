@@ -356,6 +356,26 @@ using (var scope = app.Services.CreateScope())
 
             Serilog.Log.Information("Generated new installation key for this TheiaCast instance");
         }
+
+        // Assign all unassigned devices to free license
+        var freeLicense = await db.Licenses.FirstOrDefaultAsync(l => l.Tier == "free");
+        if (freeLicense != null)
+        {
+            var unassignedDevices = await db.Devices.Where(d => d.LicenseId == null).ToListAsync();
+            if (unassignedDevices.Any())
+            {
+                foreach (var device in unassignedDevices)
+                {
+                    device.LicenseId = freeLicense.Id;
+                    device.LicenseActivatedAt = DateTime.UtcNow;
+                }
+
+                freeLicense.CurrentDeviceCount = await db.Devices.CountAsync(d => d.LicenseId == freeLicense.Id);
+                await db.SaveChangesAsync();
+
+                Serilog.Log.Information($"Assigned {unassignedDevices.Count} unassigned devices to free license");
+            }
+        }
     }
     catch (Exception ex)
     {
@@ -669,15 +689,23 @@ app.MapGet("/license/installation-key", async (PdsDbContext db) =>
 }).RequireAuthorization();
 
 // Activate license globally (for customer use)
-app.MapPost("/license/activate", async ([FromBody] ActivateLicenseGlobalDto dto, ILicenseService svc, PdsDbContext db, ILogService logService) =>
+app.MapPost("/license/activate", async ([FromBody] ActivateLicenseGlobalDto dto, ILicenseService svc, PdsDbContext db, ILogService logService, ILogger<Program> logger) =>
 {
     try
     {
+        if (string.IsNullOrWhiteSpace(dto.LicenseKey))
+        {
+            return Results.BadRequest(new { error = "License key is required" });
+        }
+
+        logger.LogInformation($"License activation attempt with key: {dto.LicenseKey.Substring(0, Math.Min(10, dto.LicenseKey.Length))}...");
+
         // Validate license key
         var license = await svc.GetLicenseByKeyAsync(dto.LicenseKey);
         if (license == null)
         {
-            return Results.BadRequest(new { error = "Invalid license key" });
+            logger.LogWarning($"License activation failed: Invalid license key (key not found in database)");
+            return Results.BadRequest(new { error = "Invalid license key. The license key was not found or does not match this installation's key." });
         }
 
         if (!license.IsActive)
@@ -736,7 +764,8 @@ app.MapPost("/license/activate", async ([FromBody] ActivateLicenseGlobalDto dto,
     }
     catch (Exception ex)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        logger.LogError(ex, $"License activation exception: {ex.Message}");
+        return Results.BadRequest(new { error = ex.Message, details = ex.ToString() });
     }
 }).RequireAuthorization();
 
