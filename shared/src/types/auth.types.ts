@@ -99,6 +99,11 @@ export interface LicenseStatus {
   reason?: string;
 }
 
+export interface InstallationKeyResponse {
+  installationKey: string;
+  generatedAt: Date;
+}
+
 export interface GenerateLicenseDto {
   tier: string;
   maxDevices: number;

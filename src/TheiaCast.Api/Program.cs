@@ -331,6 +331,31 @@ using (var scope = app.Services.CreateScope())
                 VALUES ('FREE-TIER', 'free-tier-hash', 'free', 3, true, 'Default Free License');
             ");
         }
+
+        // Generate and store installation key (HMAC secret) if not exists
+        var installationKey = await db.AppSettings
+            .FirstOrDefaultAsync(s => s.Key == "InstallationKey");
+
+        if (installationKey == null)
+        {
+            // Generate a cryptographically secure 64-character random string
+            var randomBytes = new byte[48]; // 48 bytes = 64 base64 characters
+            using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(randomBytes);
+            }
+            var generatedKey = Convert.ToBase64String(randomBytes);
+
+            db.AppSettings.Add(new AppSettings
+            {
+                Key = "InstallationKey",
+                Value = generatedKey,
+                UpdatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+
+            Serilog.Log.Information("Generated new installation key for this TheiaCast instance");
+        }
     }
     catch (Exception ex)
     {
@@ -624,6 +649,22 @@ app.MapGet("/license/status", async (ILicenseService svc, PdsDbContext db) =>
         isInGracePeriod = validation.IsInGracePeriod,
         gracePeriodEndsAt = validation.GracePeriodEndsAt,
         reason = validation.Reason
+    });
+}).RequireAuthorization();
+
+// Get installation key (HMAC secret) for customer to provide when purchasing licenses
+app.MapGet("/license/installation-key", async (PdsDbContext db) =>
+{
+    var installationKey = await db.AppSettings
+        .FirstOrDefaultAsync(s => s.Key == "InstallationKey");
+
+    if (installationKey == null)
+        return Results.NotFound(new { error = "Installation key not found. Please restart the backend." });
+
+    return Results.Ok(new
+    {
+        installationKey = installationKey.Value,
+        generatedAt = installationKey.UpdatedAt
     });
 }).RequireAuthorization();
 

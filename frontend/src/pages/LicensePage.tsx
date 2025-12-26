@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react';
 import { licenseService } from '../services/license.service';
-import type { License, LicenseStatus } from '@theiacast/shared';
+import type { License, LicenseStatus, InstallationKeyResponse } from '@theiacast/shared';
+import { ClipboardDocumentIcon, CheckIcon } from '@heroicons/react/24/outline';
 
 export const LicensePage = () => {
   const [licenseStatus, setLicenseStatus] = useState<LicenseStatus | null>(null);
   const [licenses, setLicenses] = useState<License[]>([]);
+  const [installationKey, setInstallationKey] = useState<InstallationKeyResponse | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [loadingLicenses, setLoadingLicenses] = useState(false);
+  const [loadingInstallationKey, setLoadingInstallationKey] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [copied, setCopied] = useState(false);
 
   const fetchLicenseStatus = async () => {
     setLoadingStatus(true);
@@ -38,6 +42,32 @@ export const LicensePage = () => {
     }
   };
 
+  const fetchInstallationKey = async () => {
+    setLoadingInstallationKey(true);
+    try {
+      const key = await licenseService.getInstallationKey();
+      setInstallationKey(key);
+      setError('');
+    } catch (err: any) {
+      console.error('Failed to fetch installation key:', err);
+      setError('Failed to load installation key');
+    } finally {
+      setLoadingInstallationKey(false);
+    }
+  };
+
+  const handleCopyInstallationKey = async () => {
+    if (installationKey) {
+      try {
+        await navigator.clipboard.writeText(installationKey.installationKey);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy:', err);
+      }
+    }
+  };
+
   const handleRevokeLicense = async (id: number) => {
     if (!confirm('Are you sure you want to revoke this license?')) return;
 
@@ -54,6 +84,7 @@ export const LicensePage = () => {
   useEffect(() => {
     fetchLicenseStatus();
     fetchLicenses();
+    fetchInstallationKey();
   }, []);
 
   const getStatusColor = () => {
@@ -93,6 +124,64 @@ export const LicensePage = () => {
           <p className="text-sm text-green-800 dark:text-green-200">{success}</p>
         </div>
       )}
+
+      {/* Installation Key Section */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg shadow-md p-6 border-2 border-blue-200 dark:border-blue-800">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Your Installation Key</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              This is your unique installation key. Provide this to the vendor when purchasing a license.
+            </p>
+          </div>
+        </div>
+
+        {loadingInstallationKey ? (
+          <div className="text-center py-4">
+            <div className="inline-block h-6 w-6 animate-spin rounded-full border-4 border-solid border-current border-r-transparent"></div>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Loading key...</p>
+          </div>
+        ) : installationKey ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+              <code className="flex-1 text-sm font-mono text-gray-900 dark:text-white break-all">
+                {installationKey.installationKey}
+              </code>
+              <button
+                onClick={handleCopyInstallationKey}
+                className="flex-shrink-0 p-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                title="Copy to clipboard"
+              >
+                {copied ? (
+                  <CheckIcon className="h-5 w-5" />
+                ) : (
+                  <ClipboardDocumentIcon className="h-5 w-5" />
+                )}
+              </button>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>Generated: {new Date(installationKey.generatedAt).toLocaleString()}</span>
+            </div>
+            <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                <strong>How to purchase a license:</strong>
+              </p>
+              <ol className="mt-2 ml-4 text-sm text-blue-700 dark:text-blue-300 list-decimal space-y-1">
+                <li>Copy your installation key using the button above</li>
+                <li>Contact the vendor to purchase a license</li>
+                <li>Provide your installation key when requesting the license</li>
+                <li>The vendor will generate a license key specifically for your installation</li>
+                <li>Enter the license key in the device activation section</li>
+              </ol>
+            </div>
+          </div>
+        ) : (
+          <p className="text-gray-500 dark:text-gray-400">No installation key available</p>
+        )}
+      </div>
 
       {/* Current License Status */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">

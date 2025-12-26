@@ -56,8 +56,8 @@ public class LicenseService : ILicenseService
 
     public async Task<License> GenerateLicenseAsync(string tier, int maxDevices, string? companyName, DateTime? expiresAt)
     {
-        var key = GenerateLicenseKey(tier);
-        var keyHash = ComputeLicenseKeyHash(key);
+        var key = await GenerateLicenseKeyAsync(tier);
+        var keyHash = await ComputeLicenseKeyHashAsync(key);
 
         var license = new License
         {
@@ -81,7 +81,7 @@ public class LicenseService : ILicenseService
 
     public async Task<License> ActivateLicenseAsync(string licenseKey, int deviceId)
     {
-        var keyHash = ComputeLicenseKeyHash(licenseKey);
+        var keyHash = await ComputeLicenseKeyHashAsync(licenseKey);
         var license = await _db.Licenses.FirstOrDefaultAsync(l => l.KeyHash == keyHash);
 
         if (license == null)
@@ -203,7 +203,7 @@ public class LicenseService : ILicenseService
 
     public async Task<License?> GetLicenseByKeyAsync(string key)
     {
-        var keyHash = ComputeLicenseKeyHash(key);
+        var keyHash = await ComputeLicenseKeyHashAsync(key);
         return await _db.Licenses.FirstOrDefaultAsync(l => l.KeyHash == keyHash);
     }
 
@@ -321,7 +321,7 @@ public class LicenseService : ILicenseService
         await _db.SaveChangesAsync();
     }
 
-    private string GenerateLicenseKey(string tier)
+    private async Task<string> GenerateLicenseKeyAsync(string tier)
     {
         var random = Convert.ToBase64String(RandomNumberGenerator.GetBytes(12))
             .TrimEnd('=')
@@ -329,24 +329,37 @@ public class LicenseService : ILicenseService
             .Replace("/", "_");
 
         var keyPreChecksum = $"LK-1-{tier.ToUpper()}-{random}";
-        var checksum = ComputeChecksum(keyPreChecksum).Substring(0, 4).ToUpper();
+        var checksum = (await ComputeChecksumAsync(keyPreChecksum)).Substring(0, 4).ToUpper();
 
         return $"{keyPreChecksum}-{checksum}";
     }
 
-    private string ComputeChecksum(string input)
+    private async Task<string> ComputeChecksumAsync(string input)
     {
-        var secret = _config["License:Secret"] ?? "default-hmac-secret-change-in-production";
+        var secret = await GetInstallationKeyAsync();
         using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
         var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(input));
         return Convert.ToHexString(hash);
     }
 
-    private string ComputeLicenseKeyHash(string key)
+    private async Task<string> ComputeLicenseKeyHashAsync(string key)
     {
-        var secret = _config["License:Secret"] ?? "default-hmac-secret-change-in-production";
+        var secret = await GetInstallationKeyAsync();
         using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
         var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(key));
         return Convert.ToHexString(hash).ToLower();
+    }
+
+    private async Task<string> GetInstallationKeyAsync()
+    {
+        var installationKey = await _db.AppSettings
+            .FirstOrDefaultAsync(s => s.Key == "InstallationKey");
+
+        if (installationKey == null)
+        {
+            throw new InvalidOperationException("Installation key not found. Please restart the backend to generate one.");
+        }
+
+        return installationKey.Value;
     }
 }

@@ -2,9 +2,9 @@ import axios from 'axios';
 import type {
   License,
   LicenseStatus,
-  GenerateLicenseDto,
   ActivateLicenseDto,
   UpdateLicenseDto,
+  InstallationKeyResponse,
 } from '@theiacast/shared';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
@@ -38,8 +38,8 @@ export const licenseService = {
     return response.data;
   },
 
-  async generate(data: GenerateLicenseDto): Promise<License> {
-    const response = await api.post<License>('/licenses/generate', data);
+  async getInstallationKey(): Promise<InstallationKeyResponse> {
+    const response = await api.get<InstallationKeyResponse>('/license/installation-key');
     return response.data;
   },
 
