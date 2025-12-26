@@ -1,6 +1,6 @@
 {
   "name": "@theiacast/shared",
-  "version": "1.0.0",
+  "version": "1.0.12",
   "description": "Shared TypeScript types for TheiaCast digital signage",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

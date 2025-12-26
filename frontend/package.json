@@ -1,7 +1,7 @@
 {
   "name": "theiacast-frontend",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.12",
   "type": "module",
   "license": "AGPL-3.0",
   "description": "TheiaCast Digital Signage - Admin Dashboard",
@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
-    "@theiacast/shared": "1.0.0",
+    "@theiacast/shared": "1.0.12",
     "axios": "^1.7.9",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.0",

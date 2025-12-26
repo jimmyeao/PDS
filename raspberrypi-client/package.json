@@ -1,6 +1,6 @@
 {
   "name": "@theiacast/client",
-  "version": "1.0.0",
+  "version": "1.0.12",
   "description": "TheiaCast client for digital signage (Windows, Linux, Raspberry Pi)",
   "main": "dist/index.js",
   "scripts": {
@@ -27,7 +27,7 @@
   "author": "",
   "license": "AGPL-3.0",
   "dependencies": {
-    "@theiacast/shared": "^1.0.0",
+    "@theiacast/shared": "^1.0.12",
     "dotenv": "^16.4.7",
     "puppeteer": "^24.15.0",
     "systeminformation": "^5.23.22",

@@ -1,6 +1,6 @@
 {
   "name": "kiosk-digital-signage",
-  "version": "1.0.0",
+  "version": "1.0.12",
   "description": "Digital signage solution with central management of Raspberry Pi displays",
   "private": true,
   "workspaces": [
