@@ -2,9 +2,11 @@ export interface User {
   id: number;
   username: string;
   email?: string;
+  displayName?: string;
   isMfaEnabled: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  lastLoginAt?: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface LoginDto {
@@ -44,4 +46,27 @@ export interface JwtPayload {
   username: string;
   iat?: number;
   exp?: number;
+}
+
+// User management DTOs
+export interface CreateUserDto {
+  username: string;
+  password: string;
+  email?: string;
+  displayName?: string;
+}
+
+export interface UpdateUserDto {
+  email?: string;
+  displayName?: string;
+  password?: string;
+}
+
+export interface UserListDto {
+  id: number;
+  username: string;
+  email?: string;
+  displayName?: string;
+  isMfaEnabled: boolean;
+  lastLoginAt?: Date;
 }

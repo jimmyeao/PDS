@@ -207,3 +207,4 @@ temp/
 *~.nib
 *.stackdump
 *.pem
+*.tar.gz

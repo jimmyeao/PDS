@@ -119,6 +119,10 @@ public class AuthService : IAuthService
             }
         }
 
+        // Update last login timestamp
+        user.LastLoginAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
         // Log successful login
         await _logService.AddLogAsync("Info",
             $"User logged in: '{user.Username}' (ID: {user.Id}){(user.IsMfaEnabled ? " with MFA" : "")}",
@@ -227,10 +231,10 @@ public class AuthService : IAuthService
     public async Task<UserDto> MeAsync(ClaimsPrincipal principal)
     {
         var username = principal.Identity?.Name;
-        if (username == null) return new UserDto(0, "guest", false);
+        if (username == null) return new UserDto(0, "guest", false, null, null, null);
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == username);
-        if (user == null) return new UserDto(0, "guest", false);
-        return new UserDto(user.Id, user.Username, user.IsMfaEnabled);
+        if (user == null) return new UserDto(0, "guest", false, null, null, null);
+        return new UserDto(user.Id, user.Username, user.IsMfaEnabled, user.Email, user.DisplayName, user.LastLoginAt);
     }
 
     private AuthResponse GenerateTokens(string username)

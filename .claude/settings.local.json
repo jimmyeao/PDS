@@ -169,7 +169,11 @@
       "WebFetch(domain:playwright.dev)",
       "Bash(dotnet publish:*)",
       "Bash(cmd //c \"set PLAYWRIGHT_BROWSERS_PATH=%CD% && powershell -File playwright.ps1 install chromium --with-deps\")",
-      "Bash(gh release list:*)"
+      "Bash(gh release list:*)",
+      "Bash(ping:*)",
+      "Bash(nslookup:*)",
+      "WebFetch(domain:theiacast.com)",
+      "WebFetch(domain:www.theiacast.com)"
     ]
   }
 }

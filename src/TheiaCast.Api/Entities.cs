@@ -26,6 +26,9 @@ public class User
     public string PasswordHash { get; set; } = string.Empty;
     public string? MfaSecret { get; set; }
     public bool IsMfaEnabled { get; set; }
+    public string? Email { get; set; }
+    public string? DisplayName { get; set; }
+    public DateTime? LastLoginAt { get; set; }
 }
 
 public class Device
