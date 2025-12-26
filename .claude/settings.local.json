@@ -166,7 +166,9 @@
       "Bash(tar:*)",
       "Bash(git show:*)",
       "Bash(gh run list:*)",
-      "WebFetch(domain:playwright.dev)"
+      "WebFetch(domain:playwright.dev)",
+      "Bash(dotnet publish:*)",
+      "Bash(cmd //c \"set PLAYWRIGHT_BROWSERS_PATH=%CD% && powershell -File playwright.ps1 install chromium --with-deps\")"
     ]
   }
 }
