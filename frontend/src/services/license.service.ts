@@ -55,4 +55,9 @@ export const licenseService = {
   async revoke(id: number): Promise<void> {
     await api.delete(`/licenses/${id}`);
   },
+
+  async activateGlobal(licenseKey: string): Promise<any> {
+    const response = await api.post('/license/activate', { licenseKey });
+    return response.data;
+  },
 };

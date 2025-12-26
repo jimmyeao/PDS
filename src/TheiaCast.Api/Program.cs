@@ -668,6 +668,78 @@ app.MapGet("/license/installation-key", async (PdsDbContext db) =>
     });
 }).RequireAuthorization();
 
+// Activate license globally (for customer use)
+app.MapPost("/license/activate", async ([FromBody] ActivateLicenseGlobalDto dto, ILicenseService svc, PdsDbContext db, ILogService logService) =>
+{
+    try
+    {
+        // Validate license key
+        var license = await svc.GetLicenseByKeyAsync(dto.LicenseKey);
+        if (license == null)
+        {
+            return Results.BadRequest(new { error = "Invalid license key" });
+        }
+
+        if (!license.IsActive)
+        {
+            return Results.BadRequest(new { error = "License is not active" });
+        }
+
+        if (license.ExpiresAt.HasValue && license.ExpiresAt.Value < DateTime.UtcNow)
+        {
+            return Results.BadRequest(new { error = "License has expired" });
+        }
+
+        // Assign license to all existing devices
+        var devices = await db.Devices.ToListAsync();
+        foreach (var device in devices)
+        {
+            // Remove from free license
+            if (device.LicenseId.HasValue)
+            {
+                var oldLicense = await db.Licenses.FindAsync(device.LicenseId.Value);
+                if (oldLicense != null && oldLicense.Tier == "free")
+                {
+                    oldLicense.CurrentDeviceCount = Math.Max(0, oldLicense.CurrentDeviceCount - 1);
+                }
+            }
+
+            // Assign to new license
+            device.LicenseId = license.Id;
+            device.LicenseActivatedAt = DateTime.UtcNow;
+        }
+
+        // Update license device count
+        license.CurrentDeviceCount = devices.Count;
+        if (!license.ActivatedAt.HasValue)
+        {
+            license.ActivatedAt = DateTime.UtcNow;
+        }
+
+        await db.SaveChangesAsync();
+
+        await logService.AddLogAsync("Info",
+            $"License activated globally: {license.Tier} ({license.MaxDevices} devices)",
+            null, "LicenseService");
+
+        return Results.Ok(new
+        {
+            message = "License activated successfully",
+            license = new
+            {
+                tier = license.Tier,
+                maxDevices = license.MaxDevices,
+                currentDevices = license.CurrentDeviceCount,
+                expiresAt = license.ExpiresAt
+            }
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
 // Devices endpoints
 app.MapPost("/devices", async ([FromBody] CreateDeviceDto dto, IDeviceService svc) => await svc.CreateAsync(dto))
     .RequireAuthorization();

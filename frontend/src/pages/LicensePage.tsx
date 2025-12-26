@@ -13,6 +13,8 @@ export const LicensePage = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [copied, setCopied] = useState(false);
+  const [activationKey, setActivationKey] = useState('');
+  const [activating, setActivating] = useState(false);
 
   const fetchLicenseStatus = async () => {
     setLoadingStatus(true);
@@ -78,6 +80,31 @@ export const LicensePage = () => {
       fetchLicenseStatus();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to revoke license');
+    }
+  };
+
+  const handleActivateLicense = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!activationKey.trim()) {
+      setError('Please enter a license key');
+      return;
+    }
+
+    setActivating(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await licenseService.activateGlobal(activationKey.trim());
+      setSuccess('License activated successfully! Your installation has been upgraded.');
+      setActivationKey('');
+      fetchLicenseStatus();
+      fetchLicenses();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to activate license. Please check the license key and try again.');
+    } finally {
+      setActivating(false);
     }
   };
 
@@ -181,6 +208,46 @@ export const LicensePage = () => {
         ) : (
           <p className="text-gray-500 dark:text-gray-400">No installation key available</p>
         )}
+      </div>
+
+      {/* License Activation Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Activate License Key</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Enter the license key provided by the vendor to upgrade your installation.
+        </p>
+
+        <form onSubmit={handleActivateLicense} className="space-y-4">
+          <div>
+            <label htmlFor="licenseKey" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              License Key
+            </label>
+            <input
+              id="licenseKey"
+              type="text"
+              value={activationKey}
+              onChange={(e) => setActivationKey(e.target.value)}
+              placeholder="LK-1-PRO-20-xY9mKp3rT4u-BC8F"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={activating}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={activating || !activationKey.trim()}
+            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium rounded-lg transition-colors disabled:cursor-not-allowed"
+          >
+            {activating ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent"></div>
+                Activating...
+              </span>
+            ) : (
+              'Activate License'
+            )}
+          </button>
+        </form>
       </div>
 
       {/* Current License Status */}

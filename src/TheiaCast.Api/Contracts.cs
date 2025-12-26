@@ -119,4 +119,8 @@ namespace TheiaCast.Api.Contracts
     public record ActivateLicenseDto(
         [property: JsonPropertyName("licenseKey")] string LicenseKey
     );
+
+    public record ActivateLicenseGlobalDto(
+        [property: JsonPropertyName("licenseKey")] string LicenseKey
+    );
 }
