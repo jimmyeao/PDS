@@ -936,9 +936,18 @@ app.MapPost("/license/activate", async ([FromBody] ActivateLicenseGlobalDto dto,
             catch (Exception ex)
             {
                 logger.LogError(ex, $"Failed to save new license: {ex.Message}");
+
+                // Get the deepest inner exception for better diagnostics
+                var innerMost = ex;
+                while (innerMost.InnerException != null)
+                    innerMost = innerMost.InnerException;
+
                 return Results.BadRequest(new {
-                    error = "Failed to save license to database. The license key may already exist.",
-                    details = ex.InnerException?.Message ?? ex.Message
+                    error = "Failed to save license to database",
+                    message = ex.Message,
+                    innerError = innerMost.Message,
+                    expiresAt = license.ExpiresAt?.ToString("o"), // ISO 8601 format
+                    expiresAtKind = license.ExpiresAt?.Kind.ToString()
                 });
             }
         }

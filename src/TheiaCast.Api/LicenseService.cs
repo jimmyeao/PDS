@@ -626,12 +626,18 @@ public class LicensePayload
 
     public DateTime? GetExpiryDate()
     {
-        return string.IsNullOrEmpty(e) ? null : DateTime.Parse(e);
+        if (string.IsNullOrEmpty(e))
+            return null;
+
+        // Parse as UTC to avoid timezone issues with PostgreSQL
+        var date = DateTime.Parse(e);
+        return DateTime.SpecifyKind(date, DateTimeKind.Utc);
     }
 
     public DateTime GetIssuedDate()
     {
-        return DateTime.Parse(i);
+        var date = DateTime.Parse(i);
+        return DateTime.SpecifyKind(date, DateTimeKind.Utc);
     }
 
     public bool IsExpired()
