@@ -735,14 +735,21 @@ app.MapPost("/license/activate", async ([FromBody] ActivateLicenseGlobalDto dto,
 
         logger.LogInformation($"License activation attempt with key: {dto.LicenseKey.Substring(0, Math.Min(10, dto.LicenseKey.Length))}...");
 
-        // Parse license key format: LK-1-TIER-random-checksum
+        // Parse license key format: LK-1-PRO-10-random-checksum or LK-1-ENTERPRISE-random-checksum
         var parts = dto.LicenseKey.Split('-');
         if (parts.Length < 5 || parts[0] != "LK" || parts[1] != "1")
         {
             return Results.BadRequest(new { error = "Invalid license key format" });
         }
 
+        // Tier is parts[2]-parts[3] for PRO-10, PRO-20, etc., or just parts[2] for ENTERPRISE
         var tier = parts[2];
+        if (parts.Length >= 6 && int.TryParse(parts[3], out _))
+        {
+            // PRO-10, PRO-20, etc.
+            tier = $"{parts[2]}-{parts[3]}";
+        }
+
         var checksum = parts[parts.Length - 1];
 
         // Validate checksum by attempting to find the license
