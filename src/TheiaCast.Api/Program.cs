@@ -915,61 +915,43 @@ app.MapPost("/license/activate", async ([FromBody] ActivateLicenseGlobalDto dto,
             }
         }
 
-        // Deactivate all other paid licenses (only one paid license can be active at a time)
-        if (license.Tier != "free")
+        // Note: Additive licensing - multiple paid licenses can be active simultaneously
+        // Total device allowance is the sum of all active licenses
+        // We DON'T reassign existing devices - they stay on their current license
+        // The new license just adds capacity to the total pool
+
+        // Update device counts for all licenses
+        var allLicenses = await db.Licenses.ToListAsync();
+        foreach (var lic in allLicenses)
         {
-            var otherPaidLicenses = await db.Licenses
-                .Where(l => l.Id != license.Id && l.Tier != "free" && l.IsActive)
-                .ToListAsync();
-
-            foreach (var otherLicense in otherPaidLicenses)
-            {
-                otherLicense.IsActive = false;
-                logger.LogInformation($"Deactivated license {otherLicense.Key} (tier: {otherLicense.Tier}) - only one paid license can be active");
-            }
-        }
-
-        // Assign license to all existing devices
-        var devices = await db.Devices.ToListAsync();
-        foreach (var device in devices)
-        {
-            // Remove from free license
-            if (device.LicenseId.HasValue)
-            {
-                var oldLicense = await db.Licenses.FindAsync(device.LicenseId.Value);
-                if (oldLicense != null && oldLicense.Tier == "free")
-                {
-                    oldLicense.CurrentDeviceCount = Math.Max(0, oldLicense.CurrentDeviceCount - 1);
-                }
-            }
-
-            // Assign to new license
-            device.LicenseId = license.Id;
-            device.LicenseActivatedAt = DateTime.UtcNow;
-        }
-
-        // Update license device count
-        license.CurrentDeviceCount = devices.Count;
-        if (!license.ActivatedAt.HasValue)
-        {
-            license.ActivatedAt = DateTime.UtcNow;
+            lic.CurrentDeviceCount = await db.Devices.CountAsync(d => d.LicenseId == lic.Id);
         }
 
         await db.SaveChangesAsync();
 
+        // Calculate total allowance across all active licenses
+        var totalStatus = await svc.GetLicenseTotalStatusAsync();
+
         await logService.AddLogAsync("Info",
-            $"License activated globally: {license.Tier} ({license.MaxDevices} devices)",
+            $"License activated: {license.Tier} (+{license.MaxDevices} devices). Total allowance: {totalStatus.TotalMaxDevices} devices",
             null, "LicenseService");
 
         return Results.Ok(new
         {
-            message = "License activated successfully",
-            license = new
+            message = $"License activated successfully! Added {license.MaxDevices} devices to your account.",
+            addedLicense = new
             {
                 tier = license.Tier,
                 maxDevices = license.MaxDevices,
-                currentDevices = license.CurrentDeviceCount,
-                expiresAt = license.ExpiresAt
+                expiresAt = license.ExpiresAt,
+                companyName = license.CompanyName
+            },
+            totalStatus = new
+            {
+                totalMaxDevices = totalStatus.TotalMaxDevices,
+                currentDevices = totalStatus.CurrentDevices,
+                activeLicenseCount = totalStatus.ActiveLicenses.Count,
+                availableDevices = totalStatus.TotalMaxDevices - totalStatus.CurrentDevices
             }
         });
     }
