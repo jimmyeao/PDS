@@ -763,33 +763,53 @@ app.MapGet("/license/decoded", async (ILicenseService svc, PdsDbContext db) =>
     });
 }).RequireAuthorization();
 
-// Debug endpoint: Verify license key hash (admin only)
-app.MapPost("/license/debug/verify-hash", async ([FromBody] DebugLicenseKeyDto dto, ILicenseService svc, PdsDbContext db) =>
+// Debug endpoint: Check license key before activation
+app.MapPost("/license/debug/check-key", async ([FromBody] DebugLicenseKeyDto dto, ILicenseService svc, PdsDbContext db) =>
 {
     try
     {
         var installationKey = await db.AppSettings.FirstOrDefaultAsync(s => s.Key == "InstallationKey");
 
-        // Get all licenses to show their hashes
+        // Compute what the hash would be
+        var computedHash = await ComputeLicenseKeyHashAsync(dto.LicenseKey, db);
+
+        // Get all licenses to compare
         var allLicenses = await db.Licenses.ToListAsync();
 
-        // Try to find the license
-        var license = await svc.GetLicenseByKeyAsync(dto.LicenseKey);
+        // Try to find the license by hash
+        var licenseByHash = await svc.GetLicenseByKeyAsync(dto.LicenseKey);
+
+        // Try to find by exact key match
+        var licenseByKey = await db.Licenses.FirstOrDefaultAsync(l => l.Key == dto.LicenseKey);
+
+        // Try to decode
+        var payload = await svc.DecodeLicenseKeyAsync(dto.LicenseKey);
 
         return Results.Ok(new
         {
-            licenseKey = dto.LicenseKey,
-            foundInDatabase = license != null,
+            inputKey = dto.LicenseKey,
+            computedHash = computedHash,
+            foundByHash = licenseByHash != null,
+            foundByKey = licenseByKey != null,
             installationKeyInDatabase = installationKey?.Value,
+            decoded = payload != null ? new {
+                tier = payload.t,
+                maxDevices = payload.d,
+                company = payload.c,
+                expires = payload.e,
+                isExpired = payload.IsExpired(),
+                isPerpetual = payload.IsPerpetual()
+            } : null,
             totalLicensesInDatabase = allLicenses.Count,
-            allLicenseKeys = allLicenses.Select(l => new {
-                key = l.Key,
-                keyHash = l.KeyHash,
-                tier = l.Tier
-            }).ToList(),
-            message = license != null
-                ? "License found! Hash matches."
-                : "License NOT found. The license key hash does not match any license in the database."
+            allLicenses = allLicenses.Select(l => new {
+                id = l.Id,
+                key = l.Key.Substring(0, Math.Min(20, l.Key.Length)) + "...",
+                keyHash = l.KeyHash.Substring(0, 16) + "...",
+                tier = l.Tier,
+                isActive = l.IsActive,
+                matchesInputHash = l.KeyHash == computedHash,
+                matchesInputKey = l.Key == dto.LicenseKey
+            }).ToList()
         });
     }
     catch (Exception ex)
