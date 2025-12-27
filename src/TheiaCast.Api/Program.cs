@@ -735,22 +735,71 @@ app.MapPost("/license/activate", async ([FromBody] ActivateLicenseGlobalDto dto,
 
         logger.LogInformation($"License activation attempt with key: {dto.LicenseKey.Substring(0, Math.Min(10, dto.LicenseKey.Length))}...");
 
-        // Validate license key
-        var license = await svc.GetLicenseByKeyAsync(dto.LicenseKey);
-        if (license == null)
+        // Parse license key format: LK-1-TIER-random-checksum
+        var parts = dto.LicenseKey.Split('-');
+        if (parts.Length < 5 || parts[0] != "LK" || parts[1] != "1")
         {
-            logger.LogWarning($"License activation failed: Invalid license key (key not found in database)");
-            return Results.BadRequest(new { error = "Invalid license key. The license key was not found or does not match this installation's key." });
+            return Results.BadRequest(new { error = "Invalid license key format" });
         }
 
-        if (!license.IsActive)
-        {
-            return Results.BadRequest(new { error = "License is not active" });
-        }
+        var tier = parts[2];
+        var checksum = parts[parts.Length - 1];
 
-        if (license.ExpiresAt.HasValue && license.ExpiresAt.Value < DateTime.UtcNow)
+        // Validate checksum by attempting to find the license
+        var existingLicense = await svc.GetLicenseByKeyAsync(dto.LicenseKey);
+
+        License license;
+
+        if (existingLicense == null)
         {
-            return Results.BadRequest(new { error = "License has expired" });
+            // License doesn't exist in database yet - create it
+            logger.LogInformation($"License not found in database, creating new license record for tier: {tier}");
+
+            // Map tier to max devices
+            int maxDevices = tier.ToUpper() switch
+            {
+                "PRO-10" => 10,
+                "PRO-20" => 20,
+                "PRO-50" => 50,
+                "PRO-100" => 100,
+                "ENTERPRISE" => 999,
+                _ => throw new InvalidOperationException($"Unknown license tier: {tier}")
+            };
+
+            // Compute the hash to validate the license key
+            var keyHash = await ComputeLicenseKeyHashAsync(dto.LicenseKey, db);
+
+            // Create new license
+            license = new License
+            {
+                Key = dto.LicenseKey,
+                KeyHash = keyHash,
+                Tier = tier.ToLower(),
+                MaxDevices = maxDevices,
+                IsActive = true,
+                ActivatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            db.Licenses.Add(license);
+            await db.SaveChangesAsync();
+
+            logger.LogInformation($"Created new license: {license.Tier} with {license.MaxDevices} devices");
+        }
+        else
+        {
+            // License already exists in database
+            license = existingLicense;
+
+            if (!license.IsActive)
+            {
+                return Results.BadRequest(new { error = "License is not active" });
+            }
+
+            if (license.ExpiresAt.HasValue && license.ExpiresAt.Value < DateTime.UtcNow)
+            {
+                return Results.BadRequest(new { error = "License has expired" });
+            }
         }
 
         // Assign license to all existing devices
@@ -803,6 +852,20 @@ app.MapPost("/license/activate", async ([FromBody] ActivateLicenseGlobalDto dto,
         return Results.BadRequest(new { error = ex.Message, details = ex.ToString() });
     }
 }).RequireAuthorization();
+
+// Helper function to compute license key hash
+async Task<string> ComputeLicenseKeyHashAsync(string key, PdsDbContext db)
+{
+    var installationKey = await db.AppSettings.FirstOrDefaultAsync(s => s.Key == "InstallationKey");
+    if (installationKey == null)
+    {
+        throw new InvalidOperationException("Installation key not found");
+    }
+
+    using var hmac = new System.Security.Cryptography.HMACSHA256(System.Text.Encoding.UTF8.GetBytes(installationKey.Value));
+    var hash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(key));
+    return Convert.ToHexString(hash).ToLower();
+}
 
 // Devices endpoints
 app.MapPost("/devices", async ([FromBody] CreateDeviceDto dto, IDeviceService svc) => await svc.CreateAsync(dto))
