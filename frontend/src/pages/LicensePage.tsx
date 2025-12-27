@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { licenseService } from '../services/license.service';
-import type { License, LicenseStatus, InstallationKeyResponse } from '@theiacast/shared';
+import type { License, LicenseStatus, InstallationKeyResponse, DecodedLicenseResponse } from '@theiacast/shared';
 import { ClipboardDocumentIcon, CheckIcon } from '@heroicons/react/24/outline';
 
 export const LicensePage = () => {
   const [licenseStatus, setLicenseStatus] = useState<LicenseStatus | null>(null);
   const [licenses, setLicenses] = useState<License[]>([]);
   const [installationKey, setInstallationKey] = useState<InstallationKeyResponse | null>(null);
+  const [decodedLicense, setDecodedLicense] = useState<DecodedLicenseResponse | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [loadingLicenses, setLoadingLicenses] = useState(false);
   const [loadingInstallationKey, setLoadingInstallationKey] = useState(false);
@@ -58,6 +59,15 @@ export const LicensePage = () => {
     }
   };
 
+  const fetchDecodedLicense = async () => {
+    try {
+      const decoded = await licenseService.getDecoded();
+      setDecodedLicense(decoded);
+    } catch (err: any) {
+      console.error('Failed to fetch decoded license:', err);
+    }
+  };
+
   const handleCopyInstallationKey = async () => {
     if (installationKey) {
       try {
@@ -101,6 +111,7 @@ export const LicensePage = () => {
       setActivationKey('');
       fetchLicenseStatus();
       fetchLicenses();
+      fetchDecodedLicense();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to activate license. Please check the license key and try again.');
     } finally {
@@ -112,6 +123,7 @@ export const LicensePage = () => {
     fetchLicenseStatus();
     fetchLicenses();
     fetchInstallationKey();
+    fetchDecodedLicense();
   }, []);
 
   const getStatusColor = () => {
@@ -322,6 +334,61 @@ export const LicensePage = () => {
                 <p className="text-sm text-red-800 dark:text-red-200">
                   <strong>License Limit Exceeded:</strong> {licenseStatus.reason || 'Cannot add more devices.'}
                 </p>
+              </div>
+            )}
+
+            {/* Decoded License Information (V2 Keys) */}
+            {decodedLicense?.hasLicense && decodedLicense.version === 2 && (
+              <div className="p-4 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                <div className="flex items-start justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-purple-900 dark:text-purple-200">
+                    📜 License Details (V2)
+                  </h4>
+                  {decodedLicense.isPerpetual ? (
+                    <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded">
+                      ♾️ PERPETUAL
+                    </span>
+                  ) : decodedLicense.isExpired ? (
+                    <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded">
+                      ❌ EXPIRED
+                    </span>
+                  ) : (
+                    <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded">
+                      ✅ ACTIVE
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  {decodedLicense.companyName && (
+                    <div>
+                      <p className="text-purple-600 dark:text-purple-400 font-medium">Licensed To</p>
+                      <p className="text-gray-900 dark:text-white">{decodedLicense.companyName}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-purple-600 dark:text-purple-400 font-medium">Issued Date</p>
+                    <p className="text-gray-900 dark:text-white">{decodedLicense.issuedAt}</p>
+                  </div>
+                  <div>
+                    <p className="text-purple-600 dark:text-purple-400 font-medium">License Type</p>
+                    <p className="text-gray-900 dark:text-white">
+                      {decodedLicense.isPerpetual ? 'Perpetual (No Expiration)' : 'Subscription'}
+                    </p>
+                  </div>
+                  {!decodedLicense.isPerpetual && decodedLicense.expiresAt && (
+                    <div>
+                      <p className="text-purple-600 dark:text-purple-400 font-medium">Expires On</p>
+                      <p className={`font-semibold ${decodedLicense.isExpired ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
+                        {decodedLicense.expiresAt}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-3 pt-3 border-t border-purple-200 dark:border-purple-700">
+                  <p className="text-xs text-purple-700 dark:text-purple-300">
+                    ℹ️ This information is encoded directly in your license key and cannot be tampered with.
+                  </p>
+                </div>
               </div>
             )}
 

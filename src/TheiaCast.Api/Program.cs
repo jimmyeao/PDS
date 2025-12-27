@@ -719,6 +719,56 @@ app.MapGet("/license/installation-key", async (PdsDbContext db) =>
     });
 }).RequireAuthorization();
 
+// Get decoded license information (V2 licenses with embedded metadata)
+app.MapGet("/license/decoded", async (ILicenseService svc, PdsDbContext db) =>
+{
+    // Find the active paid license
+    var paidLicense = await db.Licenses
+        .Where(l => l.IsActive && l.Tier != "free")
+        .OrderByDescending(l => l.MaxDevices)
+        .FirstOrDefaultAsync();
+
+    if (paidLicense == null)
+    {
+        return Results.Ok(new
+        {
+            hasLicense = false,
+            message = "No active paid license found"
+        });
+    }
+
+    // Try to decode the license key
+    var payload = await svc.DecodeLicenseKeyAsync(paidLicense.Key);
+
+    if (payload == null)
+    {
+        // V1 license - no embedded metadata
+        return Results.Ok(new
+        {
+            hasLicense = true,
+            version = 1,
+            tier = paidLicense.Tier,
+            maxDevices = paidLicense.MaxDevices,
+            expiresAt = paidLicense.ExpiresAt,
+            message = "V1 license - no embedded metadata available"
+        });
+    }
+
+    // V2 license - return decoded payload
+    return Results.Ok(new
+    {
+        hasLicense = true,
+        version = 2,
+        tier = payload.t,
+        maxDevices = payload.d,
+        companyName = payload.c,
+        expiresAt = payload.e,
+        issuedAt = payload.i,
+        isPerpetual = payload.IsPerpetual(),
+        isExpired = payload.IsExpired()
+    });
+}).RequireAuthorization();
+
 // Debug endpoint: Verify license key hash (admin only)
 app.MapPost("/license/debug/verify-hash", async ([FromBody] DebugLicenseKeyDto dto, ILicenseService svc, PdsDbContext db) =>
 {

@@ -105,6 +105,19 @@ export interface InstallationKeyResponse {
   generatedAt: Date;
 }
 
+export interface DecodedLicenseResponse {
+  hasLicense: boolean;
+  version?: number;
+  tier?: string;
+  maxDevices?: number;
+  companyName?: string;
+  expiresAt?: string;
+  issuedAt?: string;
+  isPerpetual?: boolean;
+  isExpired?: boolean;
+  message?: string;
+}
+
 export interface GenerateLicenseDto {
   tier: string;
   maxDevices: number;

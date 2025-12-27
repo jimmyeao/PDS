@@ -5,6 +5,7 @@ import type {
   ActivateLicenseDto,
   UpdateLicenseDto,
   InstallationKeyResponse,
+  DecodedLicenseResponse,
 } from '@theiacast/shared';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
@@ -58,6 +59,11 @@ export const licenseService = {
 
   async activateGlobal(licenseKey: string): Promise<any> {
     const response = await api.post('/license/activate', { licenseKey });
+    return response.data;
+  },
+
+  async getDecoded(): Promise<DecodedLicenseResponse> {
+    const response = await api.get<DecodedLicenseResponse>('/license/decoded');
     return response.data;
   },
 };
