@@ -653,17 +653,29 @@ app.MapPost("/devices/{deviceId:int}/activate-license", async (int deviceId, [Fr
 // Get current license status
 app.MapGet("/license/status", async (ILicenseService svc, PdsDbContext db) =>
 {
-    var freeLicense = await db.Licenses.FirstOrDefaultAsync(l => l.Tier == "free");
-    if (freeLicense == null)
-        return Results.NotFound(new { error = "No license found" });
+    // Find the active license with the most devices assigned (prioritize paid over free)
+    var activeLicense = await db.Licenses
+        .Where(l => l.IsActive)
+        .OrderByDescending(l => l.Tier != "free" ? 1 : 0)  // Paid licenses first
+        .ThenByDescending(l => l.CurrentDeviceCount)       // Then by most devices
+        .ThenByDescending(l => l.MaxDevices)               // Then by capacity
+        .FirstOrDefaultAsync();
 
-    var validation = await svc.ValidateLicenseAsync(freeLicense.Id);
-    var deviceCount = await db.Devices.CountAsync(d => d.LicenseId == freeLicense.Id);
+    if (activeLicense == null)
+    {
+        // Fallback to free license if no active license found
+        activeLicense = await db.Licenses.FirstOrDefaultAsync(l => l.Tier == "free");
+        if (activeLicense == null)
+            return Results.NotFound(new { error = "No license found" });
+    }
+
+    var validation = await svc.ValidateLicenseAsync(activeLicense.Id);
+    var deviceCount = await db.Devices.CountAsync(d => d.LicenseId == activeLicense.Id);
 
     return Results.Ok(new
     {
-        tier = freeLicense.Tier,
-        maxDevices = freeLicense.MaxDevices,
+        tier = activeLicense.Tier,
+        maxDevices = activeLicense.MaxDevices,
         currentDevices = deviceCount,
         isValid = validation.IsValid,
         isInGracePeriod = validation.IsInGracePeriod,
