@@ -766,35 +766,50 @@ app.MapPost("/license/activate", async ([FromBody] ActivateLicenseGlobalDto dto,
 
         logger.LogInformation($"License activation attempt with key: {dto.LicenseKey.Substring(0, Math.Min(10, dto.LicenseKey.Length))}...");
 
-        // Parse license key format: LK-1-PRO-10-random-checksum or LK-1-ENTERPRISE-random-checksum
         var parts = dto.LicenseKey.Split('-');
-        if (parts.Length < 5 || parts[0] != "LK" || parts[1] != "1")
+        if (parts.Length < 4 || parts[0] != "LK")
         {
             return Results.BadRequest(new { error = "Invalid license key format" });
         }
 
-        // Tier is parts[2]-parts[3] for PRO-10, PRO-20, etc., or just parts[2] for ENTERPRISE
-        var tier = parts[2];
-        if (parts.Length >= 6 && int.TryParse(parts[3], out _))
+        var version = int.Parse(parts[1]);
+
+        // Try to decode V2 license (with embedded metadata)
+        var payload = await svc.DecodeLicenseKeyAsync(dto.LicenseKey);
+
+        string tier;
+        int maxDevices;
+        string? companyName = null;
+        DateTime? expiresAt = null;
+
+        if (payload != null && version == 2)
         {
-            // PRO-10, PRO-20, etc.
-            tier = $"{parts[2]}-{parts[3]}";
+            // V2 license - extract metadata from embedded payload
+            logger.LogInformation("V2 license detected - using embedded metadata");
+            tier = payload.t;
+            maxDevices = payload.d;
+            companyName = payload.c;
+            expiresAt = payload.GetExpiryDate();
+
+            // Validate expiration
+            if (payload.IsExpired())
+            {
+                return Results.BadRequest(new { error = $"License expired on {payload.e}" });
+            }
+
+            logger.LogInformation($"Decoded V2 license: Tier={tier}, MaxDevices={maxDevices}, Company={companyName ?? "N/A"}, Expires={expiresAt?.ToString("yyyy-MM-dd") ?? "Perpetual"}");
         }
-
-        var checksum = parts[parts.Length - 1];
-
-        // Validate checksum by attempting to find the license
-        var existingLicense = await svc.GetLicenseByKeyAsync(dto.LicenseKey);
-
-        License license;
-
-        if (existingLicense == null)
+        else if (version == 1)
         {
-            // License doesn't exist in database yet - create it
-            logger.LogInformation($"License not found in database, creating new license record for tier: {tier}");
+            // V1 license - parse from key format
+            logger.LogInformation("V1 license detected - parsing from key format");
+            tier = parts[2];
+            if (parts.Length >= 6 && int.TryParse(parts[3], out _))
+            {
+                tier = $"{parts[2]}-{parts[3]}";
+            }
 
-            // Map tier to max devices
-            int maxDevices = tier.ToUpper() switch
+            maxDevices = tier.ToUpper() switch
             {
                 "PRO-10" => 10,
                 "PRO-20" => 20,
@@ -803,6 +818,20 @@ app.MapPost("/license/activate", async ([FromBody] ActivateLicenseGlobalDto dto,
                 "ENTERPRISE" => 999,
                 _ => throw new InvalidOperationException($"Unknown license tier: {tier}")
             };
+        }
+        else
+        {
+            return Results.BadRequest(new { error = $"Unsupported license version: {version}" });
+        }
+
+        // Check if license already exists in database
+        var existingLicense = await svc.GetLicenseByKeyAsync(dto.LicenseKey);
+        License license;
+
+        if (existingLicense == null)
+        {
+            // License doesn't exist in database yet - create it
+            logger.LogInformation($"License not found in database, creating new license record");
 
             // Compute the hash to validate the license key
             var keyHash = await ComputeLicenseKeyHashAsync(dto.LicenseKey, db);
@@ -814,6 +843,8 @@ app.MapPost("/license/activate", async ([FromBody] ActivateLicenseGlobalDto dto,
                 KeyHash = keyHash,
                 Tier = tier.ToLower(),
                 MaxDevices = maxDevices,
+                CompanyName = companyName,
+                ExpiresAt = expiresAt,
                 IsActive = true,
                 ActivatedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow
@@ -822,7 +853,7 @@ app.MapPost("/license/activate", async ([FromBody] ActivateLicenseGlobalDto dto,
             db.Licenses.Add(license);
             await db.SaveChangesAsync();
 
-            logger.LogInformation($"Created new license: {license.Tier} with {license.MaxDevices} devices");
+            logger.LogInformation($"Created new license: Tier={license.Tier}, MaxDevices={license.MaxDevices}, Expires={license.ExpiresAt?.ToString("yyyy-MM-dd") ?? "Perpetual"}");
         }
         else
         {

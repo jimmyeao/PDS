@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using System.IO.Compression;
 using Microsoft.EntityFrameworkCore;
 using TheiaCast.Api.Contracts;
 
@@ -26,6 +28,9 @@ public interface ILicenseService
 
     // Grace Period
     Task CheckAndEnforceGracePeriodAsync();
+
+    // License Key Decoding (V2 keys with embedded metadata)
+    Task<LicensePayload?> DecodeLicenseKeyAsync(string licenseKey);
 }
 
 public record LicenseValidationResult(
@@ -148,9 +153,21 @@ public class LicenseService : ILicenseService
             return new LicenseValidationResult(false, "License is not active", false, null);
         }
 
+        // Check expiration from database
         if (license.ExpiresAt.HasValue && license.ExpiresAt.Value < DateTime.UtcNow)
         {
             return new LicenseValidationResult(false, "License has expired", false, null);
+        }
+
+        // For V2 licenses, also check embedded expiration (self-enforcing)
+        var payload = await DecodeLicenseKeyAsync(license.Key);
+        if (payload != null && payload.IsExpired())
+        {
+            // Automatically deactivate expired V2 licenses
+            license.IsActive = false;
+            await _db.SaveChangesAsync();
+            await _logService.AddLogAsync("Warning", $"License {license.Id} auto-deactivated: expired on {payload.e}", null, "LicenseService");
+            return new LicenseValidationResult(false, $"License expired on {payload.e}", false, null);
         }
 
         var deviceCount = await _db.Devices.CountAsync(d => d.LicenseId == licenseId);
@@ -389,5 +406,114 @@ public class LicenseService : ILicenseService
         }
 
         return installationKey.Value;
+    }
+
+    // Decode V2 license keys with embedded metadata
+    public async Task<LicensePayload?> DecodeLicenseKeyAsync(string licenseKey)
+    {
+        try
+        {
+            var parts = licenseKey.Split('-');
+            if (parts.Length < 4 || parts[0] != "LK")
+            {
+                _logger.LogWarning("Invalid license key format");
+                return null;
+            }
+
+            var version = int.Parse(parts[1]);
+
+            // V1 licenses don't have embedded metadata
+            if (version == 1)
+            {
+                _logger.LogInformation("V1 license detected - no metadata to decode");
+                return null;
+            }
+
+            // V2 licenses with embedded metadata
+            if (version == 2)
+            {
+                var encoded = parts[2];
+                var signature = parts[3];
+
+                // Verify signature
+                var hmacSecret = await GetInstallationKeyAsync();
+                var expectedSignature = ComputeHmacSignature(encoded, hmacSecret);
+                if (signature != expectedSignature)
+                {
+                    _logger.LogWarning("Invalid license signature - tampering detected");
+                    return null;
+                }
+
+                // Decode and decompress
+                var compressed = Convert.FromBase64String(
+                    encoded.Replace("-", "+").Replace("_", "/") + new string('=', (4 - encoded.Length % 4) % 4)
+                );
+                var json = DecompressString(compressed);
+
+                // Deserialize
+                var payload = JsonSerializer.Deserialize<LicensePayload>(json);
+                return payload;
+            }
+
+            _logger.LogWarning($"Unsupported license version: {version}");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to decode license key");
+            return null;
+        }
+    }
+
+    private string ComputeHmacSignature(string data, string hmacSecret)
+    {
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(hmacSecret));
+        var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(data));
+        return Convert.ToBase64String(hash)
+            .Substring(0, 8)
+            .Replace("+", "-")
+            .Replace("/", "_")
+            .TrimEnd('=');
+    }
+
+    private string DecompressString(byte[] compressed)
+    {
+        using var inputStream = new MemoryStream(compressed);
+        using var gzipStream = new GZipStream(inputStream, CompressionMode.Decompress);
+        using var outputStream = new MemoryStream();
+        gzipStream.CopyTo(outputStream);
+        return Encoding.UTF8.GetString(outputStream.ToArray());
+    }
+}
+
+// License payload structure for V2 keys
+public class LicensePayload
+{
+    public int v { get; set; }        // Version
+    public string t { get; set; } = string.Empty;   // Tier
+    public int d { get; set; }        // Max devices
+    public string? c { get; set; }    // Company name (optional)
+    public string? e { get; set; }    // Expiry date (YYYY-MM-DD) or null for perpetual
+    public string i { get; set; } = string.Empty;   // Issued date (YYYY-MM-DD)
+
+    public DateTime? GetExpiryDate()
+    {
+        return string.IsNullOrEmpty(e) ? null : DateTime.Parse(e);
+    }
+
+    public DateTime GetIssuedDate()
+    {
+        return DateTime.Parse(i);
+    }
+
+    public bool IsExpired()
+    {
+        var expiry = GetExpiryDate();
+        return expiry.HasValue && DateTime.UtcNow > expiry.Value;
+    }
+
+    public bool IsPerpetual()
+    {
+        return string.IsNullOrEmpty(e);
     }
 }
