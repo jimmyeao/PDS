@@ -868,11 +868,24 @@ app.MapPost("/license/activate", async ([FromBody] ActivateLicenseGlobalDto dto,
             return Results.BadRequest(new { error = $"Unsupported license version: {version}" });
         }
 
-        // Check if license already exists in database
+        // Check if license already exists in database (check by hash AND by key string)
         var existingLicense = await svc.GetLicenseByKeyAsync(dto.LicenseKey);
+
+        // Also check by exact key match (in case hash mismatch due to different installation keys)
+        var existingByKey = await db.Licenses.FirstOrDefaultAsync(l => l.Key == dto.LicenseKey);
+
+        if (existingByKey != null && existingLicense == null)
+        {
+            logger.LogWarning("License key exists in database but hash doesn't match - possible installation key mismatch");
+            return Results.BadRequest(new {
+                error = "License key already exists but cannot be verified. This may indicate an installation key mismatch.",
+                hint = "If you regenerated the installation key, you may need to delete the old license record first."
+            });
+        }
+
         License license;
 
-        if (existingLicense == null)
+        if (existingLicense == null && existingByKey == null)
         {
             // License doesn't exist in database yet - create it
             logger.LogInformation($"License not found in database, creating new license record");
@@ -894,19 +907,33 @@ app.MapPost("/license/activate", async ([FromBody] ActivateLicenseGlobalDto dto,
                 CreatedAt = DateTime.UtcNow
             };
 
-            db.Licenses.Add(license);
-            await db.SaveChangesAsync();
-
-            logger.LogInformation($"Created new license: Tier={license.Tier}, MaxDevices={license.MaxDevices}, Expires={license.ExpiresAt?.ToString("yyyy-MM-dd") ?? "Perpetual"}");
+            try
+            {
+                db.Licenses.Add(license);
+                await db.SaveChangesAsync();
+                logger.LogInformation($"Created new license: Tier={license.Tier}, MaxDevices={license.MaxDevices}, Expires={license.ExpiresAt?.ToString("yyyy-MM-dd") ?? "Perpetual"}");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, $"Failed to save new license: {ex.Message}");
+                return Results.BadRequest(new {
+                    error = "Failed to save license to database. The license key may already exist.",
+                    details = ex.InnerException?.Message ?? ex.Message
+                });
+            }
         }
         else
         {
             // License already exists in database
-            license = existingLicense;
+            license = existingLicense ?? existingByKey!;
+            logger.LogInformation($"License already exists in database (ID: {license.Id}, Tier: {license.Tier}, Active: {license.IsActive})");
 
             if (!license.IsActive)
             {
-                return Results.BadRequest(new { error = "License is not active" });
+                // Reactivate the license instead of returning error
+                logger.LogInformation($"Reactivating inactive license {license.Id}");
+                license.IsActive = true;
+                license.ActivatedAt = DateTime.UtcNow;
             }
 
             if (license.ExpiresAt.HasValue && license.ExpiresAt.Value < DateTime.UtcNow)
