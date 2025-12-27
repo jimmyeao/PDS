@@ -215,10 +215,38 @@ public class LicenseService : ILicenseService
             throw new InvalidOperationException("License not found");
         }
 
-        license.IsActive = false;
+        // Prevent deletion of free license (it's permanent)
+        if (license.Tier == "free")
+        {
+            throw new InvalidOperationException("Cannot revoke the free license");
+        }
+
+        // Find the free license to reassign devices
+        var freeLicense = await _db.Licenses.FirstOrDefaultAsync(l => l.Tier == "free");
+        if (freeLicense == null)
+        {
+            throw new InvalidOperationException("Free license not found - cannot reassign devices");
+        }
+
+        // Reassign all devices from this license to the free license
+        var devicesUsingLicense = await _db.Devices.Where(d => d.LicenseId == id).ToListAsync();
+        foreach (var device in devicesUsingLicense)
+        {
+            device.LicenseId = freeLicense.Id;
+            device.LicenseActivatedAt = DateTime.UtcNow;
+        }
+
+        // Update device counts
+        license.CurrentDeviceCount = 0;
+        freeLicense.CurrentDeviceCount = await _db.Devices.CountAsync(d => d.LicenseId == freeLicense.Id);
+
+        // Delete the license from the database
+        _db.Licenses.Remove(license);
         await _db.SaveChangesAsync();
 
-        await _logService.AddLogAsync("Warning", $"License revoked: {license.Tier}", null, "LicenseService");
+        await _logService.AddLogAsync("Warning",
+            $"License deleted: {license.Tier} ({license.Key}). {devicesUsingLicense.Count} devices reassigned to free license.",
+            null, "LicenseService");
     }
 
     public async Task UpdateLicenseAsync(int id, UpdateLicenseDto dto)

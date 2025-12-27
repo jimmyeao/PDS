@@ -653,35 +653,52 @@ app.MapPost("/devices/{deviceId:int}/activate-license", async (int deviceId, [Fr
 // Get current license status
 app.MapGet("/license/status", async (ILicenseService svc, PdsDbContext db) =>
 {
-    // Find the active license with the most devices assigned (prioritize paid over free)
-    var activeLicense = await db.Licenses
-        .Where(l => l.IsActive)
-        .OrderByDescending(l => l.Tier != "free" ? 1 : 0)  // Paid licenses first
-        .ThenByDescending(l => l.CurrentDeviceCount)       // Then by most devices
-        .ThenByDescending(l => l.MaxDevices)               // Then by capacity
+    // Find the active paid license (only one paid license can be active at a time)
+    var paidLicense = await db.Licenses
+        .Where(l => l.IsActive && l.Tier != "free")
+        .OrderByDescending(l => l.MaxDevices)
         .FirstOrDefaultAsync();
 
-    if (activeLicense == null)
+    var freeLicense = await db.Licenses.FirstOrDefaultAsync(l => l.Tier == "free");
+
+    // Total devices across all licenses
+    var totalDeviceCount = await db.Devices.CountAsync();
+
+    if (paidLicense != null)
     {
-        // Fallback to free license if no active license found
-        activeLicense = await db.Licenses.FirstOrDefaultAsync(l => l.Tier == "free");
-        if (activeLicense == null)
-            return Results.NotFound(new { error = "No license found" });
+        // Paid license active - show combined capacity (free 3 + paid)
+        var totalMaxDevices = 3 + paidLicense.MaxDevices; // Free tier (3) + paid tier
+        var validation = await svc.ValidateLicenseAsync(paidLicense.Id);
+
+        return Results.Ok(new
+        {
+            tier = paidLicense.Tier,
+            maxDevices = totalMaxDevices,
+            currentDevices = totalDeviceCount,
+            isValid = validation.IsValid,
+            isInGracePeriod = validation.IsInGracePeriod,
+            gracePeriodEndsAt = validation.GracePeriodEndsAt,
+            reason = validation.Reason
+        });
+    }
+    else if (freeLicense != null)
+    {
+        // Only free license active
+        var validation = await svc.ValidateLicenseAsync(freeLicense.Id);
+
+        return Results.Ok(new
+        {
+            tier = freeLicense.Tier,
+            maxDevices = freeLicense.MaxDevices,
+            currentDevices = totalDeviceCount,
+            isValid = validation.IsValid,
+            isInGracePeriod = validation.IsInGracePeriod,
+            gracePeriodEndsAt = validation.GracePeriodEndsAt,
+            reason = validation.Reason
+        });
     }
 
-    var validation = await svc.ValidateLicenseAsync(activeLicense.Id);
-    var deviceCount = await db.Devices.CountAsync(d => d.LicenseId == activeLicense.Id);
-
-    return Results.Ok(new
-    {
-        tier = activeLicense.Tier,
-        maxDevices = activeLicense.MaxDevices,
-        currentDevices = deviceCount,
-        isValid = validation.IsValid,
-        isInGracePeriod = validation.IsInGracePeriod,
-        gracePeriodEndsAt = validation.GracePeriodEndsAt,
-        reason = validation.Reason
-    });
+    return Results.NotFound(new { error = "No license found" });
 }).RequireAuthorization();
 
 // Get installation key (HMAC secret) for customer to provide when purchasing licenses
@@ -818,6 +835,20 @@ app.MapPost("/license/activate", async ([FromBody] ActivateLicenseGlobalDto dto,
             if (license.ExpiresAt.HasValue && license.ExpiresAt.Value < DateTime.UtcNow)
             {
                 return Results.BadRequest(new { error = "License has expired" });
+            }
+        }
+
+        // Deactivate all other paid licenses (only one paid license can be active at a time)
+        if (license.Tier != "free")
+        {
+            var otherPaidLicenses = await db.Licenses
+                .Where(l => l.Id != license.Id && l.Tier != "free" && l.IsActive)
+                .ToListAsync();
+
+            foreach (var otherLicense in otherPaidLicenses)
+            {
+                otherLicense.IsActive = false;
+                logger.LogInformation($"Deactivated license {otherLicense.Key} (tier: {otherLicense.Tier}) - only one paid license can be active");
             }
         }
 
