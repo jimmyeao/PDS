@@ -277,6 +277,11 @@ export const LicensePage = () => {
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Tier</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white capitalize">{licenseStatus.tier}</p>
+                {licenseStatus.activeLicenseCount && licenseStatus.activeLicenseCount > 1 && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    🎫 {licenseStatus.activeLicenseCount} active licenses (additive)
+                  </p>
+                )}
               </div>
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusBadge()}`}>
                 {licenseStatus.isValid ? 'Active' : licenseStatus.isInGracePeriod ? 'Grace Period' : 'Exceeded'}
@@ -337,58 +342,107 @@ export const LicensePage = () => {
               </div>
             )}
 
-            {/* Decoded License Information (V2 Keys) */}
-            {decodedLicense?.hasLicense && decodedLicense.version === 2 && (
-              <div className="p-4 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
-                <div className="flex items-start justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-purple-900 dark:text-purple-200">
-                    📜 License Details (V2)
-                  </h4>
-                  {decodedLicense.isPerpetual ? (
-                    <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded">
-                      ♾️ PERPETUAL
+            {/* Decoded License Information (Supports Multiple Licenses) */}
+            {decodedLicense?.hasLicense && decodedLicense.licenses && decodedLicense.licenses.length > 0 && (
+              <div className="space-y-3">
+                {/* Overall Summary */}
+                <div className="p-4 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                  <div className="flex items-start justify-between mb-2">
+                    <h4 className="text-sm font-semibold text-purple-900 dark:text-purple-200">
+                      📜 License Summary
+                    </h4>
+                    <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 rounded">
+                      {decodedLicense.activeLicenseCount} {decodedLicense.activeLicenseCount === 1 ? 'License' : 'Licenses'} Active
                     </span>
-                  ) : decodedLicense.isExpired ? (
-                    <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded">
-                      ❌ EXPIRED
-                    </span>
-                  ) : (
-                    <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded">
-                      ✅ ACTIVE
-                    </span>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  {decodedLicense.companyName && (
-                    <div>
-                      <p className="text-purple-600 dark:text-purple-400 font-medium">Licensed To</p>
-                      <p className="text-gray-900 dark:text-white">{decodedLicense.companyName}</p>
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-purple-600 dark:text-purple-400 font-medium">Issued Date</p>
-                    <p className="text-gray-900 dark:text-white">{decodedLicense.issuedAt}</p>
                   </div>
-                  <div>
-                    <p className="text-purple-600 dark:text-purple-400 font-medium">License Type</p>
-                    <p className="text-gray-900 dark:text-white">
-                      {decodedLicense.isPerpetual ? 'Perpetual (No Expiration)' : 'Subscription'}
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-purple-600 dark:text-purple-400 font-medium">Total Device Allowance</p>
+                      <p className="text-2xl font-bold text-purple-900 dark:text-white">{decodedLicense.totalMaxDevices}</p>
+                    </div>
+                    <div>
+                      <p className="text-purple-600 dark:text-purple-400 font-medium">Devices In Use</p>
+                      <p className="text-2xl font-bold text-purple-900 dark:text-white">{decodedLicense.currentDevices}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-purple-200 dark:border-purple-700">
+                    <p className="text-xs text-purple-700 dark:text-purple-300">
+                      💡 All active licenses are additive - total device count is the sum of all licenses.
                     </p>
                   </div>
-                  {!decodedLicense.isPerpetual && decodedLicense.expiresAt && (
-                    <div>
-                      <p className="text-purple-600 dark:text-purple-400 font-medium">Expires On</p>
-                      <p className={`font-semibold ${decodedLicense.isExpired ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
-                        {decodedLicense.expiresAt}
-                      </p>
+                </div>
+
+                {/* Individual License Cards */}
+                {decodedLicense.licenses.map((license, index) => (
+                  <div
+                    key={license.id}
+                    className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 border border-blue-200 dark:border-blue-800 rounded-lg"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <h5 className="text-sm font-semibold text-blue-900 dark:text-blue-200">
+                        🎫 License {index + 1} - {license.tier}
+                      </h5>
+                      {license.isPerpetual ? (
+                        <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded">
+                          ♾️ PERPETUAL
+                        </span>
+                      ) : license.isExpired ? (
+                        <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded">
+                          ❌ EXPIRED
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded">
+                          ✅ ACTIVE
+                        </span>
+                      )}
                     </div>
-                  )}
-                </div>
-                <div className="mt-3 pt-3 border-t border-purple-200 dark:border-purple-700">
-                  <p className="text-xs text-purple-700 dark:text-purple-300">
-                    ℹ️ This information is encoded directly in your license key and cannot be tampered with.
-                  </p>
-                </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      {license.companyName && (
+                        <div>
+                          <p className="text-blue-600 dark:text-blue-400 font-medium">Licensed To</p>
+                          <p className="text-gray-900 dark:text-white">{license.companyName}</p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-blue-600 dark:text-blue-400 font-medium">Device Allowance</p>
+                        <p className="text-gray-900 dark:text-white">
+                          {license.currentDevices} / {license.maxDevices} devices
+                        </p>
+                      </div>
+                      {license.issuedAt && (
+                        <div>
+                          <p className="text-blue-600 dark:text-blue-400 font-medium">Issued Date</p>
+                          <p className="text-gray-900 dark:text-white">{license.issuedAt}</p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-blue-600 dark:text-blue-400 font-medium">License Type</p>
+                        <p className="text-gray-900 dark:text-white">
+                          {license.isPerpetual ? 'Perpetual' : 'Subscription'}
+                        </p>
+                      </div>
+                      {!license.isPerpetual && license.expiresAt && (
+                        <div>
+                          <p className="text-blue-600 dark:text-blue-400 font-medium">Expires On</p>
+                          <p className={`font-semibold ${license.isExpired ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
+                            {license.expiresAt}
+                          </p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-blue-600 dark:text-blue-400 font-medium">Version</p>
+                        <p className="text-gray-900 dark:text-white">
+                          V{license.version} {license.version === 2 ? '(Encoded)' : '(Legacy)'}
+                        </p>
+                      </div>
+                    </div>
+                    {license.message && (
+                      <div className="mt-2 text-xs text-blue-600 dark:text-blue-400">
+                        ℹ️ {license.message}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
 

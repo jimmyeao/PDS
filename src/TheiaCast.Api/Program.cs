@@ -650,57 +650,31 @@ app.MapPost("/devices/{deviceId:int}/activate-license", async (int deviceId, [Fr
     }
 }).RequireAuthorization();
 
-// Get current license status
+// Get current license status (supports additive licensing - multiple active licenses)
 app.MapGet("/license/status", async (ILicenseService svc, PdsDbContext db) =>
 {
-    // Find the active paid license (only one paid license can be active at a time)
-    var paidLicense = await db.Licenses
-        .Where(l => l.IsActive && l.Tier != "free")
-        .OrderByDescending(l => l.MaxDevices)
-        .FirstOrDefaultAsync();
+    var totalStatus = await svc.GetLicenseTotalStatusAsync();
 
-    var freeLicense = await db.Licenses.FirstOrDefaultAsync(l => l.Tier == "free");
-
-    // Total devices across all licenses
-    var totalDeviceCount = await db.Devices.CountAsync();
-
-    if (paidLicense != null)
+    if (totalStatus.ActiveLicenses.Count == 0)
     {
-        // Paid license active - show combined capacity (free 3 + paid)
-        var totalMaxDevices = 3 + paidLicense.MaxDevices; // Free tier (3) + paid tier
-        var validation = await svc.ValidateLicenseAsync(paidLicense.Id);
-
-        return Results.Ok(new
-        {
-            tier = paidLicense.Tier,
-            maxDevices = totalMaxDevices,
-            currentDevices = totalDeviceCount,
-            isValid = validation.IsValid,
-            isInGracePeriod = validation.IsInGracePeriod,
-            gracePeriodEndsAt = validation.GracePeriodEndsAt,
-            expiresAt = paidLicense.ExpiresAt,
-            reason = validation.Reason
-        });
-    }
-    else if (freeLicense != null)
-    {
-        // Only free license active
-        var validation = await svc.ValidateLicenseAsync(freeLicense.Id);
-
-        return Results.Ok(new
-        {
-            tier = freeLicense.Tier,
-            maxDevices = freeLicense.MaxDevices,
-            currentDevices = totalDeviceCount,
-            isValid = validation.IsValid,
-            isInGracePeriod = validation.IsInGracePeriod,
-            gracePeriodEndsAt = validation.GracePeriodEndsAt,
-            expiresAt = freeLicense.ExpiresAt,
-            reason = validation.Reason
-        });
+        return Results.NotFound(new { error = "No active licenses found" });
     }
 
-    return Results.NotFound(new { error = "No license found" });
+    // Get tier info - show all tiers if multiple licenses
+    var tiers = totalStatus.ActiveLicenses.Select(l => l.Tier).Distinct().ToList();
+    var tierDisplay = tiers.Count == 1 ? tiers[0] : string.Join(" + ", tiers);
+
+    return Results.Ok(new
+    {
+        tier = tierDisplay,
+        maxDevices = totalStatus.TotalMaxDevices,
+        currentDevices = totalStatus.CurrentDevices,
+        isValid = totalStatus.IsValid,
+        isInGracePeriod = totalStatus.HasAnyGracePeriod,
+        gracePeriodEndsAt = totalStatus.EarliestGracePeriodEnd,
+        reason = totalStatus.Reason,
+        activeLicenseCount = totalStatus.ActiveLicenses.Count
+    });
 }).RequireAuthorization();
 
 // Get installation key (HMAC secret) for customer to provide when purchasing licenses
@@ -719,53 +693,73 @@ app.MapGet("/license/installation-key", async (PdsDbContext db) =>
     });
 }).RequireAuthorization();
 
-// Get decoded license information (V2 licenses with embedded metadata)
+// Get decoded license information (supports multiple licenses with additive licensing)
 app.MapGet("/license/decoded", async (ILicenseService svc, PdsDbContext db) =>
 {
-    // Find the active paid license
-    var paidLicense = await db.Licenses
-        .Where(l => l.IsActive && l.Tier != "free")
-        .OrderByDescending(l => l.MaxDevices)
-        .FirstOrDefaultAsync();
+    var totalStatus = await svc.GetLicenseTotalStatusAsync();
 
-    if (paidLicense == null)
+    if (totalStatus.ActiveLicenses.Count == 0)
     {
         return Results.Ok(new
         {
             hasLicense = false,
-            message = "No active paid license found"
+            message = "No active licenses found"
         });
     }
 
-    // Try to decode the license key
-    var payload = await svc.DecodeLicenseKeyAsync(paidLicense.Key);
+    // Build list of decoded license details
+    var licenseDetails = new List<object>();
 
-    if (payload == null)
+    foreach (var licenseInfo in totalStatus.ActiveLicenses)
     {
-        // V1 license - no embedded metadata
-        return Results.Ok(new
+        var license = await db.Licenses.FindAsync(licenseInfo.Id);
+        if (license == null) continue;
+
+        var payload = await svc.DecodeLicenseKeyAsync(license.Key);
+
+        if (payload == null)
         {
-            hasLicense = true,
-            version = 1,
-            tier = paidLicense.Tier,
-            maxDevices = paidLicense.MaxDevices,
-            expiresAt = paidLicense.ExpiresAt,
-            message = "V1 license - no embedded metadata available"
-        });
+            // V1 license - no embedded metadata
+            licenseDetails.Add(new
+            {
+                id = license.Id,
+                version = 1,
+                tier = license.Tier,
+                maxDevices = license.MaxDevices,
+                currentDevices = licenseInfo.CurrentDevices,
+                expiresAt = license.ExpiresAt,
+                companyName = license.CompanyName,
+                isPerpetual = !license.ExpiresAt.HasValue,
+                isExpired = license.ExpiresAt.HasValue && license.ExpiresAt.Value < DateTime.UtcNow,
+                message = "V1 license - no embedded metadata"
+            });
+        }
+        else
+        {
+            // V2 license - return decoded payload
+            licenseDetails.Add(new
+            {
+                id = license.Id,
+                version = 2,
+                tier = payload.t,
+                maxDevices = payload.d,
+                currentDevices = licenseInfo.CurrentDevices,
+                companyName = payload.c,
+                expiresAt = payload.e,
+                issuedAt = payload.i,
+                isPerpetual = payload.IsPerpetual(),
+                isExpired = payload.IsExpired()
+            });
+        }
     }
 
-    // V2 license - return decoded payload
     return Results.Ok(new
     {
         hasLicense = true,
-        version = 2,
-        tier = payload.t,
-        maxDevices = payload.d,
-        companyName = payload.c,
-        expiresAt = payload.e,
-        issuedAt = payload.i,
-        isPerpetual = payload.IsPerpetual(),
-        isExpired = payload.IsExpired()
+        totalMaxDevices = totalStatus.TotalMaxDevices,
+        currentDevices = totalStatus.CurrentDevices,
+        activeLicenseCount = totalStatus.ActiveLicenses.Count,
+        licenses = licenseDetails
     });
 }).RequireAuthorization();
 

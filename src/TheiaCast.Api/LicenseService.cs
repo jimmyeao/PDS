@@ -31,6 +31,11 @@ public interface ILicenseService
 
     // License Key Decoding (V2 keys with embedded metadata)
     Task<LicensePayload?> DecodeLicenseKeyAsync(string licenseKey);
+
+    // Additive Licensing - Total allowance across all active licenses
+    Task<int> GetTotalDeviceAllowanceAsync();
+    Task<List<License>> GetActiveLicensesAsync();
+    Task<LicenseTotalStatus> GetLicenseTotalStatusAsync();
 }
 
 public record LicenseValidationResult(
@@ -38,6 +43,27 @@ public record LicenseValidationResult(
     string? Reason,
     bool IsInGracePeriod,
     DateTime? GracePeriodEndsAt
+);
+
+public record LicenseTotalStatus(
+    int TotalMaxDevices,
+    int CurrentDevices,
+    List<LicenseInfo> ActiveLicenses,
+    bool IsValid,
+    bool HasAnyGracePeriod,
+    DateTime? EarliestGracePeriodEnd,
+    string? Reason
+);
+
+public record LicenseInfo(
+    int Id,
+    string Tier,
+    int MaxDevices,
+    int CurrentDevices,
+    string? CompanyName,
+    DateTime? ExpiresAt,
+    bool IsExpired,
+    bool IsPerpetual
 );
 
 public class LicenseService : ILicenseService
@@ -364,6 +390,108 @@ public class LicenseService : ILicenseService
         }
 
         await _db.SaveChangesAsync();
+    }
+
+    // Additive Licensing Methods
+    public async Task<int> GetTotalDeviceAllowanceAsync()
+    {
+        var activeLicenses = await GetActiveLicensesAsync();
+        return activeLicenses.Sum(l => l.MaxDevices);
+    }
+
+    public async Task<List<License>> GetActiveLicensesAsync()
+    {
+        var licenses = await _db.Licenses
+            .Where(l => l.IsActive)
+            .ToListAsync();
+
+        var activeLicenses = new List<License>();
+
+        foreach (var license in licenses)
+        {
+            // Skip expired licenses (both database and embedded expiration)
+            if (license.ExpiresAt.HasValue && license.ExpiresAt.Value < DateTime.UtcNow)
+            {
+                continue;
+            }
+
+            // For V2 licenses, check embedded expiration
+            var payload = await DecodeLicenseKeyAsync(license.Key);
+            if (payload != null && payload.IsExpired())
+            {
+                continue;
+            }
+
+            activeLicenses.Add(license);
+        }
+
+        return activeLicenses;
+    }
+
+    public async Task<LicenseTotalStatus> GetLicenseTotalStatusAsync()
+    {
+        var activeLicenses = await GetActiveLicensesAsync();
+        var totalDeviceCount = await _db.Devices.CountAsync();
+        var totalMaxDevices = activeLicenses.Sum(l => l.MaxDevices);
+
+        var licenseInfos = new List<LicenseInfo>();
+        var hasAnyGracePeriod = false;
+        DateTime? earliestGracePeriodEnd = null;
+        var reasons = new List<string>();
+
+        foreach (var license in activeLicenses)
+        {
+            var deviceCount = await _db.Devices.CountAsync(d => d.LicenseId == license.Id);
+            var payload = await DecodeLicenseKeyAsync(license.Key);
+
+            var licenseInfo = new LicenseInfo(
+                Id: license.Id,
+                Tier: license.Tier,
+                MaxDevices: license.MaxDevices,
+                CurrentDevices: deviceCount,
+                CompanyName: payload?.c ?? license.CompanyName,
+                ExpiresAt: license.ExpiresAt,
+                IsExpired: payload?.IsExpired() ?? (license.ExpiresAt.HasValue && license.ExpiresAt.Value < DateTime.UtcNow),
+                IsPerpetual: payload?.IsPerpetual() ?? !license.ExpiresAt.HasValue
+            );
+
+            licenseInfos.Add(licenseInfo);
+
+            // Check for grace period on individual license
+            var validation = await ValidateLicenseAsync(license.Id);
+            if (validation.IsInGracePeriod)
+            {
+                hasAnyGracePeriod = true;
+                if (!earliestGracePeriodEnd.HasValue || validation.GracePeriodEndsAt < earliestGracePeriodEnd)
+                {
+                    earliestGracePeriodEnd = validation.GracePeriodEndsAt;
+                }
+            }
+
+            if (!validation.IsValid && !string.IsNullOrEmpty(validation.Reason))
+            {
+                reasons.Add($"{license.Tier}: {validation.Reason}");
+            }
+        }
+
+        // Overall validity: within total allowance OR in grace period
+        var isValid = totalDeviceCount <= totalMaxDevices || hasAnyGracePeriod;
+        var reason = reasons.Any() ? string.Join("; ", reasons) : null;
+
+        if (!isValid && totalDeviceCount > totalMaxDevices)
+        {
+            reason = $"Total device limit exceeded ({totalDeviceCount}/{totalMaxDevices})";
+        }
+
+        return new LicenseTotalStatus(
+            TotalMaxDevices: totalMaxDevices,
+            CurrentDevices: totalDeviceCount,
+            ActiveLicenses: licenseInfos,
+            IsValid: isValid,
+            HasAnyGracePeriod: hasAnyGracePeriod,
+            EarliestGracePeriodEnd: earliestGracePeriodEnd,
+            Reason: reason
+        );
     }
 
     private async Task<string> GenerateLicenseKeyAsync(string tier)

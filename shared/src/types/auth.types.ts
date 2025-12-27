@@ -98,6 +98,7 @@ export interface LicenseStatus {
   gracePeriodEndsAt?: Date;
   expiresAt?: Date;
   reason?: string;
+  activeLicenseCount?: number;
 }
 
 export interface InstallationKeyResponse {
@@ -105,8 +106,29 @@ export interface InstallationKeyResponse {
   generatedAt: Date;
 }
 
+export interface DecodedLicenseInfo {
+  id: number;
+  version: number;
+  tier: string;
+  maxDevices: number;
+  currentDevices: number;
+  companyName?: string;
+  expiresAt?: string;
+  issuedAt?: string;
+  isPerpetual: boolean;
+  isExpired: boolean;
+  message?: string;
+}
+
 export interface DecodedLicenseResponse {
   hasLicense: boolean;
+  totalMaxDevices?: number;
+  currentDevices?: number;
+  activeLicenseCount?: number;
+  licenses?: DecodedLicenseInfo[];
+  message?: string;
+
+  // Legacy fields for backwards compatibility (single license response)
   version?: number;
   tier?: string;
   maxDevices?: number;
@@ -115,7 +137,6 @@ export interface DecodedLicenseResponse {
   issuedAt?: string;
   isPerpetual?: boolean;
   isExpired?: boolean;
-  message?: string;
 }
 
 export interface GenerateLicenseDto {
