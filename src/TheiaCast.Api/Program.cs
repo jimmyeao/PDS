@@ -678,6 +678,7 @@ app.MapGet("/license/status", async (ILicenseService svc, PdsDbContext db) =>
             isValid = validation.IsValid,
             isInGracePeriod = validation.IsInGracePeriod,
             gracePeriodEndsAt = validation.GracePeriodEndsAt,
+            expiresAt = paidLicense.ExpiresAt,
             reason = validation.Reason
         });
     }
@@ -694,6 +695,7 @@ app.MapGet("/license/status", async (ILicenseService svc, PdsDbContext db) =>
             isValid = validation.IsValid,
             isInGracePeriod = validation.IsInGracePeriod,
             gracePeriodEndsAt = validation.GracePeriodEndsAt,
+            expiresAt = freeLicense.ExpiresAt,
             reason = validation.Reason
         });
     }

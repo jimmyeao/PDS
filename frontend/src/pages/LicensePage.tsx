@@ -284,6 +284,14 @@ export const LicensePage = () => {
                   {Math.max(0, licenseStatus.maxDevices - licenseStatus.currentDevices)}
                 </p>
               </div>
+              {licenseStatus.expiresAt && (
+                <div className="col-span-2">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">License Expires</p>
+                  <p className="text-xl font-semibold text-gray-900 dark:text-white">
+                    {new Date(licenseStatus.expiresAt).toLocaleDateString()}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Progress bar */}
@@ -314,6 +322,34 @@ export const LicensePage = () => {
                 <p className="text-sm text-red-800 dark:text-red-200">
                   <strong>License Limit Exceeded:</strong> {licenseStatus.reason || 'Cannot add more devices.'}
                 </p>
+              </div>
+            )}
+
+            {/* Renewal Link for Paid Licenses */}
+            {licenseStatus.tier !== 'free' && (
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">
+                      {licenseStatus.expiresAt && new Date(licenseStatus.expiresAt).getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000
+                        ? '⚠️ License Expiring Soon'
+                        : '💎 Premium License Active'}
+                    </p>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      {licenseStatus.expiresAt && new Date(licenseStatus.expiresAt).getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000
+                        ? 'Your license is expiring soon. Renew now to continue enjoying premium features.'
+                        : 'Need more devices or want to extend your license? Visit our renewal page.'}
+                    </p>
+                  </div>
+                  <a
+                    href="https://theiacast.com/renew"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+                  >
+                    Renew License
+                  </a>
+                </div>
               </div>
             )}
           </div>

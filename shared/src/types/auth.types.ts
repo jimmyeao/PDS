@@ -96,6 +96,7 @@ export interface LicenseStatus {
   isValid: boolean;
   isInGracePeriod: boolean;
   gracePeriodEndsAt?: Date;
+  expiresAt?: Date;
   reason?: string;
 }
 
